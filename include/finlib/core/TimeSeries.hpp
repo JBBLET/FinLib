@@ -1,17 +1,21 @@
 //TimeSeries.hpp
 #pragma once
 
-#include <iostream>
+#include<iostream>
 #include<vector>
 #include<stdexcept>
 #include<algorithm>
+#include <execution>
 #include<functional>
 
+enum class InterpolationStrategy { Linear, Stochastic, Nearest };
 
 class TimeSeries{
     private:
         std::vector<int64_t> timestamps;
         std::vector<double> values;
+
+        std::vector<double> partial_walk(const std::vector<int64_t>& target_timestamps, size_t start_idx, size_t end_idx,InterpolationStrategy strategy) const;
     public:
         TimeSeries(std::vector<int64_t> ts, std::vector<double> vals)
             : timestamps(std::move(ts)), values(std::move(vals)){
@@ -22,12 +26,20 @@ class TimeSeries{
             
         size_t size() const {return values.size();}
         const std::vector<double>& get_values() const {return values;}
+        const std::vector<int64_t>& get_timestamps() const {return timestamps;}
 
-        TimeSeries operator+(const TimeSeries& other) const;
+        TimeSeries resampling(const std::vector<int64_t>& targetTimestamps, InterpolationStrategy strategy ) const;
+        
+        // TimeSeries shift(int lag) const & ;
+        // TimeSeries shift(int lag) && ;
+
+        TimeSeries addUnion(const TimeSeries& other) const;
+        TimeSeries addIntersection(const TimeSeries& other) const;
+        TimeSeries addResampling(const TimeSeries& other, InterpolationStrategy strategy);
+
         TimeSeries operator*(const TimeSeries& other) const;
         TimeSeries operator*(double scalar) const;
-        TimeSeries shift(int lag) const & ;
-        TimeSeries shift(int lag) && ;
+
 
         template <typename Func>
         TimeSeries apply(Func func) const & {
