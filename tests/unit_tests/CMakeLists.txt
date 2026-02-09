@@ -1,11 +1,35 @@
-#add_executable(test_timeseries
-  #test_timeseries.cpp
-  #)
+add_executable(resampling_test
+    time_series_resampling_test.cpp
+)
 
-  #target_link_libraries(test_timeseries
-  # PRIVATE
-  #     finlib_core
-  #     gtest_main
-  #)
+add_executable(operation_test
+  time_series_operation_test.cpp
+)
+target_link_libraries(resampling_test
+    PRIVATE
+        finlib_core
+        gtest_main
+)
 
-  #add_test(NAME TimeSeriesUnitTest COMMAND test_timeseries)
+target_link_libraries(operation_test
+    PRIVATE
+        finlib_core
+        gtest_main
+)
+
+add_test(
+  NAME TimeSeriesResamplingTest
+    COMMAND resampling_test
+)
+
+add_test(
+  NAME TimeSeriesOperationTest
+    COMMAND operation_test
+)
+
+set_tests_properties(
+    TimeSeriesResamplingTest
+    TimeSeriesOperationTest
+    PROPERTIES
+        LABELS "unit"
+      )
