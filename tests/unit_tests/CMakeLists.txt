@@ -5,6 +5,17 @@ add_executable(resampling_test
 add_executable(operation_test
   time_series_operation_test.cpp
 )
+
+add_executable(time_series_view_test
+  time_series_view_test.cpp
+)
+
+target_link_libraries(time_series_view_test
+    PRIVATE
+        finlib_core
+        gtest_main
+)
+
 target_link_libraries(resampling_test
     PRIVATE
         finlib_core
@@ -27,9 +38,15 @@ add_test(
     COMMAND operation_test
 )
 
+add_test(
+  NAME TimeSeriesViewTest
+    COMMAND time_series_view_test
+)
+
 set_tests_properties(
     TimeSeriesResamplingTest
     TimeSeriesOperationTest
+    TimeSeriesViewTest
     PROPERTIES
         LABELS "unit"
       )

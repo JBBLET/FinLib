@@ -11,11 +11,12 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include "finlib/core/TimeSeriesView.hpp"
 
 enum class InterpolationStrategy { Linear, Stochastic, Nearest };
 using TimestampPtr = std::shared_ptr<const std::vector<int64_t>>;
 
-class TimeSeries {
+class TimeSeries: public std::enable_shared_from_this<TimeSeries> {
  private:
     TimestampPtr timestamps;
     std::vector<double> values;
@@ -83,6 +84,18 @@ class TimeSeries {
     friend std::ostream& operator<<(std::ostream& os, const TimeSeries& obj);
 
     // Transformation Method
+    TimeSeriesView view() const {
+        return TimeSeriesView(shared_from_this(), 0, values.size());
+    }
+
+    TimeSeriesView slice(size_t start, size_t len) const {
+        return TimeSeriesView(shared_from_this(), start, len);
+    }
+
+    TimeSeriesView slice_index(size_t start, size_t end) const {
+        return TimeSeriesView(shared_from_this(), start, end-start+1);
+    }
+
     TimeSeries resampling(const std::vector<int64_t>& targetTimestamps,
                           InterpolationStrategy strategy,
                           std::optional<uint32_t> seed = std::nullopt) const;
