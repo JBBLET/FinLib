@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
 import sys
 import yfinance as yf
 import pandas as pd
+
 
 def main():
     if len(sys.argv) != 5:
@@ -9,8 +9,8 @@ def main():
         sys.exit(1)
 
     symbol = sys.argv[1]
-    start  = sys.argv[2]   # e.g. 2023-01-01
-    end    = sys.argv[3]   # e.g. 2024-01-01
+    start = sys.argv[2]  # e.g. 2023-01-01
+    end = sys.argv[3]  # e.g. 2024-01-01
     interval = sys.argv[4]
 
     df = yf.download(symbol, start=start, end=end, interval=interval, progress=False)
@@ -33,6 +33,7 @@ def main():
     print("timestamp,value")
     for t, v in zip(ts, prices):
         print(f"{t},{v}")
+
 
 if __name__ == "__main__":
     main()
