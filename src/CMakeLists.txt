@@ -5,6 +5,7 @@
 # --------------------
 add_library(finlib_core
     core/TimeSeries.cpp
+    core/TimeSeriesView.cpp
     utils/time.cpp
 )
 
