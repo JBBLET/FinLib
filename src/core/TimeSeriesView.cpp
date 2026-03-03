@@ -5,8 +5,6 @@
 #include <memory>
 #include "finlib/core/TimeSeries.hpp"
 
-
-
 using std::vector;
 using std::shared_ptr;
 using std::make_shared;
@@ -19,10 +17,6 @@ TimeSeriesView::TimeSeriesView(std::shared_ptr<const TimeSeries> src,
         (begin_ + length_ - value_lag_) > source_->size()) {
         throw std::out_of_range("View window/lag exceeds data boundaries");
     }
-}
-
-double TimeSeriesView::operator[](size_t i) const {
-    return source_->get_values()[begin_ + i - value_lag_];
 }
 
 int64_t TimeSeriesView::timestamp(size_t i) const {
