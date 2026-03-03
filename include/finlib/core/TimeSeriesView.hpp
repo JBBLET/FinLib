@@ -19,10 +19,22 @@ class TimeSeriesView {
     std::shared_ptr<std::vector<int64_t>> get_copy_timestamps_in_view() const;
 
  public:
+    const double* begin() const noexcept {
+        return &(source_->get_values()[begin_ - value_lag_]);
+    }
+
+    const double* end() const noexcept {
+        return begin()+length_;
+    }
+
+    double operator[](size_t i) const {
+        return source_->get_values()[begin_ + i - value_lag_];
+    }
+
     TimeSeriesView(std::shared_ptr<const TimeSeries> src,
                    size_t start, size_t len, int lag = 0);
 
-    size_t const size() {return length_;}
+    size_t  size() const noexcept {return length_;}
 
     TimeSeriesView slice(size_t sub_start, size_t sub_len) const {
         return TimeSeriesView(source_, begin_ + sub_start, sub_len, value_lag_);
@@ -43,8 +55,6 @@ class TimeSeriesView {
     TimeSeries operator+(const TimeSeriesView& other) const;
     TimeSeries operator-(const TimeSeriesView& other) const;
     TimeSeries operator*(const TimeSeriesView& other) const;
-
-    double operator[](size_t i) const;
 
     int64_t timestamp(size_t i) const;
 
