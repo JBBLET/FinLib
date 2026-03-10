@@ -1,6 +1,10 @@
 # Prerequisites
 *.d
 
+#format files
+*.clang-format
+compile_commands.json
+
 # Compiled Object files
 *.slo
 *.lo

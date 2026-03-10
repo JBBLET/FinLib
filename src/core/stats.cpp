@@ -1,7 +1,13 @@
 // Copyright 2026 JBBLET
 
-#include <vector>
 #include "finlib/core/stats.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <vector>
+
+#include "finlib/core/TimeSeriesView.hpp"
+using std::size_t;
 
 namespace analysis::stats {
 
@@ -32,45 +38,135 @@ double variance_slow(const TimeSeriesView& view, VarianceType type) {
         ++count;
         double x = *first;
         double delta = x - mean;
-        mean += delta/count;
+        mean += delta / count;
         double delta2 = x - mean;
         M2 += delta * delta2;
     }
-    if (type == Sample) {
-        if (count < 2)
-            throw std::invalid_argument("Sample variance of a single point is undefined");
-        return M2/(count-1)
+    if (type == VarianceType::Sample) {
+        if (count < 2) throw std::invalid_argument("Sample variance of a single point is undefined");
+        return M2 / (count - 1);
     }
-    if (type == Population) {
-        return (M2/count)
+    if (type == VarianceType::Population) {
+        return (M2 / count);
     }
     throw std::invalid_argument("Variance Type undefined");
 }
 
 double variance_fast(const TimeSeriesView& view, VarianceType type) {
-    size_t n =  view.size();
+    size_t n = view.size();
     if (n == 0) return 0.0;
 
-    double mean = mean(view);
+    double avg = mean(view);
     const double* first = view.begin();
     const double* last = view.end();
-    const double M2 = 0.0;
+    double M2 = 0.0;
 
     for (; first != last; ++first) {
-        M2 += (*first - mean)*(*first - mean)
+        M2 += (*first - avg) * (*first - avg);
     }
-    if (type == Sample) {
-        if (count < 2)
-            throw std::invalid_argument("Sample variance of a single point is undefined");
-        return M2/(count-1)
+    if (type == VarianceType::Sample) {
+        if (n < 2) throw std::invalid_argument("Sample variance of a single point is undefined");
+        return M2 / (n - 1);
     }
-    if (type == Population) {
-        return (M2/count)
+    if (type == VarianceType::Population) {
+        return (M2 / n);
     }
     throw std::invalid_argument("Variance Type undefined");
 }
 
 double std_deviation(const TimeSeriesView& view, VarianceType type) {
-    return std::sqrt(variance_slow(view, type));
+    double variance = variance_slow(view, type);
+    return std::sqrt(variance);
+}
+
+double skewness(const TimeSeriesView& view) {
+    size_t n = view.size();
+    if (n == 0) return 0.0;
+
+    double avg = mean(view);
+    double std = std_deviation(view, VarianceType::Population);
+    const double* first = view.begin();
+    const double* last = view.end();
+    double M3 = 0.0;
+    for (; first != last; ++first) {
+        double z = (*first - avg) / std;
+        double z2 = z * z;
+        M3 += z2 * z;
+    }
+    return M3 / n;
+}
+
+double kurtosis(const TimeSeriesView& view) {
+    size_t n = view.size();
+    if (n == 0) return 0.0;
+
+    double avg = mean(view);
+    double std = std_deviation(view, VarianceType::Population);
+    const double* first = view.begin();
+    const double* last = view.end();
+    double M3 = 0.0;
+    for (; first != last; ++first) {
+        double z = (*first - avg) / std;
+        double z2 = z * z;
+        M3 += z2 * z2;
+    }
+    if (n < 4) throw std::invalid_argument("Kurtoisis undefined");
+    return M3 / (n - 3);
+}
+
+double autocorrelation_at(const TimeSeriesView& view, size_t lag) {
+    size_t n = view.size();
+    const double* start = view.begin();
+    double avg = mean(view);
+
+    double den = n * variance_slow(view, VarianceType::Population);
+
+    if (den == 0.0) return 0.0;
+
+    double num = 0.0;
+    const double* current = start + lag;
+    const double* delayed = start;
+
+    for (size_t i = lag; i < n; ++i) {
+        num += (*current - avg) * (*delayed - avg);
+        current++;
+        delayed++;
+    }
+
+    return num / den;
+}
+
+std::vector<double> acf(const TimeSeriesView& view, size_t maximum_lag) {
+    size_t n = view.size();
+    size_t actual_max_lag = std::min(maximum_lag, n - 1);
+    std::vector<double> acf_coeffs;
+    acf_coeffs.reserve(actual_max_lag + 1);
+
+    double avg = mean(view);
+
+    double denominator = 0.0;
+    const double* data = view.begin();
+    for (size_t i = 0; i < n; ++i) {
+        double d = data[i] - avg;
+        denominator += d * d;
+    }
+
+    if (denominator == 0.0) {
+        return std::vector<double>(actual_max_lag + 1, 0.0);
+    }
+
+    for (size_t lag = 0; lag <= actual_max_lag; ++lag) {
+        double numerator = 0.0;
+        const double* current = data + lag;
+        const double* delayed = data;
+
+        for (size_t i = 0; i < n - lag; ++i) {
+            numerator += (*delayed - avg) * (*current - avg);
+            delayed++;
+            current++;
+        }
+        acf_coeffs.push_back(numerator / denominator);
+    }
+    return acf_coeffs;
 }
 }  //  namespace analysis::stats

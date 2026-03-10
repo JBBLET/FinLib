@@ -4,7 +4,7 @@ project(FinancialTimeSeriesLib VERSION 0.1)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # --- Options ---
 option(BUILD_TESTS "Build unit tests" ON)
 option(BUILD_BENCHMARKS "Build benchmarks" OFF) # Off by default to save time

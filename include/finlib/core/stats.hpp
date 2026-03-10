@@ -1,17 +1,17 @@
 // Copyright 2026 JBBLET
 #pragma once
 
-#include<vector>
+#include <vector>
 class TimeSeriesView;
 
 namespace analysis::stats {
 
 // Standard
-enum class VarianceType {Population, Sample};
+enum class VarianceType { Population, Sample };
 double mean(const TimeSeriesView& view);
-double variance_fast(const TimeSeriesView& view, VarianceType type = Sample);
-double variance_slow(const TimeSeriesView& view, VarianceType type = Sample);
-double std_deviation(const TimeSeriesView& view, VarianceType type = Sample);
+double variance_fast(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double variance_slow(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double std_deviation(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
 
 double skewness(const TimeSeriesView& view);
 double kurtosis(const TimeSeriesView& view);

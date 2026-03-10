@@ -4,44 +4,38 @@
 
 #include <algorithm>
 #include <execution>
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
-#include "finlib/core/TimeSeriesView.hpp"
+
+class TimeSeriesView;
 
 enum class InterpolationStrategy { Linear, Stochastic, Nearest };
 using TimestampPtr = std::shared_ptr<const std::vector<int64_t>>;
 
-class TimeSeries: public std::enable_shared_from_this<TimeSeries> {
+class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
  private:
     TimestampPtr timestamps;
     std::vector<double> values;
 
-    std::vector<double> partial_walk(
-        const std::vector<int64_t>& target_timestamps, size_t start_idx,
-        size_t end_idx, InterpolationStrategy strategy,
-        std::optional<uint32_t> seed) const;
+    std::vector<double> partial_walk(const std::vector<int64_t>& target_timestamps, size_t start_idx, size_t end_idx,
+                                     InterpolationStrategy strategy, std::optional<uint32_t> seed) const;
 
  public:
     TimeSeries(std::vector<int64_t> ts, std::vector<double> vals)
-        : timestamps(
-              std::make_shared<const std::vector<int64_t>>(std::move(ts))),
-          values(std::move(vals)) {
+        : timestamps(std::make_shared<const std::vector<int64_t>>(std::move(ts))), values(std::move(vals)) {
         if (timestamps->size() != values.size()) {
-            throw std::invalid_argument(
-                "Size mismatch between timestamps and values");
+            throw std::invalid_argument("Size mismatch between timestamps and values");
         }
     }
 
     TimeSeries(std::shared_ptr<const std::vector<int64_t>> ts, std::vector<double> vals)
         : timestamps(std::move(ts)), values(std::move(vals)) {
         if (timestamps->size() != values.size()) {
-            throw std::invalid_argument(
-                "Size mismatch between timestamps and values");
+            throw std::invalid_argument("Size mismatch between timestamps and values");
         }
     }
 
@@ -84,20 +78,13 @@ class TimeSeries: public std::enable_shared_from_this<TimeSeries> {
     friend std::ostream& operator<<(std::ostream& os, const TimeSeries& obj);
 
     // Transformation Method
-    TimeSeriesView view() const {
-        return TimeSeriesView(shared_from_this(), 0, values.size());
-    }
+    TimeSeriesView view() const;
 
-    TimeSeriesView slice(size_t start, size_t len) const {
-        return TimeSeriesView(shared_from_this(), start, len);
-    }
+    TimeSeriesView slice(size_t start, size_t len) const;
 
-    TimeSeriesView slice_index(size_t start, size_t end) const {
-        return TimeSeriesView(shared_from_this(), start, end-start+1);
-    }
+    TimeSeriesView slice_index(size_t start, size_t end) const;
 
-    TimeSeries resampling(const std::vector<int64_t>& targetTimestamps,
-                          InterpolationStrategy strategy,
+    TimeSeries resampling(const std::vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
                           std::optional<uint32_t> seed = std::nullopt) const;
 
     template <typename Func>
@@ -105,11 +92,9 @@ class TimeSeries: public std::enable_shared_from_this<TimeSeries> {
         // Create a new Time-series Object
         std::vector<double> new_vals(values.size());
         if (values.size() < 1000) {
-            std::transform(values.begin(), values.end(), new_vals.begin(),
-                           func);
+            std::transform(values.begin(), values.end(), new_vals.begin(), func);
         } else {
-            std::transform(std::execution::par, values.begin(), values.end(),
-                           new_vals.begin(), func);
+            std::transform(std::execution::par, values.begin(), values.end(), new_vals.begin(), func);
         }
         return TimeSeries(this->timestamps, std::move(new_vals));
     }
@@ -119,8 +104,7 @@ class TimeSeries: public std::enable_shared_from_this<TimeSeries> {
         if (values.size() < 1000) {
             std::transform(values.begin(), values.end(), values.begin(), func);
         } else {
-            std::transform(std::execution::par, values.begin(), values.end(),
-                           values.begin(), func);
+            std::transform(std::execution::par, values.begin(), values.end(), values.begin(), func);
         }
         return std::move(*this);
     }
@@ -130,8 +114,7 @@ class TimeSeries: public std::enable_shared_from_this<TimeSeries> {
         if (values.size() < 1000) {
             std::transform(values.begin(), values.end(), values.begin(), func);
         } else {
-            std::transform(std::execution::par, values.begin(), values.end(),
-                           values.begin(), func);
+            std::transform(std::execution::par, values.begin(), values.end(), values.begin(), func);
         }
         return *this;
     }
