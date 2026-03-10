@@ -6,7 +6,9 @@
 add_library(finlib_core
     core/TimeSeries.cpp
     core/TimeSeriesView.cpp
+    core/stats.cpp
     utils/time.cpp
+
 )
 
 target_include_directories(finlib_core
