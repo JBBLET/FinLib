@@ -5,6 +5,7 @@
 *.clang-format
 compile_commands.json
 
+
 # Compiled Object files
 *.slo
 *.lo
@@ -49,3 +50,10 @@ compile_commands.json
 build/
 venv/
 Testing/
+
+*.idx
+.cache/
+.ruff_cache/
+
+bin/
+lib/
