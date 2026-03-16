@@ -1,6 +1,7 @@
 // Copyright 2026 JBBLET
 #pragma once
 
+#include <Eigen/Dense>
 #include <vector>
 class TimeSeriesView;
 
@@ -15,10 +16,14 @@ double std_deviation(const TimeSeriesView& view, VarianceType type = VarianceTyp
 
 double skewness(const TimeSeriesView& view);
 double kurtosis(const TimeSeriesView& view);
+double excess_kurtosis(const TimeSeriesView&);
+double autocorrelation_at(const TimeSeriesView& view, size_t lag);
+std::vector<double> acf(const TimeSeriesView& view, size_t max_lag);
+std::vector<double> pacf(const TimeSeriesView& view, size_t max_lag);
+std::vector<double> autocovariances(const TimeSeriesView& view, size_t max_lag);
 
-double autocorrelation_at(const TimeSeriesView& view, std::size_t lag);
-std::vector<double> acf(const TimeSeriesView& view, std::size_t max_lag);
-std::vector<double> pacf(const TimeSeriesView& view, std::size_t max_lag);
+Eigen::MatrixXd toeplitz(const TimeSeriesView& view, size_t max_lag);
+Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t max_lag);
 }  // namespace analysis::stats
 
 namespace analysis::hypothesisTesting {

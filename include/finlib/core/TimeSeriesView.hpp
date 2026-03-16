@@ -1,6 +1,7 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
 
+#include <Eigen/Dense>
 #include <memory>
 #include <vector>
 
@@ -8,7 +9,7 @@
 
 class TimeSeries;
 
-class TimeSeriesView {
+class TimeSeriesView : public std::enable_shared_from_this<TimeSeriesView> {
  private:
     std::shared_ptr<const TimeSeries> source_;
     size_t begin_;
@@ -50,4 +51,10 @@ class TimeSeriesView {
     int64_t timestamp(size_t i) const;
 
     TimeSeries to_series() const;
+
+    inline Eigen::Map<const Eigen::VectorXd> as_eigen_vector() const {
+        return Eigen::Map<const Eigen::VectorXd>(this->begin(), length_);
+    }
+
+    std::shared_ptr<const TimeSeriesView> get_shared() const { return shared_from_this(); }
 };

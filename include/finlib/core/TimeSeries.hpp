@@ -1,5 +1,4 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
-// TimeSeries.hpp
 #pragma once
 
 #include <algorithm>
@@ -91,7 +90,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimeSeries apply(Func func) const& {
         // Create a new Time-series Object
         std::vector<double> new_vals(values.size());
-        if (values.size() < 1000) {
+        if (values.size() < 20000) {
             std::transform(values.begin(), values.end(), new_vals.begin(), func);
         } else {
             std::transform(std::execution::par, values.begin(), values.end(), new_vals.begin(), func);
@@ -101,7 +100,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 
     template <typename Func>
     TimeSeries apply(Func func) && {
-        if (values.size() < 1000) {
+        if (values.size() < 20000) {
             std::transform(values.begin(), values.end(), values.begin(), func);
         } else {
             std::transform(std::execution::par, values.begin(), values.end(), values.begin(), func);
@@ -111,7 +110,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 
     template <typename Func>
     TimeSeries& applyInPlace(Func func) {
-        if (values.size() < 1000) {
+        if (values.size() < 20000) {
             std::transform(values.begin(), values.end(), values.begin(), func);
         } else {
             std::transform(std::execution::par, values.begin(), values.end(), values.begin(), func);
