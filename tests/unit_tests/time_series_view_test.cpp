@@ -1,6 +1,9 @@
+// "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include <gtest/gtest.h>
+
 #include <memory>
 #include <vector>
+
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -10,9 +13,7 @@ class TimeSeriesViewTest : public ::testing::Test {
     std::vector<double> vals = {10.0, 20.0, 30.0, 40.0, 50.0};
     std::shared_ptr<TimeSeries> series;
 
-    void SetUp() override {
-        series = std::make_shared<TimeSeries>(ts, vals);
-    }
+    void SetUp() override { series = std::make_shared<TimeSeries>(ts, vals); }
 };
 
 TEST_F(TimeSeriesViewTest, TimeSeriesProducesFullView) {
@@ -24,7 +25,7 @@ TEST_F(TimeSeriesViewTest, TimeSeriesProducesFullView) {
 
 TEST_F(TimeSeriesViewTest, TimeSeriesSliceIndexCorrectness) {
     // Slice from index 1 to 3 (inclusive: 2000, 3000, 4000)
-    auto view = series->slice_index(1, 3);
+    auto view = series->sliceIndex(1, 3);
     EXPECT_EQ(view.size(), 3);
     EXPECT_EQ(view.timestamp(0), 2000);
     EXPECT_EQ(view.timestamp(2), 4000);
@@ -36,8 +37,8 @@ TEST_F(TimeSeriesViewTest, ScalarArithmeticMaterialization) {
     TimeSeries result = view + 5.0;   // Should be {25, 35, 45}
 
     EXPECT_EQ(result.size(), 3);
-    EXPECT_EQ(result.get_values()[0], 25.0);
-    EXPECT_EQ(result.get_timestamps()[0], 2000);  // Check that timestamps materialized correctly
+    EXPECT_EQ(result.getValues()[0], 25.0);
+    EXPECT_EQ(result.getTimestamps()[0], 2000);  // Check that timestamps materialized correctly
 }
 
 TEST_F(TimeSeriesViewTest, LagShiftLogic) {
@@ -60,10 +61,10 @@ TEST_F(TimeSeriesViewTest, ViewSubtractionLogReturnsStyle) {
     TimeSeries diff = v_now - v_past;
 
     EXPECT_EQ(diff.size(), 3);
-    EXPECT_EQ(diff.get_values()[0], 10.0);  // 20 - 10
-    EXPECT_EQ(diff.get_values()[1], 10.0);  // 30 - 20
-    EXPECT_EQ(diff.get_values()[2], 10.0);  // 40 - 30
-    EXPECT_EQ(diff.get_timestamps()[0], 2000);
+    EXPECT_EQ(diff.getValues()[0], 10.0);  // 20 - 10
+    EXPECT_EQ(diff.getValues()[1], 10.0);  // 30 - 20
+    EXPECT_EQ(diff.getValues()[2], 10.0);  // 40 - 30
+    EXPECT_EQ(diff.getTimestamps()[0], 2000);
 }
 
 TEST_F(TimeSeriesViewTest, OutOfBoundsLagThrows) {

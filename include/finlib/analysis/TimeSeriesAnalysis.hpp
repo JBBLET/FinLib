@@ -18,7 +18,7 @@ class TimeSeriesAnalysis {
 
     double mean() const;
     double variance(stats::VarianceType type = stats::VarianceType::Sample) const;
-    double std_dev() const;
+    double standardDeviation() const;
     double skewness() const;
     double kurtosis() const;
 
@@ -27,22 +27,22 @@ class TimeSeriesAnalysis {
     const std::vector<double>& autocovariances(size_t max_lag) const;
 
     Eigen::MatrixXd toeplitz(size_t max_lag);
-    double z_score(double value) const;
-    bool is_outlier(double value, double threshold = 3.0) const;
+    double zScore(double value) const;
+    bool isOutlier(double value, double threshold = 3.0) const;
 
-    void invalidate_cache();
+    void invalidateCache();
 
  private:
     TimeSeriesView view_;
 
-    mutable std::optional<double> cached_mean_;
-    mutable std::optional<double> cached_var_sample_;
-    mutable std::optional<double> cached_var_population_;
-    mutable std::optional<double> cached_skew_;
-    mutable std::optional<double> cached_kurt_;
-    mutable std::optional<std::vector<double>> cached_acf_;
-    mutable std::optional<std::vector<double>> cached_autocovariances_;
-    mutable std::optional<Eigen::MatrixXd> cached_toeplitz_;
+    mutable std::optional<double> cachedMean_;
+    mutable std::optional<double> cachedVarianceSample_;
+    mutable std::optional<double> cachedVariancePopulation_;
+    mutable std::optional<double> cachedSkewness_;
+    mutable std::optional<double> cachedKurtosis_;
+    mutable std::optional<std::vector<double>> cachedACF_;
+    mutable std::optional<std::vector<double>> cachedAutocovariances_;
+    mutable std::optional<Eigen::MatrixXd> cachedToeplitz_;
 };
 
 }  // namespace analysis

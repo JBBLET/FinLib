@@ -14,6 +14,7 @@ option(BUILD_PYTHON "Build Python bindings" ON)
 # Find Eigen, OpenMP, etc. here
 include(FetchContent)
 
+# Eigen Content and Settings
 FetchContent_Declare(
   Eigen
   GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git

@@ -1,3 +1,4 @@
+// "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
 #include <string>
 
@@ -7,5 +8,5 @@ class ITimeSeriesLoader {
  public:
     virtual ~ITimeSeriesLoader() = default;
 
-    virtual TimeSeries load(const std::string& id, int64_t start_ts, int64_t end_ts) = 0;
+    virtual TimeSeries load(const std::string& id, int64_t startTimestamp, int64_t endTimestamp) = 0;
 };

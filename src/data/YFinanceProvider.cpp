@@ -15,7 +15,7 @@ TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, i
     std::string start = msToStringDate(start_ts);
     std::string end = msToStringDate(end_ts);
 
-    std::string cmd = python_ + " " + script_path_ + " \"" + symbol + "\" \"" + start + "\" \"" + end + "\" \"1d\"";
+    std::string cmd = python_ + " " + scriptPath_ + " \"" + symbol + "\" \"" + start + "\" \"" + end + "\" \"1d\"";
 
     std::cerr << "CMD: " << cmd << std::endl;
 

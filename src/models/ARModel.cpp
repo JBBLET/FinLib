@@ -8,100 +8,115 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/models/interfaces/IModel.hpp"
+
 namespace models {
 void ARModel::fit() {
-    auto data = train_view_.as_eigen_vector();
+    if (!fullView_->checkRegularity(0.2).isRegular)
+        throw std::runtime_error("AR Model need the TimeSeries to be regularly spaced");
+    auto data = trainView_.asEigenVector();
     size_t n = data.size();
     if (n <= q_) throw std::runtime_error("Insufficient data points");
     size_t rows = n - q_;
 
     using RowMajorMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-    Eigen::Map<const RowMajorMatrix, Eigen::Unaligned, Eigen::Stride<1, 1>> lag_matrix(data.data(), rows, q_);
+    Eigen::Map<const RowMajorMatrix, Eigen::Unaligned, Eigen::Stride<1, 1>> lagMatrix(data.data(), rows, q_);
 
     Eigen::VectorXd Y = data.tail(rows);
     Eigen::MatrixXd X(rows, q_ + 1);
     X.col(0).setOnes();
-    X.rightCols(q_) = lag_matrix;
+    X.rightCols(q_) = lagMatrix;
     switch (solver_) {
         case ARModel::Solver::OLS:
-            least_square_solver_(X, Y);
+            leastSquareSolver_(X, Y);
             break;
         case ARModel::Solver::YuleWalker:
-            yule_walker_solver_();
+            yuleWalkerSolver_();
             break;
         case models::ARModel::Solver::LevinsonDurbin:
-            levinson_durbin_solver_();
+            levinsonDurbinSolver_();
             break;
     }
     Eigen::VectorXd coeffs;
     coeffs.resize(q_ + 1);
     coeffs << intercept_, phi_.head(q_);
     Eigen::VectorXd residuals = Y - (X * coeffs);
-    sigma_epsilon_ = std::sqrt(residuals.squaredNorm() / (n - (q_ + 1)));
-    is_fitted_ = true;
+    sigmaEpsilon_ = std::sqrt(residuals.squaredNorm() / (n - (q_ + 1)));
+    isFitted_ = true;
+    evaluate(testView_);
 }
 
-std::vector<double> ARModel::predict_ts(const std::vector<int64_t> points) const {}
-
-std::vector<double> ARModel::predict_points(int64_t steps) const {
-    Eigen::VectorXd X;
-    X.resize(q_ + steps);
-    auto data = test_view_.as_eigen_vector();
-    X << data.tail(q_);
+double ARModel::predictOneStep(const Eigen::VectorXd& window) const {
+    if (!isFitted_) throw std::runtime_error("AR Model need to be fitted before predicting");
+    double prediction = phi_.dot(window.reverse()) + intercept_;
+    return prediction;
 }
 
-EvaluationResult ARModel::evaluate(const TimeSeriesView& view) const {}
+EvaluationResult ARModel::evaluate(const TimeSeriesView& view) {
+    if (!isFitted_) throw std::runtime_error("AR Model need to be fitted before predicting");
+    if (!fullView_->checkRegularity(0.2).isRegular)
+        throw std::runtime_error("AR Model need the TimeSeries to be regularly spaced");
+    auto data = view.asEigenVector();
+    size_t n = data.size();
+    std::vector<double> prediction;
+    prediction.resize(n - q_);
+    double sumSquaredErrors = 0.0;
+    double sumAbsoluteErrors = 0.0;
+    for (size_t i = q_; i < n; ++i) {
+        auto window = data.segment(i - q_, q_);
+        prediction[i - q_] = phi_.dot(window.reverse()) + intercept_;
+    }
+    std::vector<double> actual(data.data() + q_, data.data() + q_ + n - q_);
+    EvaluationResult modelEvaluationResult;
+    modelEvaluationResult.computeRegressionMetrics(actual, prediction, q_, sigmaEpsilon_);
+    return modelEvaluationResult;
+}
 
-void ARModel::yule_walker_solver_() {
-    std::vector<double> gamma = train_analysis.autocovariances(q_);
-    Eigen::MatrixXd R = train_analysis.toeplitz(q_);
+void ARModel::yuleWalkerSolver_() {
+    std::vector<double> gamma = trainAnalysis->autocovariances(q_);
+    Eigen::MatrixXd R = trainAnalysis->toeplitz(q_);
     Eigen::VectorXd r(q_);
     for (int i = 0; i < q_; ++i) {
         r(i) = gamma[i + 1];
     }
     Eigen::VectorXd beta = R.ldlt().solve(r);
-    intercept_ = (1 - std::accumulate(beta.begin(), beta.end(), 0.0)) * train_analysis.mean();
+    intercept_ = (1 - std::accumulate(beta.begin(), beta.end(), 0.0)) * trainAnalysis->mean();
     phi_ = beta;
 }
 
-void ARModel::least_square_solver_(const Eigen::MatrixXd& X, const Eigen::VectorXd& Y) {
+void ARModel::leastSquareSolver_(const Eigen::MatrixXd& X, const Eigen::VectorXd& Y) {
     Eigen::VectorXd beta = X.colPivHouseholderQr().solve(Y);
     intercept_ = beta(0);
-    phi_ = beta.tail(q_);
+    phi_ = beta.tail(q_).reverse();
 }
 
-void ARModel::levinson_durbin_solver_() {
-    std::vector<double> gamma = train_analysis.autocovariances(q_);
+void ARModel::levinsonDurbinSolver_() {
+    std::vector<double> gamma = trainAnalysis->autocovariances(q_);
     Eigen::VectorXd phi(q_);
-    Eigen::VectorXd phi_prev(q_);
+    Eigen::VectorXd phiPrevious(q_);
 
     double sigma = gamma[0];
     for (int k = 0; k < q_; ++k) {
         double sum = 0.0;
-
-        for (int j = 0; j < k; ++j) sum += phi_prev[j] * gamma[k - j];
-
+        for (int j = 0; j < k; ++j) {
+            sum += phiPrevious[j] * gamma[k - j];
+        }
         double lambda = (gamma[k + 1] - sum) / sigma;
-
         phi[k] = lambda;
-
-        for (int j = 0; j < k; ++j) phi[j] = phi_prev[j] - lambda * phi_prev[k - j - 1];
-
+        for (int j = 0; j < k; ++j) {
+            phi[j] = phiPrevious[j] - lambda * phiPrevious[k - j - 1];
+        }
         sigma *= (1.0 - lambda * lambda);
-
-        phi_prev = phi;
+        phiPrevious = phi;
     }
-    intercept_ = (1 - std::accumulate(phi.begin(), phi.end(), 0.0)) * train_analysis.mean();
+    intercept_ = (1 - std::accumulate(phi.begin(), phi.end(), 0.0)) * trainAnalysis->mean();
     phi_ = phi;
 }
 
-bool ARModel::is_stationary() const {
-    if (!is_fitted_) return false;
-
+bool ARModel::isStationary() const {
+    if (!isFitted_) return false;
     Eigen::MatrixXd companion = Eigen::MatrixXd::Zero(q_, q_);
-
     companion.row(0) = phi_.transpose();
-
     // Identity matrix below the first row (shifted)
     if (q_ > 1) {
         companion.block(1, 0, q_ - 1, q_ - 1).setIdentity();

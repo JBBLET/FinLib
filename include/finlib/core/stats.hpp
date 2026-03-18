@@ -10,14 +10,14 @@ namespace analysis::stats {
 // Standard
 enum class VarianceType { Population, Sample };
 double mean(const TimeSeriesView& view);
-double variance_fast(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
-double variance_slow(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
-double std_deviation(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double varianceFast(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double varianceSlow(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double standardDeviation(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
 
 double skewness(const TimeSeriesView& view);
 double kurtosis(const TimeSeriesView& view);
-double excess_kurtosis(const TimeSeriesView&);
-double autocorrelation_at(const TimeSeriesView& view, size_t lag);
+double excessKurtosis(const TimeSeriesView&);
+double autocorrelationAt(const TimeSeriesView& view, size_t lag);
 std::vector<double> acf(const TimeSeriesView& view, size_t max_lag);
 std::vector<double> pacf(const TimeSeriesView& view, size_t max_lag);
 std::vector<double> autocovariances(const TimeSeriesView& view, size_t max_lag);
@@ -33,10 +33,10 @@ struct HypothesisTestResult {
     double p_value;
 };
 
-HypothesisTestResult jarque_bera(const TimeSeriesView&);
+HypothesisTestResult jarqueBera(const TimeSeriesView&);
 HypothesisTestResult adf(const TimeSeriesView&);
-HypothesisTestResult breusch_pagan(const TimeSeriesView&);
-HypothesisTestResult breusch_godfrey(const TimeSeriesView&);
+HypothesisTestResult breuschPagan(const TimeSeriesView&);
+HypothesisTestResult breuschGodfrey(const TimeSeriesView&);
 }  // namespace analysis::hypothesisTesting
 
 namespace analysis::finance {

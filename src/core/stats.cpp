@@ -30,7 +30,7 @@ double mean(const TimeSeriesView& view) {
     return sum / static_cast<double>(view.size());
 }
 
-double variance_fast(const TimeSeriesView& view, VarianceType type) {
+double varianceFast(const TimeSeriesView& view, VarianceType type) {
     // TODO(JBBLET) Look into the parallel algorithm to at least improve a bit;
     size_t n = view.size();
     if (n == 0) return 0.0;
@@ -57,7 +57,7 @@ double variance_fast(const TimeSeriesView& view, VarianceType type) {
     throw std::invalid_argument("Variance Type undefined");
 }
 
-double variance_slow(const TimeSeriesView& view, VarianceType type) {
+double varianceSlow(const TimeSeriesView& view, VarianceType type) {
     size_t n = view.size();
     if (n == 0) return 0.0;
 
@@ -79,8 +79,8 @@ double variance_slow(const TimeSeriesView& view, VarianceType type) {
     throw std::invalid_argument("Variance Type undefined");
 }
 
-double std_deviation(const TimeSeriesView& view, VarianceType type) {
-    double variance = variance_fast(view, type);
+double standardDeviation(const TimeSeriesView& view, VarianceType type) {
+    double variance = varianceFast(view, type);
     return std::sqrt(variance);
 }
 
@@ -89,7 +89,7 @@ double skewness(const TimeSeriesView& view) {
     if (n == 0) return 0.0;
 
     double avg = mean(view);
-    double std = std_deviation(view, VarianceType::Population);
+    double std = standardDeviation(view, VarianceType::Population);
     const double* first = view.begin();
     const double* last = view.end();
     double M3 = 0.0;
@@ -106,7 +106,7 @@ double kurtosis(const TimeSeriesView& view) {
     if (n == 0) return 0.0;
 
     double avg = mean(view);
-    double std = std_deviation(view, VarianceType::Population);
+    double std = standardDeviation(view, VarianceType::Population);
     const double* first = view.begin();
     const double* last = view.end();
     double M3 = 0.0;
@@ -119,12 +119,12 @@ double kurtosis(const TimeSeriesView& view) {
     return M3 / n;
 }
 
-double excess_kurtosis(const TimeSeriesView& view) {
+double excessKurtosis(const TimeSeriesView& view) {
     size_t n = view.size();
     if (n == 0) return 0.0;
 
     double avg = mean(view);
-    double std = std_deviation(view, VarianceType::Population);
+    double std = standardDeviation(view, VarianceType::Population);
     const double* first = view.begin();
     const double* last = view.end();
     double M3 = 0.0;
@@ -137,12 +137,12 @@ double excess_kurtosis(const TimeSeriesView& view) {
     return M3 / n - 3;
 }
 
-double autocorrelation_at(const TimeSeriesView& view, size_t lag) {
+double autocorrelationAt(const TimeSeriesView& view, size_t lag) {
     size_t n = view.size();
     const double* start = view.begin();
     double avg = mean(view);
 
-    double den = n * variance_slow(view, VarianceType::Population);
+    double den = n * varianceFast(view, VarianceType::Population);
 
     if (den == 0.0) return 0.0;
 
@@ -159,11 +159,11 @@ double autocorrelation_at(const TimeSeriesView& view, size_t lag) {
     return num / den;
 }
 
-std::vector<double> acf(const TimeSeriesView& view, size_t maximum_lag) {
+std::vector<double> acf(const TimeSeriesView& view, size_t maxLag) {
     size_t n = view.size();
-    size_t actual_max_lag = std::min(maximum_lag, n - 1);
-    std::vector<double> acf_coeffs;
-    acf_coeffs.reserve(actual_max_lag + 1);
+    size_t actualMaxLag = std::min(maxLag, n - 1);
+    std::vector<double> acfCoeffs;
+    acfCoeffs.reserve(actualMaxLag + 1);
 
     double avg = mean(view);
 
@@ -175,10 +175,10 @@ std::vector<double> acf(const TimeSeriesView& view, size_t maximum_lag) {
     }
 
     if (denominator == 0.0) {
-        return std::vector<double>(actual_max_lag + 1, 0.0);
+        return std::vector<double>(actualMaxLag + 1, 0.0);
     }
 
-    for (size_t lag = 0; lag <= actual_max_lag; ++lag) {
+    for (size_t lag = 0; lag <= actualMaxLag; ++lag) {
         double numerator = 0.0;
         const double* current = data + lag;
         const double* delayed = data;
@@ -188,19 +188,19 @@ std::vector<double> acf(const TimeSeriesView& view, size_t maximum_lag) {
             delayed++;
             current++;
         }
-        acf_coeffs.push_back(numerator / denominator);
+        acfCoeffs.push_back(numerator / denominator);
     }
-    return acf_coeffs;
+    return acfCoeffs;
 }
 
-std::vector<double> autocovariances(const TimeSeriesView& view, size_t max_lag) {
+std::vector<double> autocovariances(const TimeSeriesView& view, size_t maxLag) {
     size_t n = view.size();
-    size_t actual_max_lag = std::min(max_lag, n - 1);
+    size_t actualMaxLag = std::min(maxLag, n - 1);
     std::vector<double> gamma;
-    gamma.reserve(actual_max_lag + 1);
+    gamma.reserve(actualMaxLag + 1);
     double avg = mean(view);
     const double* data = view.begin();
-    for (size_t lag = 0; lag <= actual_max_lag; ++lag) {
+    for (size_t lag = 0; lag <= actualMaxLag; ++lag) {
         double value = 0.0;
         const double* current = data + lag;
         const double* delayed = data;
@@ -214,26 +214,26 @@ std::vector<double> autocovariances(const TimeSeriesView& view, size_t max_lag) 
     return gamma;
 }
 
-Eigen::MatrixXd toeplitz(const TimeSeriesView& view, size_t max_lag) {
+Eigen::MatrixXd toeplitz(const TimeSeriesView& view, size_t maxLag) {
     size_t n = view.size();
-    size_t actual_max_lag = std::min(max_lag, n - 1);
-    Eigen::MatrixXd R(actual_max_lag, actual_max_lag);
-    std::vector<double> gamma = autocovariances(view, max_lag);
-    for (size_t i = 0; i < actual_max_lag; ++i) {
-        for (size_t j = 0; j < actual_max_lag; ++j) {
+    size_t actualMaxLag = std::min(maxLag, n - 1);
+    Eigen::MatrixXd R(actualMaxLag, actualMaxLag);
+    std::vector<double> gamma = autocovariances(view, maxLag);
+    for (size_t i = 0; i < actualMaxLag; ++i) {
+        for (size_t j = 0; j < actualMaxLag; ++j) {
             R(i, j) = gamma[std::abs(static_cast<int>(i - j))];
         }
     }
     return R;
 }
 
-Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t max_lag) {
+Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t maxLag) {
     size_t n = gamma.size();
-    if (n < max_lag - 1)
+    if (n < maxLag - 1)
         throw std::runtime_error("autocovariances size do not match the required for the toeplitz matrix");
-    Eigen::MatrixXd R(max_lag, max_lag);
-    for (size_t i = 0; i < max_lag; ++i) {
-        for (size_t j = 0; j < max_lag; ++j) {
+    Eigen::MatrixXd R(maxLag, maxLag);
+    for (size_t i = 0; i < maxLag; ++i) {
+        for (size_t j = 0; j < maxLag; ++j) {
             R(i, j) = gamma[std::abs(static_cast<int>(i - j))];
         }
     }

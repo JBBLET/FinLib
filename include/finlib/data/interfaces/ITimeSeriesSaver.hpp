@@ -1,14 +1,12 @@
+// "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
-#include "finlib/core/TimeSeries.hpp"
 #include <string>
 
-class ITimeSeriesSaver{
+#include "finlib/core/TimeSeries.hpp"
 
-public:
-  virtual ~ITimeSeriesSaver() = default;
+class ITimeSeriesSaver {
+ public:
+    virtual ~ITimeSeriesSaver() = default;
 
-  virtual void save(
-      const std::string& name,
-      const TimeSeries& ts
-  ) = 0;
+    virtual void save(const std::string& name, const TimeSeries& TimeSeries) = 0;
 };

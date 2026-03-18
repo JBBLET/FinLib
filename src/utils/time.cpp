@@ -65,10 +65,10 @@ std::string msToStringISO8601(int64_t ms) {
 
     sys_time<milliseconds> tp{milliseconds{ms}};
 
-    auto sec_tp = floor<seconds>(tp);
-    auto ms_part = duration_cast<milliseconds>(tp - sec_tp).count();
+    auto secTp = floor<seconds>(tp);
+    auto msPart = duration_cast<milliseconds>(tp - secTp).count();
 
-    return std::format("{:%Y-%m-%dT%H:%M:%S}.{:03}Z", sec_tp, ms_part);
+    return std::format("{:%Y-%m-%dT%H:%M:%S}.{:03}Z", secTp, msPart);
 }
 
 std::string msToStringDate(int64_t ms) {
