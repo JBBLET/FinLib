@@ -20,6 +20,6 @@ class TimeSeriesStatsTest : public ::testing::Test {
 TEST_F(TimeSeriesStatsTest, TimeSeriesProducesFullView) {
     auto view = series->view();
     EXPECT_EQ(analysis::stats::mean(view), 30.00);
-    EXPECT_EQ(analysis::stats::variance_slow(view, analysis::stats::VarianceType::Population), 200.00);
-    EXPECT_EQ(analysis::stats::variance_fast(view, analysis::stats::VarianceType::Population), 200.00);
+    EXPECT_EQ(analysis::stats::varianceSlow(view, analysis::stats::VarianceType::Population), 200.00);
+    EXPECT_EQ(analysis::stats::varianceFast(view, analysis::stats::VarianceType::Population), 200.00);
 }

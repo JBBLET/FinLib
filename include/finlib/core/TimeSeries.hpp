@@ -20,8 +20,8 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimestampPtr timestamps;
     std::vector<double> values;
 
-    std::vector<double> partial_walk(const std::vector<int64_t>& target_timestamps, size_t start_idx, size_t end_idx,
-                                     InterpolationStrategy strategy, std::optional<uint32_t> seed) const;
+    std::vector<double> partialWalk(const std::vector<int64_t>& targetTimestamps, size_t startIndex, size_t endIndex,
+                                    InterpolationStrategy strategy, std::optional<uint32_t> seed) const;
 
  public:
     TimeSeries(std::vector<int64_t> ts, std::vector<double> vals)
@@ -57,12 +57,12 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 
     // Accessors
     size_t size() const { return values.size(); }
-    const std::vector<double>& get_values() const { return values; }
-    const std::vector<int64_t>& get_timestamps() const { return *timestamps; }
-    const std::shared_ptr<const std::vector<int64_t>>& get_shared_timestamps() const { return timestamps; }
+    const std::vector<double>& getValues() const { return values; }
+    const std::vector<int64_t>& getTimestamps() const { return *timestamps; }
+    const std::shared_ptr<const std::vector<int64_t>>& getSharedTimestamps() const { return timestamps; }
 
     // helper
-    void verify_alignment(const TimeSeries& other) const;
+    void verifyAlignment(const TimeSeries& other) const;
 
     // Operator Overloading
     TimeSeries operator*(const TimeSeries& other) const;
@@ -81,7 +81,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 
     TimeSeriesView slice(size_t start, size_t len) const;
 
-    TimeSeriesView slice_index(size_t start, size_t end) const;
+    TimeSeriesView sliceIndex(size_t start, size_t end) const;
 
     TimeSeries resampling(const std::vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
                           std::optional<uint32_t> seed = std::nullopt) const;
@@ -120,8 +120,8 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 };
 
 inline std::ostream& operator<<(std::ostream& os, const TimeSeries& obj) {
-    const auto& ts = obj.get_timestamps();
-    const auto& vs = obj.get_values();
+    const auto& ts = obj.getTimestamps();
+    const auto& vs = obj.getValues();
 
     os << "[\n";
     for (size_t i = 0; i < obj.size(); ++i) {

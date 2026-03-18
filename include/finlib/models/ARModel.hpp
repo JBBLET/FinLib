@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <format>
 #include <string>
-#include <vector>
 
 #include "Eigen/Core"
 #include "Eigen/Dense"
@@ -15,30 +14,35 @@ namespace models {
 class ARModel : public BaseModel {
  public:
     enum class Solver { OLS, YuleWalker, LevinsonDurbin };
-    explicit ARModel(size_t q, ARModel::Solver solver = ARModel::Solver::YuleWalker) : q_(q), solver_(solver) {}
+    explicit ARModel(size_t q, ARModel::Solver solver = ARModel::Solver::YuleWalker, double regularityTolerance = 0.2)
+        : q_(q), solver_(solver), regularityTolerance_(regularityTolerance) {}
 
     std::string name() const override { return std::format("AR ({})", q_); };
+    // std::string print() const override;
 
     void fit() override;
-    EvaluationResult evaluate(const TimeSeriesView& view) const override;
-    std::vector<double> predict_ts(const std::vector<int64_t> points) const override;
-    std::vector<double> predict_points(int64_t steps) const override;
+    EvaluationResult evaluate(const TimeSeriesView& view) override;
+    double predictOneStep(const Eigen::VectorXd& window) const override;
 
-    bool is_stationary() const;
+    bool requiresRegularSpacing() const override { return true; }
+    double regularityTolerance() const override { return regularityTolerance_; }
 
-    std::string print() const override;
+    bool isStationary() const;
 
  private:
+    // Parameters
+    double regularityTolerance_;
     Solver solver_;
+
+    // Models properties
     size_t q_;
     Eigen::VectorXd phi_;
     double intercept_;
-    double sigma_epsilon_;
-    Eigen::MatrixXd covariance_matrix_;
-    Eigen::VectorXd last_window_;
-
-    void yule_walker_solver_();
-    void least_square_solver_(const Eigen::MatrixXd& X, const Eigen::VectorXd& Y);
-    void levinson_durbin_solver_();
+    double sigmaEpsilon_;
+    Eigen::MatrixXd covarianceMatrix_;
+    // Methods
+    void yuleWalkerSolver_();
+    void leastSquareSolver_(const Eigen::MatrixXd& X, const Eigen::VectorXd& Y);
+    void levinsonDurbinSolver_();
 };
 }  // namespace models

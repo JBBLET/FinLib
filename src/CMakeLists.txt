@@ -64,7 +64,8 @@ target_include_directories(finlib_data
 # --------------------
 
 add_library(finlib_models
-    models/BaseModel.cpp
+    models/ARModel.cpp
+    models/IModel.cpp
 )
 
 target_link_libraries(finlib_models
