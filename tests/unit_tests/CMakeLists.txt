@@ -10,6 +10,18 @@ add_executable(time_series_view_test
   time_series_view_test.cpp
 )
 
+add_executable(time_series_stats_test
+    time_series_stats_test.cpp
+)
+
+add_executable(time_series_analysis_test
+    time_series_analysis_test.cpp
+)
+
+add_executable(ar_model_test
+    ar_model_test.cpp
+)
+
 target_link_libraries(time_series_view_test
     PRIVATE
         finlib_core
@@ -28,6 +40,28 @@ target_link_libraries(operation_test
         gtest_main
 )
 
+target_link_libraries(time_series_stats_test
+    PRIVATE
+        finlib_core
+        gtest_main
+)
+
+target_link_libraries(time_series_analysis_test
+    PRIVATE
+        finlib_core
+        finlib_analysis
+        gtest_main
+)
+
+target_link_libraries(ar_model_test
+    PRIVATE
+        finlib_core
+        finlib_analysis
+        finlib_models
+        gtest_main
+)
+
+
 add_test(
   NAME TimeSeriesResamplingTest
     COMMAND resampling_test
@@ -43,10 +77,28 @@ add_test(
     COMMAND time_series_view_test
 )
 
+add_test(
+    NAME TimeSeriesStatsTest
+    COMMAND time_series_stats_test
+)
+
+add_test(
+    NAME TimeSeriesAnalysisTest
+    COMMAND time_series_analysis_test
+)
+
+add_test(
+    NAME ARModelTest
+    COMMAND ar_model_test
+)
+
 set_tests_properties(
     TimeSeriesResamplingTest
     TimeSeriesOperationTest
     TimeSeriesViewTest
+    TimeSeriesStatsTest
+    TimeSeriesAnalysisTest
+    ARModelTest
     PROPERTIES
         LABELS "unit"
       )

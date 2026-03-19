@@ -1,161 +1,144 @@
+// Copyright 2026 JBBLET
 #include "finlib/core/TimeSeries.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <execution>
 #include <functional>
 #include <future>
-#include <iostream>
 #include <optional>
 #include <random>
 #include <thread>
-#include <vector>
 #include <utility>
+#include <vector>
+
+#include "finlib/core/TimeSeriesView.hpp"
 
 using std::future;
 using std::invalid_argument;
-using std::move;
 using std::sqrt;
 using std::vector;
 
-double calculate_noise(int64_t target, int64_t t1, int64_t t2,
-                       double annual_vol, std::mt19937& gen) {
+double calculateNoise(int64_t target, int64_t t1, int64_t t2, double annualVolatility, std::mt19937& gen) {
     std::normal_distribution<double> dist(0.0, 1.0);
 
     // scale the volatility with the distance to a known point
-    double bridge_variance_seconds =
-        (static_cast<double>(target - t1) * (t2 - target)) / (t2 - t1);
+    double bridgeVarianceSeconds = (static_cast<double>(target - t1) * (t2 - target)) / (t2 - t1);
 
     // TODO PRECOMPUTRE THE annual_vol/sqrt(31560000.0) this is the same for all
     // the points
-    double vol_scale = annual_vol * sqrt(bridge_variance_seconds / 31536000.0);
-    return dist(gen) * vol_scale;
+    double volatilityScale = annualVolatility * sqrt(bridgeVarianceSeconds / 31536000.0);
+    return dist(gen) * volatilityScale;
 }
 
-double apply_strategy(InterpolationStrategy strategy, std::mt19937& gen,
-                      int64_t target, int64_t t1, double v1, int64_t t2,
-                      double v2, double annual_vol = 1.0) {
+double applyStrategy(InterpolationStrategy strategy, std::mt19937& gen, int64_t target, int64_t t1, double v1,
+                     int64_t t2, double v2, double annualVolatility = 1.0) {
     double fraction = static_cast<double>(target - t1) / (t2 - t1);
-    double linear_val = v1 + fraction * (v2 - v1);
+    double linearVal = v1 + fraction * (v2 - v1);
 
     if (strategy == InterpolationStrategy::Linear) {
-        return linear_val;
+        return linearVal;
     }
 
     if (strategy == InterpolationStrategy::Stochastic) {
-        return linear_val + calculate_noise(target, t1, t2, annual_vol, gen);
+        return linearVal + calculateNoise(target, t1, t2, annualVolatility, gen);
     }
     if (strategy == InterpolationStrategy::Nearest) {
-        return (target-t1 < t2-target) ? t1 : t2;
+        return (target - t1 < t2 - target) ? t1 : t2;
     }
-    return linear_val;
+    return v1;
 }
 
-vector<double> TimeSeries::partial_walk(
-    const vector<int64_t>& target_timestamps, size_t start_idx, size_t end_idx,
-    InterpolationStrategy strategy, std::optional<uint32_t> seed) const {
-    static thread_local std::mt19937 global_gen(std::random_device {} ());
-    std::mt19937 local_gen;
-    if (seed) local_gen.seed(*seed + start_idx);
-    std::mt19937& current_gen = seed ? local_gen : global_gen;
+vector<double> TimeSeries::partialWalk(const vector<int64_t>& targetTimestamps, size_t startIndex, size_t endIndex,
+                                       InterpolationStrategy strategy, std::optional<uint32_t> seed) const {
+    static thread_local std::mt19937 globalGen(std::random_device{}());
+    std::mt19937 localGen;
+    if (seed) localGen.seed(*seed + startIndex);
+    std::mt19937& currentGen = seed ? localGen : globalGen;
 
-    const size_t chunk_len = end_idx - start_idx;
-    vector<double> new_values;
-    new_values.resize(chunk_len);
+    const size_t chunkLength = endIndex - startIndex;
+    vector<double> newValues;
+    newValues.resize(chunkLength);
 
-    auto it = std::lower_bound(timestamps->begin(), timestamps->end(),
-                               target_timestamps[start_idx]);
-    size_t data_idx = std::distance(timestamps->begin(), it);
-    if (data_idx > 0) data_idx--;
-    const size_t original_len = timestamps->size();
+    auto it = std::lower_bound(timestamps->begin(), timestamps->end(), targetTimestamps[startIndex]);
+    size_t dataIndex = std::distance(timestamps->begin(), it);
+    if (dataIndex > 0) dataIndex--;
+    const size_t originalSize = timestamps->size();
 
-    for (size_t i = 0; i < chunk_len; i++) {
-        int64_t current_target = target_timestamps[start_idx + i];
-        while (data_idx < (original_len - 1) &&
-               (*timestamps)[data_idx + 1] <= current_target) {
-            data_idx++;
+    for (size_t i = 0; i < chunkLength; i++) {
+        int64_t currentTarget = targetTimestamps[startIndex + i];
+        while (dataIndex < (originalSize - 1) && (*timestamps)[dataIndex + 1] <= currentTarget) {
+            dataIndex++;
         }
-        if (current_target <= (*timestamps)[0]) {
-            new_values[i] = values[0];
-        } else if (data_idx >= original_len - 1) {
-            new_values[i] = values.back();
+        if (currentTarget <= (*timestamps)[0]) {
+            newValues[i] = values[0];
+        } else if (dataIndex >= originalSize - 1) {
+            newValues[i] = values.back();
         } else {
-            new_values[i] = apply_strategy(
-                strategy, current_gen, current_target, (*timestamps)[data_idx],
-                values[data_idx], (*timestamps)[data_idx + 1],
-                values[data_idx + 1]);
+            newValues[i] = applyStrategy(strategy, currentGen, currentTarget, (*timestamps)[dataIndex],
+                                         values[dataIndex], (*timestamps)[dataIndex + 1], values[dataIndex + 1]);
         }
     }
-    return new_values;
+    return newValues;
 }
 
-TimeSeries TimeSeries::resampling(const vector<int64_t>& target_timestamps,
-                                  InterpolationStrategy strategy,
+TimeSeries TimeSeries::resampling(const vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
                                   std::optional<uint32_t> seed) const {
     const size_t PARALLEL_THRESHOLD = 20000;
-    if (!std::is_sorted(target_timestamps.begin(), target_timestamps.end())) {
-        throw invalid_argument(
-            "target_timestamps must be sorted for resampling.");
+    if (!std::is_sorted(targetTimestamps.begin(), targetTimestamps.end())) {
+        throw invalid_argument("target_timestamps must be sorted for resampling.");
     }
 
-    if (target_timestamps.size() < PARALLEL_THRESHOLD) {
-        vector<double> new_values = partial_walk(
-            target_timestamps, 0, target_timestamps.size(), strategy, seed);
-        return TimeSeries(target_timestamps, std::move(new_values));
+    if (targetTimestamps.size() < PARALLEL_THRESHOLD) {
+        vector<double> newValues = partialWalk(targetTimestamps, 0, targetTimestamps.size(), strategy, seed);
+        return TimeSeries(targetTimestamps, std::move(newValues));
     } else {
-        unsigned int num_cores = std::thread::hardware_concurrency();
-        size_t chunk_size = target_timestamps.size() / num_cores;
+        unsigned int numCores = std::thread::hardware_concurrency();
+        size_t chunkSize = targetTimestamps.size() / numCores;
 
         vector<future<vector<double>>> futures;
 
-        for (unsigned int i = 0; i < num_cores; ++i) {
-            size_t start = i * chunk_size;
-            size_t end = (i == num_cores - 1) ? target_timestamps.size()
-                                              : (i + 1) * chunk_size;
+        for (unsigned int i = 0; i < numCores; ++i) {
+            size_t start = i * chunkSize;
+            size_t end = (i == numCores - 1) ? targetTimestamps.size() : (i + 1) * chunkSize;
 
-            futures.push_back(std::async(
-                std::launch::async,
-                [this, &target_timestamps, start, end, strategy, seed]() {
-                    return this->partial_walk(target_timestamps, start, end,
-                                              strategy, seed);
-                }));
+            futures.push_back(std::async(std::launch::async, [this, &targetTimestamps, start, end, strategy, seed]() {
+                return this->partialWalk(targetTimestamps, start, end, strategy, seed);
+            }));
         }
-        vector<double> new_values;
-        new_values.reserve(target_timestamps.size());
+        vector<double> newValues;
+        newValues.reserve(targetTimestamps.size());
 
         for (auto& fut : futures) {
             auto partial = fut.get();
-            new_values.insert(new_values.end(), partial.begin(), partial.end());
+            newValues.insert(newValues.end(), partial.begin(), partial.end());
         }
-        return TimeSeries(target_timestamps, std::move(new_values));
+        return TimeSeries(targetTimestamps, std::move(newValues));
     }
 }
 
-void TimeSeries::verify_alignment(const TimeSeries& other) const {
+void TimeSeries::verifyAlignment(const TimeSeries& other) const {
     if (this->timestamps == other.timestamps) {
         return;
     }
     if (this->size() != other.size()) {
         throw std::invalid_argument("TimeSeries size mismatch.");
     }
-    if (!std::equal(timestamps->begin(), timestamps->end(),
-                    other.timestamps->begin())) {
+    if (!std::equal(timestamps->begin(), timestamps->end(), other.timestamps->begin())) {
         throw std::invalid_argument("TimeSeries timestamps do not match.");
     }
 }
 
 TimeSeries TimeSeries::operator*(const TimeSeries& other) const {
-    verify_alignment(other);
-    vector<double> result_values;
-    result_values.resize(values.size());
-    std::transform(values.begin(), values.end(), other.values.begin(),
-                   result_values.begin(), std::multiplies<double>());
+    verifyAlignment(other);
+    vector<double> resultValues;
+    resultValues.resize(values.size());
+    std::transform(values.begin(), values.end(), other.values.begin(), resultValues.begin(), std::multiplies<double>());
 
-    return TimeSeries(this->timestamps, std::move(result_values));
+    return TimeSeries(this->timestamps, std::move(resultValues));
 }
 
 TimeSeries& TimeSeries::operator*=(const TimeSeries& other) {
-    verify_alignment(other);
+    verifyAlignment(other);
     for (size_t i = 0; i < values.size(); ++i) {
         values[i] *= other.values[i];
     }
@@ -175,16 +158,15 @@ TimeSeries& TimeSeries::operator*=(double scalar) {
 }
 
 TimeSeries TimeSeries::operator+(const TimeSeries& other) const {
-    verify_alignment(other);
-    vector<double> result_values;
-    result_values.resize(values.size());
-    std::transform(values.begin(), values.end(), other.values.begin(),
-                   result_values.begin(), std::plus<double>());
-    return TimeSeries(this->timestamps, std::move(result_values));
+    verifyAlignment(other);
+    vector<double> resultValues;
+    resultValues.resize(values.size());
+    std::transform(values.begin(), values.end(), other.values.begin(), resultValues.begin(), std::plus<double>());
+    return TimeSeries(this->timestamps, std::move(resultValues));
 }
 
 TimeSeries& TimeSeries::operator+=(const TimeSeries& other) {
-    verify_alignment(other);
+    verifyAlignment(other);
     for (size_t i = 0; i < values.size(); ++i) {
         values[i] += other.values[i];
     }
@@ -204,4 +186,12 @@ TimeSeries& TimeSeries::operator+=(double scalar) {
     return *this;
 }
 
+TimeSeriesView TimeSeries::view() const { return TimeSeriesView(shared_from_this(), 0, values.size()); }
 
+TimeSeriesView TimeSeries::slice(size_t start, size_t len) const {
+    return TimeSeriesView(shared_from_this(), start, len);
+}
+
+TimeSeriesView TimeSeries::sliceIndex(size_t start, size_t end) const {
+    return TimeSeriesView(shared_from_this(), start, end - start + 1);
+}

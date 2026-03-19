@@ -3,9 +3,11 @@
 # --------------------
 # Core library
 # --------------------
+
 add_library(finlib_core
     core/TimeSeries.cpp
     core/TimeSeriesView.cpp
+    core/stats.cpp
     utils/time.cpp
 )
 
@@ -13,23 +15,34 @@ target_include_directories(finlib_core
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
 )
-
+target_link_libraries(finlib_core
+    PUBLIC
+        Eigen3::Eigen
+)
 target_compile_features(finlib_core PUBLIC cxx_std_20)
 
-#add_library(finlib_models
-#    models/AR.cpp
-#    # models/GARCH.cpp later
-#)
+# --------------------
+# Analysis library
+# --------------------
 
-#target_link_libraries(finlib_models
-#    PUBLIC
-#        finlib_core
-#)
+add_library(finlib_analysis
+    analysis/TimeSeriesAnalysis.cpp
+)
 
-#target_include_directories(finlib_models
-#    PUBLIC
-#        ${PROJECT_SOURCE_DIR}/include
-#)
+target_include_directories(finlib_analysis
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(finlib_analysis
+    PUBLIC
+        finlib_core
+        Eigen3::Eigen
+)
+
+# --------------------
+# Data library
+# --------------------
 
 add_library(finlib_data
     data/YFinanceProvider.cpp
@@ -46,3 +59,22 @@ target_include_directories(finlib_data
 )
 
 
+# --------------------
+# Models library
+# --------------------
+
+add_library(finlib_models
+    models/ARModel.cpp
+    models/IModel.cpp
+)
+
+target_link_libraries(finlib_models
+    PUBLIC
+        finlib_core
+        finlib_analysis
+)
+
+target_include_directories(finlib_models
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)

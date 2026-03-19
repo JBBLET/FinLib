@@ -1,24 +1,29 @@
 // Copyright 2026 JBBLET
 #pragma once
 
-#include<vector>
+#include <Eigen/Dense>
+#include <vector>
 class TimeSeriesView;
 
 namespace analysis::stats {
 
 // Standard
-enum class VarianceType {Population, Sample};
+enum class VarianceType { Population, Sample };
 double mean(const TimeSeriesView& view);
-double variance_fast(const TimeSeriesView& view, VarianceType type = Sample);
-double variance_slow(const TimeSeriesView& view, VarianceType type = Sample);
-double std_deviation(const TimeSeriesView& view, VarianceType type = Sample);
+double varianceFast(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double varianceSlow(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double standardDeviation(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
 
 double skewness(const TimeSeriesView& view);
 double kurtosis(const TimeSeriesView& view);
+double excessKurtosis(const TimeSeriesView&);
+double autocorrelationAt(const TimeSeriesView& view, size_t lag);
+std::vector<double> acf(const TimeSeriesView& view, size_t max_lag);
+std::vector<double> pacf(const TimeSeriesView& view, size_t max_lag);
+std::vector<double> autocovariances(const TimeSeriesView& view, size_t max_lag);
 
-double autocorrelation_at(const TimeSeriesView& view, std::size_t lag);
-std::vector<double> acf(const TimeSeriesView& view, std::size_t max_lag);
-std::vector<double> pacf(const TimeSeriesView& view, std::size_t max_lag);
+Eigen::MatrixXd toeplitz(const TimeSeriesView& view, size_t max_lag);
+Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t max_lag);
 }  // namespace analysis::stats
 
 namespace analysis::hypothesisTesting {
@@ -28,10 +33,10 @@ struct HypothesisTestResult {
     double p_value;
 };
 
-HypothesisTestResult jarque_bera(const TimeSeriesView&);
+HypothesisTestResult jarqueBera(const TimeSeriesView&);
 HypothesisTestResult adf(const TimeSeriesView&);
-HypothesisTestResult breusch_pagan(const TimeSeriesView&);
-HypothesisTestResult breusch_godfrey(const TimeSeriesView&);
+HypothesisTestResult breuschPagan(const TimeSeriesView&);
+HypothesisTestResult breuschGodfrey(const TimeSeriesView&);
 }  // namespace analysis::hypothesisTesting
 
 namespace analysis::finance {
