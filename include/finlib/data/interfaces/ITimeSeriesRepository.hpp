@@ -1,5 +1,6 @@
+// "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
-#include "finlib/data/interfaces/ItimeSeriesLoader.hpp"
+#include "finlib/data/interfaces/ITimeSeriesLoader.hpp"
 #include "finlib/data/interfaces/ITimeSeriesSaver.hpp"
 
-class ITimeSeriesRepository: public ItimeSeriesLoader, public ITimeSeriesSaver{};
+class ITimeSeriesRepository : public ITimeSeriesLoader, public ITimeSeriesSaver {};

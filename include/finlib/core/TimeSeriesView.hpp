@@ -1,53 +1,60 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
 
+#include <Eigen/Dense>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
-#include <stdexcept>
-#include <utility>
+
+#include "finlib/core/TimeSeries.hpp"
 
 class TimeSeries;
 
-class TimeSeriesView {
+struct RegularityCheck {
+    double cachedTolerance;
+    bool isRegular;
+    int64_t medianDeltaT;
+    double standardDeviationDeltaT;
+    RegularityCheck(double tolerance, bool r, int64_t m, double sd)
+        : cachedTolerance(tolerance), isRegular(r), medianDeltaT(m), standardDeviationDeltaT(sd) {}
+};
+
+class TimeSeriesView : public std::enable_shared_from_this<TimeSeriesView> {
  private:
     std::shared_ptr<const TimeSeries> source_;
     size_t begin_;
     size_t length_;
-    int value_lag_;
+    int valueLag_;
 
-    bool is_aligned_with(const TimeSeriesView& other) const;
-    std::shared_ptr<std::vector<int64_t>> get_copy_timestamps_in_view() const;
+    bool isAlignedWith(const TimeSeriesView& other) const;
+    std::shared_ptr<std::vector<int64_t>> getCopyTimestampsInView() const;
+
+    mutable std::optional<RegularityCheck> cachedRegularityCheck_;
 
  public:
-    const double* begin() const noexcept {
-        return &(source_->get_values()[begin_ - value_lag_]);
+    TimeSeriesView(std::shared_ptr<const TimeSeries> src, size_t start, size_t len, int lag = 0);
+    TimeSeriesView() : source_(nullptr), begin_(0), length_(0), valueLag_(0) {}
+    size_t size() const noexcept { return length_; }
+    std::shared_ptr<const TimeSeriesView> getShared() const { return shared_from_this(); }
+
+    const double* begin() const noexcept;
+    const double* end() const noexcept;
+    double operator[](size_t i) const;
+    int64_t timestamp(size_t i) const;
+
+    // methods modifying the range
+    TimeSeriesView slice(size_t subStart, size_t subLength) const {
+        return TimeSeriesView(source_, begin_ + subStart, subLength, valueLag_);
+    }
+    TimeSeriesView sliceIndex(size_t subStart, size_t subEnd) const {
+        return TimeSeriesView(source_, begin_ + subStart, subEnd - subStart + 1, valueLag_);
     }
 
-    const double* end() const noexcept {
-        return begin()+length_;
-    }
+    // methods modifying the lag
+    TimeSeriesView shift(int periods) const { return TimeSeriesView(source_, begin_, length_, valueLag_ + periods); }
 
-    double operator[](size_t i) const {
-        return source_->get_values()[begin_ + i - value_lag_];
-    }
-
-    TimeSeriesView(std::shared_ptr<const TimeSeries> src,
-                   size_t start, size_t len, int lag = 0);
-
-    size_t  size() const noexcept {return length_;}
-
-    TimeSeriesView slice(size_t sub_start, size_t sub_len) const {
-        return TimeSeriesView(source_, begin_ + sub_start, sub_len, value_lag_);
-    }
-
-    TimeSeriesView slice_index(size_t sub_start, size_t sub_end) const {
-        return TimeSeriesView(source_, begin_ + sub_start, sub_end-sub_start+1, value_lag_);
-    }
-
-    TimeSeriesView shift(int periods) const {
-        return TimeSeriesView(source_, begin_, length_, value_lag_ + periods);
-    }
-
+    // Operation
     TimeSeries operator+(const double& scalar) const;
     TimeSeries operator-(const double& scalar) const;
     TimeSeries operator*(const double& scalar) const;
@@ -56,7 +63,13 @@ class TimeSeriesView {
     TimeSeries operator-(const TimeSeriesView& other) const;
     TimeSeries operator*(const TimeSeriesView& other) const;
 
-    int64_t timestamp(size_t i) const;
+    // Transformation
+    TimeSeries toSeries() const;
 
-    TimeSeries to_series() const;
+    inline Eigen::Map<const Eigen::VectorXd> asEigenVector() const {
+        return Eigen::Map<const Eigen::VectorXd>(this->begin(), length_);
+    }
+
+    // Check
+    RegularityCheck checkRegularity(double tolerance) const;
 };

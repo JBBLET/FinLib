@@ -1,27 +1,21 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include "finlib/data/implementation/YFinanceProvider.hpp"
-#include<string>
-#include<iostream>
-#include<vector>
-#include<cstdio>
-#include<utility>
+
+#include <cstdio>
+#include <iostream>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "finlib/common/utils/time.hpp"
 
 using common::utils::time::msToStringDate;
 
-TimeSeries YFinanceProvider::load(
-    const std::string& symbol,
-    int64_t start_ts,
-    int64_t end_ts
-) {
+TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts) {
     std::string start = msToStringDate(start_ts);
-    std::string end   = msToStringDate(end_ts);
+    std::string end = msToStringDate(end_ts);
 
-    std::string cmd =
-        python_ + " " + script_path_ + " \"" +
-        symbol + "\" \"" +
-        start + "\" \"" +
-        end + "\" \"1d\"";
+    std::string cmd = python_ + " " + scriptPath_ + " \"" + symbol + "\" \"" + start + "\" \"" + end + "\" \"1d\"";
 
     std::cerr << "CMD: " << cmd << std::endl;
 
