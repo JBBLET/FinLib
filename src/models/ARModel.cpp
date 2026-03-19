@@ -8,11 +8,10 @@
 #include <vector>
 
 #include "Eigen/Core"
-#include "finlib/models/interfaces/IModel.hpp"
 
 namespace models {
 void ARModel::fit() {
-    if (!fullView_->checkRegularity(0.2).isRegular)
+    if (!fullView_->checkRegularity(regularityTolerance_).isRegular)
         throw std::runtime_error("AR Model need the TimeSeries to be regularly spaced");
     auto data = trainView_.asEigenVector();
     size_t n = data.size();
@@ -37,11 +36,18 @@ void ARModel::fit() {
             levinsonDurbinSolver_();
             break;
     }
+
     Eigen::VectorXd coeffs;
     coeffs.resize(q_ + 1);
     coeffs << intercept_, phi_.head(q_);
+
     Eigen::VectorXd residuals = Y - (X * coeffs);
     sigmaEpsilon_ = std::sqrt(residuals.squaredNorm() / (n - (q_ + 1)));
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n, n);
+    covarianceMatrix_ = (sigmaEpsilon_ * sigmaEpsilon_) * ((X * X.transpose()).ldlt().solve(I));
+    standardErrors_ = covarianceMatrix_.diagonal().array().sqrt();
+    tStatistics_ = coeffs.array() / standardErrors_.array();
+
     isFitted_ = true;
     evaluate(testView_);
 }
@@ -54,7 +60,7 @@ double ARModel::predictOneStep(const Eigen::VectorXd& window) const {
 
 EvaluationResult ARModel::evaluate(const TimeSeriesView& view) {
     if (!isFitted_) throw std::runtime_error("AR Model need to be fitted before predicting");
-    if (!fullView_->checkRegularity(0.2).isRegular)
+    if (!fullView_->checkRegularity(regularityTolerance_).isRegular)
         throw std::runtime_error("AR Model need the TimeSeries to be regularly spaced");
     auto data = view.asEigenVector();
     size_t n = data.size();
