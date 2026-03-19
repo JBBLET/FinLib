@@ -54,6 +54,6 @@ Testing/
 *.idx
 .cache/
 .ruff_cache/
-
+proposedArchitecture.md
 bin/
 lib/
