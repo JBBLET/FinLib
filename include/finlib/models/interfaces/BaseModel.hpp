@@ -22,7 +22,7 @@ class BaseModel : public IModel {
     // Status tracking
     bool isFitted_ = false;
 
-    EvaluationResult TestModelEvaluationResult;
+    EvaluationResult testModelEvaluationResult;
     std::optional<analysis::TimeSeriesAnalysis> trainAnalysis;
 
  public:
