@@ -7,11 +7,17 @@
 #include <utility>
 #include <vector>
 
-#include "finlib/common/utils/time.hpp"
+#include "finlib/common/utils/TimeUtils.hpp"
 
 using common::utils::time::msToStringDate;
 
-TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts) {
+LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) const {
+    // YFinance provides daily data; earliest is roughly 1970 but practically ~1990s
+    constexpr int64_t dailyMs = 86'400'000;
+    return LoaderCapabilities{0, dailyMs};
+}
+
+TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts) const {
     std::string start = msToStringDate(start_ts);
     std::string end = msToStringDate(end_ts);
 
@@ -46,5 +52,5 @@ TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, i
 
     pclose(pipe);
 
-    return TimeSeries(std::move(timestamps), std::move(values));
+    return TimeSeries(symbol + "_" + start + "_" + end, std::move(timestamps), std::move(values));
 }

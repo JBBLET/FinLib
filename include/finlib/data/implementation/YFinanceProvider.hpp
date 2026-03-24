@@ -12,7 +12,8 @@ class YFinanceProvider : public ITimeSeriesLoader {
         std::string pythonExec = "/home/jbblet/.venvs/finlib-python/bin/python",
         std::string scriptPath = "/home/jbblet/Documents/Projects/FinLib/src/scripts/YFinance_loader.py")
         : python_(std::move(pythonExec)), scriptPath_(std::move(scriptPath)) {}
-    TimeSeries load(const std::string& name, int64_t startTimestamp, int64_t endTimestamp) override;
+    TimeSeries load(const std::string& name, int64_t startTimestamp, int64_t endTimestamp) const override;
+    LoaderCapabilities capabilities(const std::string& id) const override;
 
  private:
     std::string python_;

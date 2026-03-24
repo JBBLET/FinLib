@@ -20,7 +20,6 @@ class BaseModel : public IModel {
     TimeSeriesView testView_;
 
     // Status tracking
-    bool isFitted_ = false;
 
     EvaluationResult testModelEvaluationResult;
     std::optional<analysis::TimeSeriesAnalysis> trainAnalysis;
@@ -48,5 +47,6 @@ class BaseModel : public IModel {
     std::string print() const override { return name() + "[Fitted: " + (isFitted_ ? "Yes" : "No") + "]"; };
 
     double regularityTolerance() const override { return 0.0; }
+    std::string getViewTimeSeriesId() const override { return fullView_->getTimeSeriesId(); }
 };
 }  // namespace models
