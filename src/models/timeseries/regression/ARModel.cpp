@@ -1,18 +1,19 @@
 // Copyright 2026 JBBLET
-#include "finlib/models/ARModel.hpp"
+#include "finlib/models/timeseries/regression/ARModel.hpp"
 
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <numeric>
 #include <stdexcept>
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/core/StatsCore.hpp"
+#include "finlib/models/interfaces/IModel.hpp"
 
-namespace models {
+namespace models::regression {
 void ARModel::fit() {
-    if (!fullView_->checkRegularity(regularityTolerance_).isRegular)
-        throw std::runtime_error("AR Model need the TimeSeries to be regularly spaced");
     auto data = trainView_.asEigenVector();
     size_t n = data.size();
     if (n <= q_) throw std::runtime_error("Insufficient data points");
@@ -32,7 +33,7 @@ void ARModel::fit() {
         case ARModel::Solver::YuleWalker:
             yuleWalkerSolver_();
             break;
-        case models::ARModel::Solver::LevinsonDurbin:
+        case ARModel::Solver::LevinsonDurbin:
             levinsonDurbinSolver_();
             break;
     }
@@ -43,13 +44,15 @@ void ARModel::fit() {
 
     Eigen::VectorXd residuals = Y - (X * coeffs);
     sigmaEpsilon_ = std::sqrt(residuals.squaredNorm() / (n - (q_ + 1)));
-    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(n, n);
-    covarianceMatrix_ = (sigmaEpsilon_ * sigmaEpsilon_) * ((X * X.transpose()).ldlt().solve(I));
+    Eigen::MatrixXd I = Eigen::MatrixXd::Identity(q_ + 1, q_ + 1);
+    covarianceMatrix_ = (sigmaEpsilon_ * sigmaEpsilon_) * ((X.transpose() * X).ldlt().solve(I));
     standardErrors_ = covarianceMatrix_.diagonal().array().sqrt();
     tStatistics_ = coeffs.array() / standardErrors_.array();
-
+    pValues_ = tStatistics_.unaryExpr([](double t) { return analysis::hypothesisTesting::PvalueFromTStatistic(t); });
     isFitted_ = true;
-    evaluate(testView_);
+    if (testView_.size() > q_) {
+        evaluate(testView_);
+    }
 }
 
 double ARModel::predictOneStep(const Eigen::VectorXd& window) const {
@@ -60,10 +63,9 @@ double ARModel::predictOneStep(const Eigen::VectorXd& window) const {
 
 EvaluationResult ARModel::evaluate(const TimeSeriesView& view) {
     if (!isFitted_) throw std::runtime_error("AR Model need to be fitted before predicting");
-    if (!fullView_->checkRegularity(regularityTolerance_).isRegular)
-        throw std::runtime_error("AR Model need the TimeSeries to be regularly spaced");
     auto data = view.asEigenVector();
     size_t n = data.size();
+    if (n < q_) return EvaluationResult{};
     std::vector<double> prediction;
     prediction.resize(n - q_);
     double sumSquaredErrors = 0.0;
@@ -139,4 +141,20 @@ bool ARModel::isStationary() const {
     }
     return true;
 }
-}  // namespace models
+
+void ARModel::clear() {
+    if (isFitted_) {
+        intercept_ = 0.0;
+        sigmaEpsilon_ = 0.0;
+        phi_.setZero();
+        standardErrors_.setZero();
+        tStatistics_.setZero();
+        pValues_.setZero();
+        covarianceMatrix_.setZero();
+        isFitted_ = false;
+    }
+}
+std::unique_ptr<IModel> ARModel::createFresh() const {
+    return std::make_unique<ARModel>(q_, solver_, regularityTolerance_);
+}
+}  // namespace models::regression

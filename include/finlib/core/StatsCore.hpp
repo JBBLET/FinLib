@@ -37,6 +37,8 @@ HypothesisTestResult jarqueBera(const TimeSeriesView&);
 HypothesisTestResult adf(const TimeSeriesView&);
 HypothesisTestResult breuschPagan(const TimeSeriesView&);
 HypothesisTestResult breuschGodfrey(const TimeSeriesView&);
+
+double PvalueFromTStatistic(double tStat);
 }  // namespace analysis::hypothesisTesting
 
 namespace analysis::finance {

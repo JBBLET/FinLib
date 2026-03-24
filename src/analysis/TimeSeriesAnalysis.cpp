@@ -3,11 +3,10 @@
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 
 #include <cmath>
-#include <optional>
 #include <stdexcept>
 #include <vector>
 
-#include "finlib/core/stats.hpp"
+#include "finlib/core/StatsCore.hpp"
 
 namespace analysis {
 
