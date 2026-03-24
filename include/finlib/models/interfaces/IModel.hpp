@@ -1,5 +1,7 @@
 // Copyright 2026 JBBLET
 #pragma once
+#include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -31,7 +33,7 @@ struct EvaluationResult {
                                   const int& numberParameters, const double& sigmaEpsilon);
 };
 
-class IModel {
+class IModel : public std::enable_shared_from_this<IModel> {
  public:
     virtual ~IModel() = default;
 
@@ -45,5 +47,13 @@ class IModel {
 
     virtual bool requiresRegularSpacing() const = 0;
     virtual double regularityTolerance() const = 0;
+    bool isFitted() const { return isFitted_; }
+
+    virtual size_t contextSize() const = 0;
+    virtual std::unique_ptr<IModel> createFresh() const = 0;
+    virtual std::string getViewTimeSeriesId() const = 0;
+
+ protected:
+    bool isFitted_ = false;
 };
 }  // namespace models

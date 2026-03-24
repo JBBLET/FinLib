@@ -37,7 +37,7 @@ TimeSeries TimeSeriesView::operator+(const double& scalar) const {
         result.push_back((*this)[i] + scalar);
     }
 
-    return TimeSeries(getCopyTimestampsInView(), std::move(result));
+    return TimeSeries("ViewChange " + getTimeSeriesId(), getCopyTimestampsInView(), std::move(result));
 }
 
 TimeSeries TimeSeriesView::operator-(const double& scalar) const {
@@ -48,7 +48,7 @@ TimeSeries TimeSeriesView::operator-(const double& scalar) const {
         result.push_back((*this)[i] - scalar);
     }
 
-    return TimeSeries(getCopyTimestampsInView(), std::move(result));
+    return TimeSeries("ViewChange " + getTimeSeriesId(), getCopyTimestampsInView(), std::move(result));
 }
 
 TimeSeries TimeSeriesView::operator*(const double& scalar) const {
@@ -59,7 +59,7 @@ TimeSeries TimeSeriesView::operator*(const double& scalar) const {
         result.push_back((*this)[i] * scalar);
     }
 
-    return TimeSeries(getCopyTimestampsInView(), std::move(result));
+    return TimeSeries("ViewChange " + getTimeSeriesId(), getCopyTimestampsInView(), std::move(result));
 }
 
 TimeSeries TimeSeriesView::operator+(const TimeSeriesView& other) const {
@@ -72,7 +72,7 @@ TimeSeries TimeSeriesView::operator+(const TimeSeriesView& other) const {
         result.push_back((*this)[i] + other[i]);
     }
 
-    return TimeSeries(getCopyTimestampsInView(), std::move(result));
+    return TimeSeries("ViewChange " + getTimeSeriesId(), getCopyTimestampsInView(), std::move(result));
 }
 
 TimeSeries TimeSeriesView::operator-(const TimeSeriesView& other) const {
@@ -85,7 +85,7 @@ TimeSeries TimeSeriesView::operator-(const TimeSeriesView& other) const {
         result.push_back((*this)[i] - other[i]);
     }
 
-    return TimeSeries(getCopyTimestampsInView(), std::move(result));
+    return TimeSeries("ViewChange " + getTimeSeriesId(), getCopyTimestampsInView(), std::move(result));
 }
 
 TimeSeries TimeSeriesView::operator*(const TimeSeriesView& other) const {
@@ -98,7 +98,8 @@ TimeSeries TimeSeriesView::operator*(const TimeSeriesView& other) const {
         result.push_back((*this)[i] * other[i]);
     }
 
-    return TimeSeries(getCopyTimestampsInView(), std::move(result));
+    return TimeSeries(getTimeSeriesId() + " * " + other.getTimeSeriesId(), getCopyTimestampsInView(),
+                      std::move(result));
 }
 
 bool TimeSeriesView::isAlignedWith(const TimeSeriesView& other) const {
@@ -131,7 +132,7 @@ TimeSeries TimeSeriesView::toSeries() const {
     for (size_t i = 0; i < length_; i++) {
         result.push_back((*this)[i]);
     }
-    return TimeSeries(getCopyTimestampsInView(), std::move(result));
+    return TimeSeries("View_Copy " + getTimeSeriesId(), getCopyTimestampsInView(), std::move(result));
 }
 
 RegularityCheck TimeSeriesView::checkRegularity(double tolerance) const {

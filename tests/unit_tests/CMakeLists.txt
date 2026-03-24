@@ -87,9 +87,28 @@ add_test(
     COMMAND time_series_analysis_test
 )
 
+add_executable(model_session_test
+    model_session_test.cpp
+)
+
+target_link_libraries(model_session_test
+    PRIVATE
+        finlib_core
+        finlib_analysis
+        finlib_models
+        finlib_data
+        finlib_session
+        gtest_main
+)
+
 add_test(
     NAME ARModelTest
     COMMAND ar_model_test
+)
+
+add_test(
+    NAME ModelSessionTest
+    COMMAND model_session_test
 )
 
 set_tests_properties(
@@ -99,6 +118,7 @@ set_tests_properties(
     TimeSeriesStatsTest
     TimeSeriesAnalysisTest
     ARModelTest
+    ModelSessionTest
     PROPERTIES
         LABELS "unit"
       )

@@ -7,8 +7,8 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/core/StatsCore.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/core/stats.hpp"
 
 namespace analysis {
 

@@ -7,8 +7,8 @@
 add_library(finlib_core
     core/TimeSeries.cpp
     core/TimeSeriesView.cpp
-    core/stats.cpp
-    utils/time.cpp
+    core/StatsCore.cpp
+    utils/TimeUtils.cpp
 )
 
 target_include_directories(finlib_core
@@ -46,6 +46,8 @@ target_link_libraries(finlib_analysis
 
 add_library(finlib_data
     data/YFinanceProvider.cpp
+    data/CSVRepository.cpp
+    data/TimeSeriesService.cpp
 )
 
 target_link_libraries(finlib_data
@@ -64,13 +66,12 @@ target_include_directories(finlib_data
 # --------------------
 
 add_library(finlib_models
-    models/ARModel.cpp
-    models/IModel.cpp
+    models/timeseries/regression/ARModel.cpp
+    models/interfaces/IModel.cpp
 )
 
 target_link_libraries(finlib_models
     PUBLIC
-        finlib_core
         finlib_analysis
 )
 
@@ -78,3 +79,23 @@ target_include_directories(finlib_models
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
 )
+
+# --------------------
+# Session library
+# --------------------
+
+add_library(finlib_session
+    session/ModelSession.cpp
+    utils/LoggerUtils.cpp
+)
+
+target_link_libraries(finlib_session
+    PUBLIC
+        finlib_models
+)
+
+target_include_directories(finlib_session
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+

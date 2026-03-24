@@ -1,6 +1,6 @@
 // Copyright 2026 JBBLET
 
-#include "finlib/core/stats.hpp"
+#include "finlib/core/StatsCore.hpp"
 
 #include <Eigen/Dense>
 #include <algorithm>
@@ -240,3 +240,9 @@ Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t maxLag) {
     return R;
 }
 }  //  namespace analysis::stats
+//
+namespace analysis::hypothesisTesting {
+
+double PvalueFromTStatistic(double tStat) { return std::erfc(std::abs(tStat) / std::sqrt(2.0)); }
+
+}  // namespace analysis::hypothesisTesting
