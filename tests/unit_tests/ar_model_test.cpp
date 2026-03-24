@@ -10,8 +10,8 @@
 #include "Eigen/Core"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/models/ARModel.hpp"
 #include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/timeseries/regression/ARModel.hpp"
 
 // Helper: generate a synthetic AR(1) process
 // y_t = intercept + phi * y_{t-1} + noise[t]
@@ -30,7 +30,7 @@ static std::shared_ptr<TimeSeries> generateAR1(double phi, double intercept, siz
         ts[i] = ts[i - 1] + 1000;
         vals[i] = intercept + phi * vals[i - 1] + noise(rng);
     }
-    return std::make_shared<TimeSeries>(std::move(ts), std::move(vals));
+    return std::make_shared<TimeSeries>("AR1Model_Test_TimeSeries", std::move(ts), std::move(vals));
 }
 
 // Helper: generate a synthetic AR(2) process
@@ -48,7 +48,7 @@ static std::shared_ptr<TimeSeries> generateAR2(double phi1, double phi2, double 
         double noise = 0.01 * std::sin(static_cast<double>(i));
         vals[i] = intercept + phi1 * vals[i - 1] + phi2 * vals[i - 2] + noise;
     }
-    return std::make_shared<TimeSeries>(std::move(ts), std::move(vals));
+    return std::make_shared<TimeSeries>("AR2Model_Test_TimeSeries", std::move(ts), std::move(vals));
 }
 
 // Helper: generate irregularly spaced data
@@ -61,7 +61,7 @@ static std::shared_ptr<TimeSeries> generateIrregular(size_t n) {
         ts[i] = ts[i - 1] + 1000 + (i % 3) * 500;  // irregular gaps
         vals[i] = vals[i - 1] + 0.5;
     }
-    return std::make_shared<TimeSeries>(std::move(ts), std::move(vals));
+    return std::make_shared<TimeSeries>("IrregularARModel_Test_TimeSeries", std::move(ts), std::move(vals));
 }
 
 // ============================================================
@@ -91,7 +91,7 @@ class ARModelTest : public ::testing::Test {
 // ============================================================
 
 TEST_F(ARModelTest, OLSSolverRecoversAR1Coefficients) {
-    models::ARModel model(1, models::ARModel::Solver::OLS);
+    models::regression::ARModel model(1, models::regression::ARModel::Solver::OLS);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -100,7 +100,7 @@ TEST_F(ARModelTest, OLSSolverRecoversAR1Coefficients) {
 }
 
 TEST_F(ARModelTest, YuleWalkerSolverRecoversAR1Coefficients) {
-    models::ARModel model(1, models::ARModel::Solver::YuleWalker);
+    models::regression::ARModel model(1, models::regression::ARModel::Solver::YuleWalker);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -109,7 +109,7 @@ TEST_F(ARModelTest, YuleWalkerSolverRecoversAR1Coefficients) {
 }
 
 TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR1Coefficients) {
-    models::ARModel model(1, models::ARModel::Solver::LevinsonDurbin);
+    models::regression::ARModel model(1, models::regression::ARModel::Solver::LevinsonDurbin);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -122,7 +122,7 @@ TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR1Coefficients) {
 // ============================================================
 
 TEST_F(ARModelTest, OLSSolverRecoversAR2Coefficients) {
-    models::ARModel model(2, models::ARModel::Solver::OLS);
+    models::regression::ARModel model(2, models::regression::ARModel::Solver::OLS);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -131,7 +131,7 @@ TEST_F(ARModelTest, OLSSolverRecoversAR2Coefficients) {
 }
 
 TEST_F(ARModelTest, YuleWalkerSolverRecoversAR2Coefficients) {
-    models::ARModel model(2, models::ARModel::Solver::YuleWalker);
+    models::regression::ARModel model(2, models::regression::ARModel::Solver::YuleWalker);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -140,7 +140,7 @@ TEST_F(ARModelTest, YuleWalkerSolverRecoversAR2Coefficients) {
 }
 
 TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR2Coefficients) {
-    models::ARModel model(2, models::ARModel::Solver::LevinsonDurbin);
+    models::regression::ARModel model(2, models::regression::ARModel::Solver::LevinsonDurbin);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -153,7 +153,7 @@ TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR2Coefficients) {
 // ============================================================
 
 TEST_F(ARModelTest, PredictOneStepThrowsWhenNotFitted) {
-    models::ARModel model(1);
+    models::regression::ARModel model(1);
     Eigen::VectorXd window(1);
     window << 5.0;
 
@@ -161,7 +161,7 @@ TEST_F(ARModelTest, PredictOneStepThrowsWhenNotFitted) {
 }
 
 TEST_F(ARModelTest, PredictOneStepReturnsFiniteValue) {
-    models::ARModel model(1, models::ARModel::Solver::OLS);
+    models::regression::ARModel model(1, models::regression::ARModel::Solver::OLS);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -175,7 +175,7 @@ TEST_F(ARModelTest, PredictOneStepReturnsFiniteValue) {
 }
 
 TEST_F(ARModelTest, PredictOneStepAR2) {
-    models::ARModel model(2, models::ARModel::Solver::OLS);
+    models::regression::ARModel model(2, models::regression::ARModel::Solver::OLS);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -196,7 +196,7 @@ TEST_F(ARModelTest, PredictOneStepAR2) {
 // ============================================================
 
 TEST_F(ARModelTest, EvaluateThrowsWhenNotFitted) {
-    models::ARModel model(1);
+    models::regression::ARModel model(1);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.1);
 
@@ -205,7 +205,7 @@ TEST_F(ARModelTest, EvaluateThrowsWhenNotFitted) {
 }
 
 TEST_F(ARModelTest, EvaluateProducesValidMetrics) {
-    models::ARModel model(1, models::ARModel::Solver::OLS);
+    models::regression::ARModel model(1, models::regression::ARModel::Solver::OLS);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -238,14 +238,14 @@ TEST_F(ARModelTest, EvaluateProducesValidMetrics) {
 
 TEST_F(ARModelTest, SetDataThrowsOnIrregularData) {
     auto irregular = generateIrregular(200);
-    models::ARModel model(1);
+    models::regression::ARModel model(1);
     auto view = irregular->view();
 
     EXPECT_THROW(model.setData(view, 0.8, 0.0), std::runtime_error);
 }
 
 TEST_F(ARModelTest, SetDataAcceptsRegularData) {
-    models::ARModel model(1);
+    models::regression::ARModel model(1);
     auto view = ar1Series->view();
 
     EXPECT_NO_THROW(model.setData(view, 0.8, 0.0));
@@ -256,9 +256,9 @@ TEST_F(ARModelTest, SetDataAcceptsRegularData) {
 // ============================================================
 
 TEST_F(ARModelTest, FitThrowsWithInsufficientData) {
-    auto small =
-        std::make_shared<TimeSeries>(std::vector<int64_t>{1000, 2000, 3000}, std::vector<double>{1.0, 2.0, 3.0});
-    models::ARModel model(5);  // AR(5) on 3 points
+    auto small = std::make_shared<TimeSeries>("ThrowInsufficientDataTS", std::vector<int64_t>{1000, 2000, 3000},
+                                              std::vector<double>{1.0, 2.0, 3.0});
+    models::regression::ARModel model(5);  // AR(5) on 3 points
     auto view = small->view();
     model.setData(view, 1.0, 0.0);
 
@@ -266,15 +266,15 @@ TEST_F(ARModelTest, FitThrowsWithInsufficientData) {
 }
 
 TEST_F(ARModelTest, StationaryCheckReturnsFalseWhenNotFitted) {
-    models::ARModel model(1);
+    models::regression::ARModel model(1);
     EXPECT_FALSE(model.isStationary());
 }
 
 TEST_F(ARModelTest, NameReturnsCorrectFormat) {
-    models::ARModel model1(1);
+    models::regression::ARModel model1(1);
     EXPECT_EQ(model1.name(), "AR (1)");
 
-    models::ARModel model5(5);
+    models::regression::ARModel model5(5);
     EXPECT_EQ(model5.name(), "AR (5)");
 }
 
@@ -334,7 +334,7 @@ TEST(EvaluationResultTest, ThrowsOnEmptyInput) {
 TEST(RegularityCheckTest, RegularDataIsDetected) {
     std::vector<int64_t> ts = {1000, 2000, 3000, 4000, 5000};
     std::vector<double> vals = {1.0, 2.0, 3.0, 4.0, 5.0};
-    auto series = std::make_shared<TimeSeries>(ts, vals);
+    auto series = std::make_shared<TimeSeries>("TestRegularDataTS", ts, vals);
     auto view = series->view();
 
     auto check = view.checkRegularity(0.2);
@@ -354,7 +354,7 @@ TEST(RegularityCheckTest, IrregularDataIsDetected) {
 TEST(RegularityCheckTest, TinySeriesIsAlwaysRegular) {
     std::vector<int64_t> ts = {1000, 2000};
     std::vector<double> vals = {1.0, 2.0};
-    auto series = std::make_shared<TimeSeries>(ts, vals);
+    auto series = std::make_shared<TimeSeries>("TestRegularityTS", ts, vals);
     auto view = series->view();
 
     auto check = view.checkRegularity(0.0);

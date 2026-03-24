@@ -11,7 +11,7 @@
 TEST(TimeSeriesResamplingTest, ResamplingLinearDeterminism) {
     std::vector<int64_t> ts = {100, 200, 300};
     std::vector<double> vals = {100.0, 200.0, 300.0};
-    TimeSeries series(ts, vals);
+    TimeSeries series("ResamplingTestTS", ts, vals);
 
     std::vector<int64_t> target = {150, 250};
     auto resampled = series.resampling(target, InterpolationStrategy::Linear);
@@ -23,7 +23,7 @@ TEST(TimeSeriesResamplingTest, ResamplingLinearDeterminism) {
 TEST(TimeSeriesResamplingTest, StochasticSeedIsDeterministic) {
     std::vector<int64_t> ts = {1000, 2000};
     std::vector<double> vals = {10.0, 20.0};
-    TimeSeries series(ts, vals);
+    TimeSeries series("StochasticSeedTSTest", ts, vals);
     std::vector<int64_t> target = {1500};
     auto res1 = series.resampling(target, InterpolationStrategy::Stochastic, 42);
     auto res2 = series.resampling(target, InterpolationStrategy::Stochastic, 42);
@@ -33,7 +33,7 @@ TEST(TimeSeriesResamplingTest, StochasticSeedIsDeterministic) {
 TEST(TimeSeriesResamplingTest, ResamplingStochasticBounds) {
     std::vector<int64_t> ts = {1000, 2000};
     std::vector<double> vals = {10.0, 20.0};
-    TimeSeries series(ts, vals);
+    TimeSeries series("StochasticBoundsTSTEST", ts, vals);
 
     std::vector<int64_t> target = {1500};
     auto res1 = series.resampling(target, InterpolationStrategy::Stochastic);
@@ -55,7 +55,7 @@ TEST(TimeSeriesResamplingTest, ParallelBoundaryContinuity) {
         vals[i] = static_cast<double>(i);
     }
 
-    TimeSeries large_ts(std::move(ts), std::move(vals));
+    TimeSeries large_ts("ContinuityTestTS", std::move(ts), std::move(vals));
 
     // Resample to the midpoints (e.g., 50, 150, 250...)
     std::vector<int64_t> target_ts(N - 1);
@@ -86,7 +86,7 @@ TEST(TimeSeriesResamplingTest, ParallelSpeedupBenchmark) {
         vals[i] = i;
     }
 
-    TimeSeries large_ts(ts, vals);
+    TimeSeries large_ts("ParallelTestTS", ts, vals);
     std::vector<int64_t> target = ts;  // Resample to same timestamps for simplicity
 
     // Measure time

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "finlib/core/TimeSeries.hpp"
@@ -37,6 +38,7 @@ class TimeSeriesView : public std::enable_shared_from_this<TimeSeriesView> {
     TimeSeriesView() : source_(nullptr), begin_(0), length_(0), valueLag_(0) {}
     size_t size() const noexcept { return length_; }
     std::shared_ptr<const TimeSeriesView> getShared() const { return shared_from_this(); }
+    std::string getTimeSeriesId() const { return source_->getId(); }
 
     const double* begin() const noexcept;
     const double* end() const noexcept;

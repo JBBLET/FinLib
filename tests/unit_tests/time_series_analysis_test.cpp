@@ -7,9 +7,9 @@
 #include <vector>
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/core/StatsCore.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/core/stats.hpp"
 
 class TimeSeriesAnalysisTest : public ::testing::Test {
  protected:
@@ -21,11 +21,12 @@ class TimeSeriesAnalysisTest : public ::testing::Test {
     std::shared_ptr<TimeSeries> largerSeries;
 
     void SetUp() override {
-        simpleSeries = std::make_shared<TimeSeries>(std::vector<int64_t>{1000, 2000, 3000, 4000, 5000},
+        simpleSeries = std::make_shared<TimeSeries>("SimpleSeries", std::vector<int64_t>{1000, 2000, 3000, 4000, 5000},
                                                     std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0});
 
-        constantSeries = std::make_shared<TimeSeries>(std::vector<int64_t>{1000, 2000, 3000, 4000, 5000},
-                                                      std::vector<double>{3.0, 3.0, 3.0, 3.0, 3.0});
+        constantSeries =
+            std::make_shared<TimeSeries>("constantSeries", std::vector<int64_t>{1000, 2000, 3000, 4000, 5000},
+                                         std::vector<double>{3.0, 3.0, 3.0, 3.0, 3.0});
 
         std::vector<int64_t> ts(100);
         std::vector<double> vals(100);
@@ -33,7 +34,7 @@ class TimeSeriesAnalysisTest : public ::testing::Test {
             ts[i] = static_cast<int64_t>(i) * 1000;
             vals[i] = std::sin(static_cast<double>(i) * 0.1) * 10.0;
         }
-        largerSeries = std::make_shared<TimeSeries>(std::move(ts), std::move(vals));
+        largerSeries = std::make_shared<TimeSeries>("largerSeries", std::move(ts), std::move(vals));
     }
 };
 

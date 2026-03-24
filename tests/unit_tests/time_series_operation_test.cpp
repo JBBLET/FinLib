@@ -13,7 +13,7 @@ class TimeSeriesOperatorsTest : public ::testing::Test {
 };
 
 TEST_F(TimeSeriesOperatorsTest, ScalarMultiplication) {
-    TimeSeries series(ts1, v1);
+    TimeSeries series("TestTimeSeries", ts1, v1);
     double scalar = 2.0;
 
     TimeSeries result = series * scalar;
@@ -24,15 +24,15 @@ TEST_F(TimeSeriesOperatorsTest, ScalarMultiplication) {
 }
 
 TEST_F(TimeSeriesOperatorsTest, ScalarAdditionInPlace) {
-    TimeSeries series(ts1, v1);
+    TimeSeries series("TestTimeSeries", ts1, v1);
     series += 5.0;
     EXPECT_DOUBLE_EQ(series.getValues()[0], 15.0);
     EXPECT_DOUBLE_EQ(series.getValues()[2], 35.0);
 }
 
 TEST_F(TimeSeriesOperatorsTest, SeriesAddition) {
-    TimeSeries s1(ts1, v1);
-    TimeSeries s2(ts1, v2);
+    TimeSeries s1("TestTimeSeries1", ts1, v1);
+    TimeSeries s2("TestTimeSeries2", ts1, v2);
     TimeSeries result = s1 + s2;
 
     EXPECT_DOUBLE_EQ(result.getValues()[0], 11.0);
@@ -41,8 +41,8 @@ TEST_F(TimeSeriesOperatorsTest, SeriesAddition) {
 }
 
 TEST_F(TimeSeriesOperatorsTest, SeriesMultiplicationInPlace) {
-    TimeSeries s1(ts1, v1);
-    TimeSeries s2(ts1, v2);
+    TimeSeries s1("TestTimeSeries1", ts1, v1);
+    TimeSeries s2("TestTimeSeries2", ts1, v2);
 
     s1 *= s2;
 
@@ -51,8 +51,8 @@ TEST_F(TimeSeriesOperatorsTest, SeriesMultiplicationInPlace) {
 }
 
 TEST_F(TimeSeriesOperatorsTest, ThrowsOnMismatchedTimestamps) {
-    TimeSeries s1({100, 200}, {10.0, 20.0});
-    TimeSeries s2({100, 201}, {1.0, 2.0});
+    TimeSeries s1("TestTimeSeries1", {100, 200}, {10.0, 20.0});
+    TimeSeries s2("TestTimeSeries2", {100, 201}, {1.0, 2.0});
 
     EXPECT_THROW(s1 + s2, std::invalid_argument);
     EXPECT_THROW(s1 *= s2, std::invalid_argument);
