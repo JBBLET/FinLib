@@ -4,10 +4,12 @@
 #include <algorithm>
 #include <cmath>
 
-#include "finlib/data/implementation/YFinanceProvider.hpp"
+#include "finapp/providers/YFinanceProvider.hpp"
 
 TEST(YFinanceProvider, DownloadAAPLLast10Days) {
-    YFinanceProvider provider;
+    YFinanceProvider provider(
+        "/home/jbblet/.venvs/finlib-python/bin/python",
+        "/home/jbblet/Documents/Projects/FinLib/finapp/scripts/YFinance_loader.py");
 
     int64_t startTs = 1704153600000;  // 2024-01-02 UTC
     int64_t endTs = 1705363200000;    // 2024-01-16 UTC

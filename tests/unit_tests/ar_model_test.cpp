@@ -10,7 +10,7 @@
 #include "Eigen/Core"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/interfaces/EvaluationResult.hpp"
 #include "finlib/models/timeseries/regression/ARModel.hpp"
 
 // Helper: generate a synthetic AR(1) process
@@ -286,7 +286,7 @@ TEST(EvaluationResultTest, PerfectPredictionGivesZeroError) {
     std::vector<double> actual = {1.0, 2.0, 3.0, 4.0, 5.0};
     std::vector<double> prediction = {1.0, 2.0, 3.0, 4.0, 5.0};
 
-    models::EvaluationResult result;
+    models::RegressionEvaluation result;
     result.computeRegressionMetrics(actual, prediction, 1, 1.0);
 
     EXPECT_TRUE(result.mse.has_value());
@@ -302,7 +302,7 @@ TEST(EvaluationResultTest, KnownErrorValues) {
     // Each residual = -0.5, squared = 0.25
     // MSE = 0.25, RMSE = 0.5, MAE = 0.5
 
-    models::EvaluationResult result;
+    models::RegressionEvaluation result;
     result.computeRegressionMetrics(actual, prediction, 1, 1.0);
 
     EXPECT_TRUE(result.mse.has_value());
@@ -315,7 +315,7 @@ TEST(EvaluationResultTest, ThrowsOnSizeMismatch) {
     std::vector<double> actual = {1.0, 2.0, 3.0};
     std::vector<double> prediction = {1.0, 2.0};
 
-    models::EvaluationResult result;
+    models::RegressionEvaluation result;
     EXPECT_THROW(result.computeRegressionMetrics(actual, prediction, 1, 1.0), std::runtime_error);
 }
 
@@ -323,7 +323,7 @@ TEST(EvaluationResultTest, ThrowsOnEmptyInput) {
     std::vector<double> actual = {};
     std::vector<double> prediction = {};
 
-    models::EvaluationResult result;
+    models::RegressionEvaluation result;
     EXPECT_THROW(result.computeRegressionMetrics(actual, prediction, 1, 1.0), std::runtime_error);
 }
 

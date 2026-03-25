@@ -18,6 +18,10 @@ add_executable(time_series_analysis_test
     time_series_analysis_test.cpp
 )
 
+add_executable(csv_repository_test
+    csv_repository_test.cpp
+)
+
 add_executable(ar_model_test
     ar_model_test.cpp
 )
@@ -50,6 +54,13 @@ target_link_libraries(time_series_analysis_test
     PRIVATE
         finlib_core
         finlib_analysis
+        gtest_main
+)
+
+target_link_libraries(csv_repository_test
+    PRIVATE
+        finlib_core
+        finlib_data
         gtest_main
 )
 

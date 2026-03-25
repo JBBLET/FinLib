@@ -18,6 +18,9 @@ class TimeSeriesService {
 
     TimeSeries get(const std::string& id, int64_t startMs, int64_t endMs, int64_t requestedFrequencyMs);
 
+    // Returns raw data without resampling — supports non-regular time series
+    TimeSeries getRaw(const std::string& id, int64_t startMs, int64_t endMs);
+
  private:
     std::shared_ptr<CachedTimeSeriesRepository> cache_;
     std::shared_ptr<ITimeSeriesLoader> provider_;
