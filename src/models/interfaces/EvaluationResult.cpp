@@ -1,16 +1,17 @@
 // Copyright 2026 JBBLET
-#include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/interfaces/EvaluationResult.hpp"
 
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
+#include <numbers>
 #include <numeric>
 #include <stdexcept>
 #include <vector>
 
-void models::EvaluationResult::computeRegressionMetrics(const std::vector<double>& actual,
-                                                        const std::vector<double>& prediction,
-                                                        const int& numberParameters, const double& sigmaEpsilon) {
+void models::RegressionEvaluation::computeRegressionMetrics(const std::vector<double>& actual,
+                                                            const std::vector<double>& prediction,
+                                                            const int& numberParameters, const double& sigmaEpsilon) {
     size_t nActual = actual.size(), nPrediction = prediction.size();
     const double* actualData = actual.begin().base();
     const double* predictionData = prediction.begin().base();
@@ -37,4 +38,12 @@ void models::EvaluationResult::computeRegressionMetrics(const std::vector<double
         -(static_cast<double>(nActual) / 2) * (std::log(2 * std::numbers::pi) + std::log(sigmaEpsilon * sigmaEpsilon)) -
         (sumSquaredErrors / (2 * sigmaEpsilon * sigmaEpsilon));
     aic = 2 * (numberParameters + 2) - 2 * logLikelihood.value();
+}
+
+void models::RegressionEvaluation::print() const {
+    // TODO(JBBLET): implement formatted output
+}
+
+void models::ClassificationEvaluation::print() const {
+    // TODO(JBBLET): implement formatted output
 }

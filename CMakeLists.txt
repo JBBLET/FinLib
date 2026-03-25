@@ -33,7 +33,8 @@ FetchContent_MakeAvailable(Eigen)
 
 # --- Subdirectories ---
 
-add_subdirectory(src) # Always build the library
+add_subdirectory(src)     # FinLib — Domain A (generic time series)
+add_subdirectory(finapp)  # FinApp — Domain B (finance application)
 
 if(BUILD_TESTS)
     enable_testing()

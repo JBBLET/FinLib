@@ -45,7 +45,6 @@ target_link_libraries(finlib_analysis
 # --------------------
 
 add_library(finlib_data
-    data/YFinanceProvider.cpp
     data/CSVRepository.cpp
     data/TimeSeriesService.cpp
 )

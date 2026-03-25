@@ -1,5 +1,5 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
-#include "finlib/data/implementation/YFinanceProvider.hpp"
+#include "finapp/providers/YFinanceProvider.hpp"
 
 #include <cstdio>
 #include <iostream>

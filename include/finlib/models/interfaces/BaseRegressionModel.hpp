@@ -7,30 +7,27 @@
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/interfaces/IRegressionModel.hpp"
 
 namespace models {
 
-class BaseModel : public IModel {
+class BaseRegressionModel : public IRegressionModel {
  protected:
-    // Every model will use these to access its assigned data
     std::shared_ptr<const TimeSeriesView> fullView_;
     TimeSeriesView trainView_;
     TimeSeriesView validationView_;
     TimeSeriesView testView_;
 
-    // Status tracking
-
-    EvaluationResult testModelEvaluationResult;
+    RegressionEvaluation testModelEvaluationResult;
     std::optional<analysis::TimeSeriesAnalysis> trainAnalysis;
 
  public:
-    BaseModel() = default;
+    BaseRegressionModel() = default;
 
     void setData(const TimeSeriesView& totalView, double trainRatio, double validationRatio) override {
         fullView_ = std::make_shared<const TimeSeriesView>(totalView);
         if (requiresRegularSpacing() && !fullView_->checkRegularity(regularityTolerance()).isRegular) {
-            throw std::runtime_error("The Model requires a regularly sapced timeseries. Regularize manually");
+            throw std::runtime_error("The Model requires a regularly spaced timeseries. Regularize manually");
         }
         size_t totalSize = fullView_->size();
         size_t trainSize = static_cast<size_t>(totalSize * trainRatio);
@@ -41,7 +38,7 @@ class BaseModel : public IModel {
         trainAnalysis = trainAnalysis.emplace(trainView_);
         validationView_ = fullView_->slice(trainSize, validationSize);
         testView_ = fullView_->slice(trainSize + validationSize, testSize);
-        isFitted_ = false;  // New data means we need to re-fit
+        isFitted_ = false;
     };
 
     std::string print() const override { return name() + "[Fitted: " + (isFitted_ ? "Yes" : "No") + "]"; };
@@ -49,4 +46,5 @@ class BaseModel : public IModel {
     double regularityTolerance() const override { return 0.0; }
     std::string getViewTimeSeriesId() const override { return fullView_->getTimeSeriesId(); }
 };
+
 }  // namespace models

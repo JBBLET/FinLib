@@ -10,7 +10,7 @@
 
 #include "Eigen/Core"
 #include "finlib/core/StatsCore.hpp"
-#include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/interfaces/EvaluationResult.hpp"
 
 namespace models::regression {
 void ARModel::fit() {
@@ -61,21 +61,19 @@ double ARModel::predictOneStep(const Eigen::VectorXd& window) const {
     return prediction;
 }
 
-EvaluationResult ARModel::evaluate(const TimeSeriesView& view) {
+RegressionEvaluation ARModel::evaluate(const TimeSeriesView& view) {
     if (!isFitted_) throw std::runtime_error("AR Model need to be fitted before predicting");
     auto data = view.asEigenVector();
     size_t n = data.size();
-    if (n < q_) return EvaluationResult{};
+    if (n < q_) return RegressionEvaluation{};
     std::vector<double> prediction;
     prediction.resize(n - q_);
-    double sumSquaredErrors = 0.0;
-    double sumAbsoluteErrors = 0.0;
     for (size_t i = q_; i < n; ++i) {
         auto window = data.segment(i - q_, q_);
         prediction[i - q_] = phi_.dot(window.reverse()) + intercept_;
     }
     std::vector<double> actual(data.data() + q_, data.data() + q_ + n - q_);
-    EvaluationResult modelEvaluationResult;
+    RegressionEvaluation modelEvaluationResult;
     modelEvaluationResult.computeRegressionMetrics(actual, prediction, q_, sigmaEpsilon_);
     return modelEvaluationResult;
 }
@@ -154,7 +152,7 @@ void ARModel::clear() {
         isFitted_ = false;
     }
 }
-std::unique_ptr<IModel> ARModel::createFresh() const {
+std::unique_ptr<IRegressionModel> ARModel::createFresh() const {
     return std::make_unique<ARModel>(q_, solver_, regularityTolerance_);
 }
 }  // namespace models::regression

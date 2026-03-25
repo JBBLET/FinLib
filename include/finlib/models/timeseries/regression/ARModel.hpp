@@ -8,11 +8,11 @@
 
 #include "Eigen/Core"
 #include "Eigen/Dense"
-#include "finlib/models/interfaces/BaseModel.hpp"
+#include "finlib/models/interfaces/BaseRegressionModel.hpp"
 
 namespace models::regression {
 
-class ARModel : public BaseModel {
+class ARModel : public BaseRegressionModel {
  public:
     enum class Solver { OLS, YuleWalker, LevinsonDurbin };
     explicit ARModel(size_t q, ARModel::Solver solver = ARModel::Solver::YuleWalker, double regularityTolerance = 0.2)
@@ -29,7 +29,7 @@ class ARModel : public BaseModel {
     std::string name() const override { return std::format("AR ({})", q_); };
     // std::string print() const override;
     size_t contextSize() const override { return q_; };
-    std::unique_ptr<IModel> createFresh() const override;
+    std::unique_ptr<IRegressionModel> createFresh() const override;
 
     // Setters and Getters
     bool requiresRegularSpacing() const override { return true; }
@@ -49,7 +49,7 @@ class ARModel : public BaseModel {
 
     // Interface implementation
     void fit() override;
-    EvaluationResult evaluate(const TimeSeriesView& view) override;
+    RegressionEvaluation evaluate(const TimeSeriesView& view) override;
     double predictOneStep(const Eigen::VectorXd& window) const override;
     bool isStationary() const;
     void clear();

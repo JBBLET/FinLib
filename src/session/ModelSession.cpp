@@ -13,7 +13,7 @@
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/SeriesKey.hpp"
-#include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/interfaces/IRegressionModel.hpp"
 
 std::vector<ModelSession::PredictionEntry> ModelSession::forecast(size_t steps) {
     int64_t nextPredictedTimeStamp = lastActualTimeStamp_ + deltaT_;
@@ -103,7 +103,7 @@ bool ModelSession::shouldRefit(double mseTreshold) const {
 
 void ModelSession::refit(const TimeSeriesView& newData) {
     flush_();
-    std::unique_ptr<models::IModel> newModel = model_->createFresh();
+    std::unique_ptr<models::IRegressionModel> newModel = model_->createFresh();
     newModel->setData(newData);
     newModel->fit();
     model_ = std::move(newModel);
@@ -127,7 +127,7 @@ void ModelSession::flush_() {
     TimeSeries ts(key.SeriesId, std::move(timestamps), std::move(values));
 
     try {
-        context_.repository->merge(key, ts);
+        context_.saver_->merge(key, ts);
     } catch (...) {
         LOG_ERROR(context_, "Could not Save to the repository");
         return;
