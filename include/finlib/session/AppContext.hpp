@@ -2,9 +2,9 @@
 #pragma once
 
 #include "finlib/common/logger/ILogger.hpp"
-#include "finlib/data/interfaces/ITimeSeriesRepository.hpp"
+#include "finlib/data/interfaces/ITimeSeriesSaver.hpp"
 
 struct AppContext {
-    logging::ILogger* logger;
-    ITimeSeriesRepository* repository;
+    logging::ILogger* logger_;
+    ITimeSeriesSaver* saver_;
 };
