@@ -90,6 +90,44 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
     return fetched;
 }
 
+TimeSeries TimeSeriesService::getRaw(const std::string& id, int64_t startMs, int64_t endMs) {
+    // Try to find any local key that covers the range
+    auto localKey = findLocalCoveringKey_(id, startMs, endMs, INT64_MAX);
+    if (localKey) {
+        return cache_->load(*localKey, startMs, endMs);
+    }
+
+    // No local coverage — fetch from provider at its native frequency
+    if (!provider_) {
+        throw std::runtime_error("No provider available and no local data for series: " + id);
+    }
+
+    auto caps = provider_->capabilities(id);
+    SeriesKey nativeKey{id, caps.finestFrequencyMs};
+
+    // Check partial coverage at the native key
+    if (cache_->exists(nativeKey)) {
+        auto cov = cache_->coverage(nativeKey);
+        if (cov) {
+            auto gaps = computeGaps(*cov, TimeRange{startMs, endMs});
+            if (gaps.empty()) {
+                return cache_->load(nativeKey, startMs, endMs);
+            }
+            fetchAndMergeGaps_(nativeKey, gaps);
+            return cache_->load(nativeKey, startMs, endMs);
+        }
+    }
+
+    // Full fetch
+    TimeSeries fetched = provider_->load(id, startMs, endMs);
+    int64_t nowMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    CoverageInfo cov{nativeKey, startMs, endMs, "provider", nowMs};
+    cache_->save(nativeKey, fetched, cov);
+    return fetched;
+}
+
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------

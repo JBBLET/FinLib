@@ -12,13 +12,13 @@
 #include "Eigen/Core"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/interfaces/IRegressionModel.hpp"
 #include "finlib/session/AppContext.hpp"
 
 class ModelSession {
     AppContext& context_;
 
-    std::shared_ptr<models::IModel> model_;
+    std::shared_ptr<models::IRegressionModel> model_;
     Eigen::VectorXd window_;
     size_t windowSize_;
 
@@ -44,7 +44,7 @@ class ModelSession {
     double deltaTTolerance_;
 
  public:
-    ModelSession(AppContext& context, std::shared_ptr<models::IModel> model, const TimeSeriesView& view,
+    ModelSession(AppContext& context, std::shared_ptr<models::IRegressionModel> model, const TimeSeriesView& view,
                  size_t errorTrackingWindowSize, int64_t deltaT, double deltaTTolerance)
         : context_(context),
           model_(std::move(model)),

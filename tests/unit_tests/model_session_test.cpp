@@ -16,7 +16,7 @@
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/data/implementation/CSVRepository.hpp"
-#include "finlib/models/interfaces/IModel.hpp"
+#include "finlib/models/interfaces/IRegressionModel.hpp"
 #include "finlib/models/timeseries/regression/ARModel.hpp"
 #include "finlib/session/AppContext.hpp"
 #include "finlib/session/ModelSession.hpp"
