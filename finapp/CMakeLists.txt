@@ -6,7 +6,7 @@
 # --------------------
 
 add_library(finapp_providers
-    src/providers/YFinanceProvider.cpp
+    src/data/providers/YFinanceProvider.cpp
 )
 
 target_include_directories(finapp_providers

@@ -1,5 +1,5 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
-#include "finapp/providers/YFinanceProvider.hpp"
+#include "finapp/data/providers/implementations/YFinanceProvider.hpp"
 
 #include <cstdio>
 #include <iostream>
@@ -13,6 +13,7 @@ using common::utils::time::msToStringDate;
 
 LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) const {
     // YFinance provides daily data; earliest is roughly 1970 but practically ~1990s
+    // TODO(Change to support intraday for less than 6 Days)
     constexpr int64_t dailyMs = 86'400'000;
     return LoaderCapabilities{0, dailyMs};
 }

@@ -1,19 +1,19 @@
-# src/CMakeLists.txt
+# finlib/CMakeLists.txt — Domain A (generic time series library)
 
 # --------------------
 # Core library
 # --------------------
 
 add_library(finlib_core
-    core/TimeSeries.cpp
-    core/TimeSeriesView.cpp
-    core/StatsCore.cpp
-    utils/TimeUtils.cpp
+    src/core/TimeSeries.cpp
+    src/core/TimeSeriesView.cpp
+    src/core/StatsCore.cpp
+    src/utils/TimeUtils.cpp
 )
 
 target_include_directories(finlib_core
     PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(finlib_core
     PUBLIC
@@ -26,12 +26,12 @@ target_compile_features(finlib_core PUBLIC cxx_std_20)
 # --------------------
 
 add_library(finlib_analysis
-    analysis/TimeSeriesAnalysis.cpp
+    src/analysis/TimeSeriesAnalysis.cpp
 )
 
 target_include_directories(finlib_analysis
     PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries(finlib_analysis
@@ -45,8 +45,8 @@ target_link_libraries(finlib_analysis
 # --------------------
 
 add_library(finlib_data
-    data/CSVRepository.cpp
-    data/TimeSeriesService.cpp
+    src/data/CSVRepository.cpp
+    src/data/TimeSeriesService.cpp
 )
 
 target_link_libraries(finlib_data
@@ -56,17 +56,16 @@ target_link_libraries(finlib_data
 
 target_include_directories(finlib_data
     PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-
 
 # --------------------
 # Models library
 # --------------------
 
 add_library(finlib_models
-    models/timeseries/regression/ARModel.cpp
-    models/interfaces/IModel.cpp
+    src/models/timeseries/regression/ARModel.cpp
+    src/models/interfaces/EvaluationResult.cpp
 )
 
 target_link_libraries(finlib_models
@@ -76,7 +75,7 @@ target_link_libraries(finlib_models
 
 target_include_directories(finlib_models
     PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 # --------------------
@@ -84,8 +83,8 @@ target_include_directories(finlib_models
 # --------------------
 
 add_library(finlib_session
-    session/ModelSession.cpp
-    utils/LoggerUtils.cpp
+    src/session/ModelSession.cpp
+    src/utils/LoggerUtils.cpp
 )
 
 target_link_libraries(finlib_session
@@ -95,6 +94,5 @@ target_link_libraries(finlib_session
 
 target_include_directories(finlib_session
     PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-

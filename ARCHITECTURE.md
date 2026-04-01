@@ -49,12 +49,17 @@ include/finlib/                          # Domain A — public headers
 │       └── TimeSeriesService.hpp        # Orchestrates cache -> repository -> provider
 ├── models/
 │   ├── interfaces/
-│   │   ├── IModel.hpp                   # Abstract model interface
-│   │   └── BaseModel.hpp                # Base: train/val/test split management
+│   │   ├── IModel.hpp                   # Abstract base: name, fit, isFitted, regularity, contextSize
+│   │   ├── IRegressionModel.hpp         # Univariate regression: setData, predictOneStep, evaluate, createFresh
+│   │   ├── IMultivariateRegressionModel.hpp  # Multi-input regression (planned)
+│   │   ├── IProbabilisticModel.hpp      # Distribution prediction (planned)
+│   │   ├── IClassificationModel.hpp     # Class prediction (planned)
+│   │   ├── EvaluationResult.hpp         # RegressionEvaluation + ClassificationEvaluation structs
+│   │   └── BaseRegressionModel.hpp      # Base: train/val/test split management for regression
 │   └── timeseries/regression/
 │       └── ARModel.hpp                  # AR(q) with OLS, Yule-Walker, Levinson-Durbin
 └── session/
-    ├── AppContext.hpp                    # DI container: logger + repository
+    ├── AppContext.hpp                    # DI container: logger + saver
     └── ModelSession.hpp                 # Stateful online forecasting + drift detection
 
 src/                                     # Domain A — implementations
@@ -68,7 +73,7 @@ src/                                     # Domain A — implementations
 │   ├── CSVRepository.cpp                # File I/O, .meta sidecar management
 │   └── TimeSeriesService.cpp            # Gap detection, frequency resolution
 ├── models/
-│   ├── interfaces/IModel.cpp
+│   ├── interfaces/EvaluationResult.cpp  # RegressionEvaluation + ClassificationEvaluation impl
 │   └── timeseries/regression/ARModel.cpp
 ├── session/ModelSession.cpp
 └── utils/
@@ -140,7 +145,7 @@ finapp_providers ──> finlib_data ──> finlib_core
 | `finlib_core` | TimeSeries, TimeSeriesView, StatsCore, TimeUtils | Eigen3 |
 | `finlib_analysis` | TimeSeriesAnalysis | finlib_core |
 | `finlib_data` | CSVRepository, TimeSeriesService | finlib_core |
-| `finlib_models` | ARModel, IModel | finlib_analysis |
+| `finlib_models` | ARModel, EvaluationResult | finlib_analysis |
 | `finlib_session` | ModelSession, LoggerUtils | finlib_models |
 
 ### Domain B Libraries
@@ -242,7 +247,11 @@ ITimeSeriesLoader          ITimeSeriesSaver
 
 Orchestrates the 3-layer data architecture: **cache -> repository -> provider**.
 
-`get(id, startMs, endMs, requestedFrequencyMs)` resolves data in 4 steps:
+Two entry points:
+- `get(id, startMs, endMs, requestedFrequencyMs)` — returns data at the requested frequency, resampling if needed
+- `getRaw(id, startMs, endMs)` — returns data without resampling, for models that don't require regular spacing
+
+`get()` resolves data in 4 steps:
 
 1. **Exact key match in cache** — if cached and coverage is complete, return filtered slice.
 2. **Finer frequency locally** — search `availableFrequencies()` for a finer grain that covers the range, resample to requested frequency.
@@ -281,22 +290,41 @@ return
 ### Inheritance
 
 ```
-IModel (abstract, enable_shared_from_this)
-└── BaseModel
-    └── ARModel
+IModel (abstract base, enable_shared_from_this)
+├── IRegressionModel (virtual IModel)
+│   └── BaseRegressionModel
+│       └── ARModel
+├── IMultivariateRegressionModel (virtual IModel)    # planned
+├── IProbabilisticModel (virtual IModel)             # planned
+└── IClassificationModel (virtual IModel)            # planned
 ```
 
-### IModel Interface
+All family interfaces use `public virtual IModel` so a model can implement multiple families (e.g., a Bayesian AR model can implement both `IRegressionModel` and `IProbabilisticModel`).
 
-- `setData(view, trainRatio, validationRatio)` — configure data splits
+### IModel (base)
+
+Common to all model families:
+- `name()`, `print()` — identification
 - `fit()` — train the model
-- `evaluate(view)` — compute regression/classification metrics
-- `predictOneStep(window)` — single-step prediction from a context window
-- `contextSize()` — required window length
-- `createFresh()` — factory: returns unconfigured copy of same type
+- `isFitted()` — check training state
 - `requiresRegularSpacing()`, `regularityTolerance()` — spacing constraints
+- `contextSize()` — required window length
 
-### BaseModel
+### IRegressionModel
+
+Extends IModel for univariate regression:
+- `setData(view, trainRatio, validationRatio)` — configure data splits
+- `predictOneStep(window)` — single-step prediction from a context window
+- `evaluate(view)` → `RegressionEvaluation` — compute regression metrics
+- `createFresh()` → `unique_ptr<IRegressionModel>` — factory for re-fitting
+- `getViewTimeSeriesId()` — series identifier for persistence
+
+### Evaluation Types
+
+- **`RegressionEvaluation`** — MSE, RMSE, MAE, R², adjusted R², log-likelihood, AIC
+- **`ClassificationEvaluation`** — accuracy, precision, recall, F1, confusion matrix
+
+### BaseRegressionModel
 
 Manages train/validation/test splits from a `TimeSeriesView`. Caches a `TimeSeriesAnalysis` on the training set. Validates regularity requirements before fitting.
 
@@ -321,8 +349,8 @@ Minimal DI container passed by reference:
 
 ```cpp
 struct AppContext {
-    logging::ILogger* logger;
-    ITimeSeriesRepository* repository;
+    logging::ILogger* logger_;
+    ITimeSeriesSaver* saver_;
 };
 ```
 
@@ -373,8 +401,8 @@ Used via macros: `LOG_INFO(context, msg)`, `LOG_WARN(...)`, `LOG_ERROR(...)`, `L
 | **Dependency Injection** | `AppContext` -> `ModelSession` | Decouple from concrete logger/repository |
 | **Decorator** | `CachedTimeSeriesRepository` wraps `ITimeSeriesRepository` | Add caching transparently |
 | **Strategy** | `InterpolationStrategy` enum | Pluggable resampling algorithms |
-| **Template Method** | `BaseModel` -> `ARModel` | Reuse data split logic |
-| **Factory** | `IModel::createFresh()` | Create blank model copies for re-fitting |
+| **Template Method** | `BaseRegressionModel` -> `ARModel` | Reuse data split logic |
+| **Factory** | `IRegressionModel::createFresh()` | Create blank model copies for re-fitting |
 | **Interface Segregation** | `ITimeSeriesLoader` / `ITimeSeriesSaver` | Clients depend only on what they need |
 
 ---
