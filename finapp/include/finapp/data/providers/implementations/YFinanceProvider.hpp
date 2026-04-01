@@ -1,4 +1,4 @@
-// "Copyright (c) 2026 JBBLET All Rights Reserved."
+// Copyright (c) 2026 JBBLET All Rights Reserved.
 #pragma once
 
 #include <string>
