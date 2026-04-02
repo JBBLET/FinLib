@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains two independent domains in a monorepo:
+This repository is a monorepo with two peer domains:
 
 1. **FinLib (Domain A)** — a generic C++20 time series library. Reusable on any time-indexed data (weather, sensors, finance). Has zero knowledge of finance, no network dependencies, no Python runtime. Depends only on Eigen3.
 
@@ -20,74 +20,104 @@ When a second project needs generic time series analysis, FinLib can be extracte
 ## Directory Structure
 
 ```
-include/finlib/                          # Domain A — public headers
-├── analysis/
-│   └── TimeSeriesAnalysis.hpp           # Cached statistical analysis facade
-├── common/
-│   ├── logger/
-│   │   ├── ILogger.hpp                  # Abstract logger interface
-│   │   ├── ConsoleLogger.hpp            # Console implementation
-│   │   └── LogMacros.hpp                # LOG_INFO, LOG_WARN, LOG_ERROR, LOG_DEBUG
-│   └── utils/
-│       └── TimeUtils.hpp                # ISO8601 parsing, timestamp conversion
-├── core/
-│   ├── TimeSeries.hpp                   # Immutable time series container
-│   ├── TimeSeriesView.hpp               # Non-owning windowed view with lag support
-│   └── StatsCore.hpp                    # Core stats: mean, variance, ACF, PACF, etc.
-├── data/
-│   ├── CoverageInfo.hpp                 # Metadata: coverage range, source, last update
-│   ├── SeriesKey.hpp                    # Composite key (seriesId, frequencyMs) with hash
-│   ├── TimeRange.hpp                    # Range struct with gap computation
-│   ├── interfaces/
-│   │   ├── ITimeSeriesLoader.hpp        # load() + capabilities()
-│   │   ├── ITimeSeriesSaver.hpp         # save() + merge()
-│   │   └── ITimeSeriesRepository.hpp    # Combines Loader + Saver + exists/coverage/frequencies
-│   ├── implementation/
-│   │   ├── CSVRepository.hpp            # File-based repository: <dir>/<id>/<freq>.csv
-│   │   └── CachedTimeSeriesRepository.hpp  # In-memory cache decorator
-│   └── services/
-│       └── TimeSeriesService.hpp        # Orchestrates cache -> repository -> provider
-├── models/
-│   ├── interfaces/
-│   │   ├── IModel.hpp                   # Abstract model interface
-│   │   └── BaseModel.hpp                # Base: train/val/test split management
-│   └── timeseries/regression/
-│       └── ARModel.hpp                  # AR(q) with OLS, Yule-Walker, Levinson-Durbin
-└── session/
-    ├── AppContext.hpp                    # DI container: logger + repository
-    └── ModelSession.hpp                 # Stateful online forecasting + drift detection
-
-src/                                     # Domain A — implementations
+finlib/                                     # Domain A — time series library
 ├── CMakeLists.txt
-├── analysis/TimeSeriesAnalysis.cpp
-├── core/
-│   ├── TimeSeries.cpp                   # Resampling, interpolation, operators
-│   ├── TimeSeriesView.cpp               # Slice, shift, lag, regularity check
-│   └── StatsCore.cpp
-├── data/
-│   ├── CSVRepository.cpp                # File I/O, .meta sidecar management
-│   └── TimeSeriesService.cpp            # Gap detection, frequency resolution
-├── models/
-│   ├── interfaces/IModel.cpp
-│   └── timeseries/regression/ARModel.cpp
-├── session/ModelSession.cpp
-└── utils/
-    ├── TimeUtils.cpp
-    └── LoggerUtils.cpp
+├── include/finlib/                         # Public headers
+│   ├── analysis/
+│   │   └── TimeSeriesAnalysis.hpp          # Cached statistical analysis facade
+│   ├── common/
+│   │   ├── logger/
+│   │   │   ├── ILogger.hpp                 # Abstract logger interface
+│   │   │   ├── ConsoleLogger.hpp           # Console implementation
+│   │   │   └── LogMacros.hpp               # LOG_INFO, LOG_WARN, LOG_ERROR, LOG_DEBUG
+│   │   └── utils/
+│   │       └── TimeUtils.hpp               # ISO8601 parsing, timestamp conversion
+│   ├── core/
+│   │   ├── TimeSeries.hpp                  # Immutable time series container
+│   │   ├── TimeSeriesView.hpp              # Non-owning windowed view with lag support
+│   │   └── StatsCore.hpp                   # Core stats: mean, variance, ACF, PACF, etc.
+│   ├── data/
+│   │   ├── CoverageInfo.hpp                # Metadata: coverage range, source, last update
+│   │   ├── SeriesKey.hpp                   # Composite key (seriesId, frequencyMs) with hash
+│   │   ├── TimeRange.hpp                   # Range struct with gap computation
+│   │   ├── interfaces/
+│   │   │   ├── ITimeSeriesLoader.hpp       # load() + capabilities()
+│   │   │   ├── ITimeSeriesSaver.hpp        # save() + merge()
+│   │   │   └── ITimeSeriesRepository.hpp   # Combines Loader + Saver + exists/coverage/frequencies
+│   │   ├── implementation/
+│   │   │   ├── CSVRepository.hpp           # File-based repository: <dir>/<id>/<freq>.csv
+│   │   │   └── CachedTimeSeriesRepository.hpp  # In-memory cache decorator
+│   │   └── services/
+│   │       └── TimeSeriesService.hpp       # Orchestrates cache -> repository -> provider
+│   ├── models/
+│   │   ├── interfaces/
+│   │   │   ├── IModel.hpp                  # Abstract base: name, fit, isFitted, regularity, contextSize
+│   │   │   ├── IRegressionModel.hpp        # Univariate regression: setData, predictOneStep, evaluate, createFresh
+│   │   │   ├── IMultivariateRegressionModel.hpp  # Multi-input regression (planned)
+│   │   │   ├── IProbabilisticModel.hpp     # Distribution prediction (planned)
+│   │   │   ├── IClassificationModel.hpp    # Class prediction (planned)
+│   │   │   ├── EvaluationResult.hpp        # RegressionEvaluation + ClassificationEvaluation structs
+│   │   │   └── BaseRegressionModel.hpp     # Base: train/val/test split management for regression
+│   │   └── timeseries/regression/
+│   │       └── ARModel.hpp                 # AR(q) with OLS, Yule-Walker, Levinson-Durbin
+│   └── session/
+│       ├── AppContext.hpp                   # DI container: logger + saver
+│       └── ModelSession.hpp                # Stateful online forecasting + drift detection
+└── src/                                    # Implementations
+    ├── analysis/TimeSeriesAnalysis.cpp
+    ├── core/
+    │   ├── TimeSeries.cpp                  # Resampling, interpolation, operators
+    │   ├── TimeSeriesView.cpp              # Slice, shift, lag, regularity check
+    │   └── StatsCore.cpp
+    ├── data/
+    │   ├── CSVRepository.cpp               # File I/O, .meta sidecar management
+    │   └── TimeSeriesService.cpp           # Gap detection, frequency resolution
+    ├── models/
+    │   ├── interfaces/EvaluationResult.cpp # RegressionEvaluation + ClassificationEvaluation impl
+    │   └── timeseries/regression/ARModel.cpp
+    ├── session/ModelSession.cpp
+    └── utils/
+        ├── TimeUtils.cpp
+        └── LoggerUtils.cpp
 
-finapp/                                  # Domain B — finance application
+finapp/                                     # Domain B — finance application
 ├── CMakeLists.txt
 ├── include/finapp/
-│   └── providers/
-│       └── YFinanceProvider.hpp         # ITimeSeriesLoader impl (Python/yfinance)
+│   ├── data/
+│   │   ├── providers/
+│   │   │   ├── interfaces/
+│   │   │   │   └── IAssetProviders.hpp     # Abstract asset metadata fetcher per AssetType
+│   │   │   └── implementations/
+│   │   │       └── YFinanceProvider.hpp    # ITimeSeriesLoader impl (Python/yfinance)
+│   │   └── repository/
+│   │       ├── IAssetRepository.hpp        # CRUD for asset metadata per AssetType
+│   │       ├── IPortfolioRepository.hpp    # Snapshots + transaction log
+│   │       └── IFXRepository.hpp           # FX pair metadata (timeseriesID lookup)
+│   ├── finance/
+│   │   ├── common/
+│   │   │   └── Currency.hpp                # Currency enum + string conversion
+│   │   ├── asset/
+│   │   │   ├── IAsset.hpp                  # Abstract asset + Position struct
+│   │   │   ├── Equity.hpp                  # Stock: ticker, exchange, sector
+│   │   │   ├── ETF.hpp                     # ETF: expenseRatio, trackingIndex (planned)
+│   │   │   ├── Bond.hpp                    # Bond: coupon, maturity, faceValue (planned)
+│   │   │   └── Cash.hpp                    # Cash: denomination only, no price series
+│   │   └── portfolio/
+│   │       ├── Transaction.hpp             # Buy/Sell/Deposit/Withdrawal/Dividend/Split
+│   │       ├── Portfolio.hpp               # Portfolio + Builder, positions + target allocations
+│   │       └── PortfolioSnapshot.hpp       # Point-in-time snapshot (positions + cash balances)
+│   └── service/
+│       ├── AssetService.hpp                # Dispatches to per-type repos/providers + TimeSeriesService
+│       ├── PortfolioService.hpp            # Reconstruct, save, compute value/weight series
+│       └── FXService.hpp                   # FX rate lookup via TimeSeriesService + IFXRepository
 ├── src/
-│   └── providers/
+│   └── data/providers/
 │       └── YFinanceProvider.cpp
 └── scripts/
-    └── YFinance_loader.py               # Python script called by YFinanceProvider
+    └── YFinance_loader.py                  # Python script called by YFinanceProvider
 
 tests/
-├── unit_tests/                          # Domain A tests
+├── unit_tests/                             # Domain A tests
 │   ├── time_series_view_test.cpp
 │   ├── time_series_resampling_test.cpp
 │   ├── time_series_operation_test.cpp
@@ -96,7 +126,7 @@ tests/
 │   ├── ar_model_test.cpp
 │   ├── csv_repository_test.cpp
 │   └── model_session_test.cpp
-└── finapp_tests/                        # Domain B tests
+└── finapp_tests/                           # Domain B tests
     └── test_yfinance_provider.cpp
 ```
 
@@ -122,15 +152,17 @@ finlib_core          (Eigen3)
 Domain B (FinApp) — depends on Domain A
 ═══════════════════════════════════════════
 
-finapp_providers ──> finlib_data ──> finlib_core
-        |
-        +-- (future) finapp_finance ──> finlib_analysis, finlib_data
-        |
-        +-- (future) finapp_finance_data ──> finapp_finance, finlib_data
-        |
-        +-- (future) finapp_grpc ──> finapp_finance, finapp_providers
-        |
-        +-- (future) finapp_strategy ──> finapp_finance, finlib_models
+                    finlib_core
+                    /         \
+             finlib_data    finlib_analysis
+                |
+        finapp_providers (YFinanceProvider)
+                |
+        TimeSeriesService (cache -> repo -> provider)
+               / \
+  AssetService    FXService
+        \          /
+     PortfolioService ──> IPortfolioRepository
 ```
 
 ### Domain A Libraries
@@ -140,7 +172,7 @@ finapp_providers ──> finlib_data ──> finlib_core
 | `finlib_core` | TimeSeries, TimeSeriesView, StatsCore, TimeUtils | Eigen3 |
 | `finlib_analysis` | TimeSeriesAnalysis | finlib_core |
 | `finlib_data` | CSVRepository, TimeSeriesService | finlib_core |
-| `finlib_models` | ARModel, IModel | finlib_analysis |
+| `finlib_models` | ARModel, EvaluationResult | finlib_analysis |
 | `finlib_session` | ModelSession, LoggerUtils | finlib_models |
 
 ### Domain B Libraries
@@ -148,6 +180,8 @@ finapp_providers ──> finlib_data ──> finlib_core
 | Library | Sources | Dependencies |
 |---------|---------|-------------|
 | `finapp_providers` | YFinanceProvider | finlib_data |
+| `finapp_finance` | Portfolio, Transaction, Asset types | finlib_core |
+| `finapp_service` | AssetService, PortfolioService, FXService | finapp_finance, finlib_data |
 
 ---
 
@@ -242,7 +276,11 @@ ITimeSeriesLoader          ITimeSeriesSaver
 
 Orchestrates the 3-layer data architecture: **cache -> repository -> provider**.
 
-`get(id, startMs, endMs, requestedFrequencyMs)` resolves data in 4 steps:
+Two entry points:
+- `get(id, startMs, endMs, requestedFrequencyMs)` — returns data at the requested frequency, resampling if needed
+- `getRaw(id, startMs, endMs)` — returns data without resampling, for models that don't require regular spacing
+
+`get()` resolves data in 4 steps:
 
 1. **Exact key match in cache** — if cached and coverage is complete, return filtered slice.
 2. **Finer frequency locally** — search `availableFrequencies()` for a finer grain that covers the range, resample to requested frequency.
@@ -281,22 +319,41 @@ return
 ### Inheritance
 
 ```
-IModel (abstract, enable_shared_from_this)
-└── BaseModel
-    └── ARModel
+IModel (abstract base, enable_shared_from_this)
+├── IRegressionModel (virtual IModel)
+│   └── BaseRegressionModel
+│       └── ARModel
+├── IMultivariateRegressionModel (virtual IModel)    # planned
+├── IProbabilisticModel (virtual IModel)             # planned
+└── IClassificationModel (virtual IModel)            # planned
 ```
 
-### IModel Interface
+All family interfaces use `public virtual IModel` so a model can implement multiple families (e.g., a Bayesian AR model can implement both `IRegressionModel` and `IProbabilisticModel`).
 
-- `setData(view, trainRatio, validationRatio)` — configure data splits
+### IModel (base)
+
+Common to all model families:
+- `name()`, `print()` — identification
 - `fit()` — train the model
-- `evaluate(view)` — compute regression/classification metrics
-- `predictOneStep(window)` — single-step prediction from a context window
-- `contextSize()` — required window length
-- `createFresh()` — factory: returns unconfigured copy of same type
+- `isFitted()` — check training state
 - `requiresRegularSpacing()`, `regularityTolerance()` — spacing constraints
+- `contextSize()` — required window length
 
-### BaseModel
+### IRegressionModel
+
+Extends IModel for univariate regression:
+- `setData(view, trainRatio, validationRatio)` — configure data splits
+- `predictOneStep(window)` — single-step prediction from a context window
+- `evaluate(view)` → `RegressionEvaluation` — compute regression metrics
+- `createFresh()` → `unique_ptr<IRegressionModel>` — factory for re-fitting
+- `getViewTimeSeriesId()` — series identifier for persistence
+
+### Evaluation Types
+
+- **`RegressionEvaluation`** — MSE, RMSE, MAE, R², adjusted R², log-likelihood, AIC
+- **`ClassificationEvaluation`** — accuracy, precision, recall, F1, confusion matrix
+
+### BaseRegressionModel
 
 Manages train/validation/test splits from a `TimeSeriesView`. Caches a `TimeSeriesAnalysis` on the training set. Validates regularity requirements before fitting.
 
@@ -321,8 +378,8 @@ Minimal DI container passed by reference:
 
 ```cpp
 struct AppContext {
-    logging::ILogger* logger;
-    ITimeSeriesRepository* repository;
+    logging::ILogger* logger_;
+    ITimeSeriesSaver* saver_;
 };
 ```
 
@@ -341,6 +398,132 @@ Stateful online forecasting session. Lifecycle:
 5. **`refit(newView)`** — flushes buffer, calls `createFresh()` on the model, re-fits on new data, resets window.
 
 6. **Destructor** — calls `flush_()` to persist buffered observations to the repository via `merge()`.
+
+---
+
+## Finance Module (Domain B)
+
+### Currency
+
+`enum class Currency : uint8_t` with `toString()` / `currencyFromString()` conversion. Supported: USD, EUR, JPY, KRW, CAD, GBP.
+
+### Asset Hierarchy
+
+```
+IAsset (abstract)
+├── ticker(), name(), type(), denomination()
+├── priceSeriesId() — bridge to TimeSeriesService (default: ticker())
+│
+├── Equity — exchange, sector
+├── ETF — expenseRatio, trackingIndex (planned)
+├── Bond — couponRate, maturityMs, faceValue (planned)
+└── Cash — denomination only, priceSeriesId() = "" (no price series)
+```
+
+`Position` struct: `{ shared_ptr<const IAsset> asset, double quantity }`
+
+Assets are lightweight descriptors — they do NOT hold price data. Price history is fetched on demand via `AssetService::loadTimeSeriesValue()` which delegates to `TimeSeriesService`.
+
+### Transaction
+
+```cpp
+struct Transaction {
+    int64_t timestampsMs;
+    TransactionType type;     // Buy, Sell, Deposit, Withdrawal, Dividend, Split
+    std::string assetTicker;
+    double quantity;
+    double pricePerUnit;
+    double fees;
+    Currency SettlementCurrency;
+};
+```
+
+### Portfolio
+
+Event-sourced portfolio. Current state is derived from a `PortfolioSnapshot` + ordered transactions.
+
+- **Builder pattern** for construction: `addPosition()`, `addCash()`, `fromSnapshot()`, `withTransactions()`
+- **`apply(Transaction)`** — mutates current state (positions + cash balances)
+- **`setTargetAllocation()`** / `rebalance()` — switch to target-weight mode, generate rebalancing transactions
+- **`totalValue(prices, fxRates)`** / **`weights(prices, fxRates)`** — computed from current positions + market data passed by caller
+- **`snapshot(timestampMs)`** — serialize current state for persistence
+
+### PortfolioSnapshot
+
+```cpp
+struct PortfolioSnapshot {
+    int64_t timestampMs;
+    std::string portfolioId;
+    vector<Position> positions;
+    unordered_map<Currency, double> cashBalances;
+};
+```
+
+---
+
+## Finance Data Layer (Domain B)
+
+### Repositories
+
+| Interface | Key | Purpose |
+|-----------|-----|---------|
+| `IAssetRepository` | `ticker` | CRUD for asset metadata (per AssetType) |
+| `IPortfolioRepository` | `portfolioId` | Snapshots (point-in-time) + transaction log (append-only) |
+| `IFXRepository` | `(baseCurrency, quoteCurrency)` | Maps currency pairs to TimeSeries IDs |
+
+`IAssetRepository` is one interface, but `AssetService` holds a `map<AssetType, shared_ptr<IAssetRepository>>` — different implementations per asset type since Bond metadata differs from Equity metadata.
+
+### Providers
+
+| Interface | Purpose |
+|-----------|---------|
+| `IAssetProvider` | Fetch asset metadata from external source (per AssetType) |
+| `ITimeSeriesLoader` (Domain A) | Fetch price data (YFinanceProvider) |
+
+`AssetService` holds a `map<AssetType, shared_ptr<IAssetProvider>>` mirroring the repository map.
+
+### Services
+
+```
+AssetService
+├── map<AssetType, IAssetRepository>   — persist/load asset metadata
+├── map<AssetType, IAssetProvider>     — fetch metadata from external sources
+└── TimeSeriesService                  — price data (already cached by CachedTimeSeriesRepository)
+
+FXService
+├── IFXRepository                      — maps (EUR,USD) → timeSeriesId "EURUSD"
+└── TimeSeriesService                  — FX rate data
+
+PortfolioService
+├── IPortfolioRepository               — snapshots + transactions
+├── AssetService                       — resolve tickers to IAsset objects + price data
+└── FXService                          — cross-currency conversion
+```
+
+### Data Flow: Load Portfolio Value Series
+
+```
+PortfolioService::valueSeries("pf1", startMs, endMs, freqMs)
+    |
+    v
+1. Load latest snapshot from IPortfolioRepository
+2. Load transactions after snapshot
+3. Reconstruct Portfolio via Builder
+    |
+    v
+4. For each position's asset:
+   AssetService::loadTimeSeriesValue(assetId, startMs, endMs, freqMs)
+       → TimeSeriesService::get() → CachedTimeSeriesRepository → Provider
+    |
+    v
+5. For cross-currency positions:
+   FXService::load(assetCurrency, baseCurrency, startMs, endMs, freqMs)
+       → TimeSeriesService::get() → CachedTimeSeriesRepository → Provider
+    |
+    v
+6. Walk timestamps, apply transactions at boundaries, compute value at each point
+7. Return TimeSeries of portfolio value
+```
 
 ---
 
@@ -370,12 +553,15 @@ Used via macros: `LOG_INFO(context, msg)`, `LOG_WARN(...)`, `LOG_ERROR(...)`, `L
 
 | Pattern | Where | Purpose |
 |---------|-------|---------|
-| **Dependency Injection** | `AppContext` -> `ModelSession` | Decouple from concrete logger/repository |
+| **Dependency Injection** | `AppContext` -> `ModelSession`, Services | Decouple from concrete implementations |
 | **Decorator** | `CachedTimeSeriesRepository` wraps `ITimeSeriesRepository` | Add caching transparently |
 | **Strategy** | `InterpolationStrategy` enum | Pluggable resampling algorithms |
-| **Template Method** | `BaseModel` -> `ARModel` | Reuse data split logic |
-| **Factory** | `IModel::createFresh()` | Create blank model copies for re-fitting |
+| **Template Method** | `BaseRegressionModel` -> `ARModel` | Reuse data split logic |
+| **Factory** | `IRegressionModel::createFresh()` | Create blank model copies for re-fitting |
 | **Interface Segregation** | `ITimeSeriesLoader` / `ITimeSeriesSaver` | Clients depend only on what they need |
+| **Builder** | `Portfolio::Builder` | Flexible portfolio construction (holdings, target-weight, snapshot restore) |
+| **Event Sourcing** | `Transaction` + `PortfolioSnapshot` | Portfolio state derived from append-only transaction log |
+| **Type-Dispatched Registry** | `map<AssetType, IAssetRepository>` | Per-type providers and repositories |
 
 ---
 
@@ -389,16 +575,20 @@ Used via macros: `LOG_INFO(context, msg)`, `LOG_WARN(...)`, `LOG_ERROR(...)`, `L
 
 ```cmake
 # Root CMakeLists.txt
-add_subdirectory(src)      # FinLib (Domain A)
+add_subdirectory(finlib)   # FinLib (Domain A)
 add_subdirectory(finapp)   # FinApp (Domain B)
 add_subdirectory(tests)    # Both domains
 
+# finlib/CMakeLists.txt
+# Defines: finlib_core, finlib_analysis, finlib_data, finlib_models, finlib_session
+# All use ${CMAKE_CURRENT_SOURCE_DIR}/include for headers
+
 # finapp/CMakeLists.txt
-add_library(finapp_providers ...)
-target_link_libraries(finapp_providers PUBLIC finlib_data)
+# Defines: finapp_providers, finapp_finance, finapp_service
+# All use ${CMAKE_CURRENT_SOURCE_DIR}/include for headers
 ```
 
-To extract FinLib to a separate repo later, replace `add_subdirectory(src)` with `FetchContent(FinLib)` — all downstream `target_link_libraries` calls remain unchanged.
+To extract FinLib to a separate repo later, replace `add_subdirectory(finlib)` with `FetchContent(FinLib)` — all downstream `target_link_libraries` calls remain unchanged.
 
 ---
 
@@ -411,33 +601,3 @@ Each `(seriesId, frequencyMs)` pair is independently tracked. This solves the mu
 - Each key has its own `CoverageInfo`, so capabilities are never overestimated.
 
 `TimeSeriesService` can derive coarser frequencies from finer ones via resampling, but never the reverse.
-
----
-
-## Planned Domain B Structure (Phases 1-4)
-
-```
-finapp/
-├── include/finapp/
-│   ├── providers/
-│   │   └── YFinanceProvider.hpp              # Phase 1 (done)
-│   ├── finance/
-│   │   ├── Currency.hpp                      # Phase 1
-│   │   ├── IAsset.hpp                        # Phase 1 (ETF, Equity, Bond, Cash)
-│   │   ├── Transaction.hpp                   # Phase 1
-│   │   └── Portfolio.hpp                     # Phase 1
-│   ├── finance_data/
-│   │   ├── interfaces/
-│   │   │   ├── IPortfolioRepository.hpp      # Phase 1
-│   │   │   └── ITransactionRepository.hpp    # Phase 1
-│   │   ├── CSVFinanceRepository.hpp          # Phase 1
-│   │   └── TimescaleDBRepository.hpp         # Phase 2
-│   ├── risk/                                 # Phase 1
-│   ├── grpc/                                 # Phase 1
-│   ├── strategy/
-│   │   ├── IStrategy.hpp                     # Phase 4
-│   │   └── BacktestEngine.hpp                # Phase 4
-│   └── python/                               # Phase 2 (pybind11 bridge)
-└── scripts/
-    └── YFinance_loader.py
-```
