@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <unordered_map>
 
@@ -37,3 +38,8 @@ inline Currency currencyFromString(const std::string& id) {
     return currency;
 }
 }  // namespace finance
+
+template <>
+struct std::hash<finance::Currency> {
+    std::uint8_t operator()(const finance::Currency& currency) const { return static_cast<uint8_t>(currency); }
+};

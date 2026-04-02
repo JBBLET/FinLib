@@ -5,15 +5,20 @@
 #include <unordered_map>
 #include <vector>
 
-#include "finapp/finance/asset/IAsset.hpp"
+#include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
 
 namespace finance {
 
+struct SnapshotPosition {
+    AssetId assetId;
+    double quantity;
+};
+
 struct PortfolioSnapshot {
     int64_t timestampMs;
     std::string portfolioId;
-    std::vector<Position> positions;
+    std::vector<SnapshotPosition> positions;
     std::unordered_map<Currency, double> cashBalances;
 };
 
