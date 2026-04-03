@@ -3,6 +3,7 @@
 #pragma once
 #include <string>
 
+#include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
 namespace finance {
 enum class TransactionType : uint8_t {
@@ -17,6 +18,7 @@ enum class TransactionType : uint8_t {
 struct Transaction {
     int64_t timestampsMs;
     TransactionType type;
+    AssetType assetType;
     std::string assetTicker;
     double quantity;
     double pricePerUnit;
