@@ -44,7 +44,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical breakdown.
 - [x] Finance data interfaces (IAssetRepository, IPortfolioRepository, IFXRepository)
 - [x] Service layer (AssetService, PortfolioService, FXService)
 - [ ] CSV implementations for finance repositories
-- [ ] Core portfolio logic (apply transactions, snapshot, value/weight computation)
+- [x] Core portfolio logic (apply transactions, snapshot, value/weight computation)
 - [ ] Risk metrics (Sharpe ratio, basic Greeks)
 - [ ] Proto schema + gRPC PortfolioTracking server
 
