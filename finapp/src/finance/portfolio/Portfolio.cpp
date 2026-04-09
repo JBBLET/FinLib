@@ -28,7 +28,7 @@ std::unordered_map<std::string, size_t> getPositionsIndexFromPosition(const std:
     size_t index = 0;
     std::unordered_map<std::string, size_t> newPositionIndex;
     for (auto i = positions.begin(); i != positions.end(); i++) {
-        newPositionIndex.at(i->assetId.ticker) = index;
+        newPositionIndex[i->assetId.ticker] = index;
         index++;
     }
     return newPositionIndex;
@@ -71,11 +71,7 @@ Portfolio::Builder& Portfolio::Builder::addPosition(const AssetId& assetId, doub
 }
 
 Portfolio::Builder& Portfolio::Builder::addCash(Currency currency, double amount) {
-    try {
-        cashBalances_.at(currency) += amount;
-    } catch (const std::out_of_range& e) {
-        cashBalances_.at(currency) = amount;
-    }
+    cashBalances_[currency] += amount;
     return *this;
 }
 
@@ -148,26 +144,22 @@ void Portfolio::applyBuy_(const Transaction& transaction) {
         throw std::runtime_error("The Transaction is not a Buy transaction");
     }
     double totalCost = transaction.quantity * transaction.pricePerUnit + transaction.fees;
-    double remainingFund = 0.0;
-    try {
-        remainingFund = cashBalances_.at(transaction.SettlementCurrency);
-    } catch (const std::out_of_range& e) {
-        throw std::runtime_error("No funds in this currency to settle the transaction");
-    }
+    double remainingFund = cashBalances_[transaction.SettlementCurrency];
     if (totalCost > remainingFund) {
         throw std::runtime_error("Insufficient funds to buy");
     }
-    cashBalances_.at(transaction.SettlementCurrency) = remainingFund - totalCost;
+    cashBalances_[transaction.SettlementCurrency] = remainingFund - totalCost;
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
         positions_[positionIndex].quantity += transaction.quantity;
     } catch (const std::out_of_range& e) {
         positions_.push_back(
             SnapshotPosition{AssetId{transaction.assetType, transaction.assetTicker}, transaction.quantity});
-        positionsIndex_.at(transaction.assetTicker) = positions_.size() - 1;
+        positionsIndex_[transaction.assetTicker] = positions_.size() - 1;
     }
     lastTransactionMs_ = transaction.timestampsMs;
 }
+
 void Portfolio::applySell_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Sell) {
         throw std::runtime_error("The Transaction is not a Sell Transaction");
@@ -183,11 +175,7 @@ void Portfolio::applySell_(const Transaction& transaction) {
         throw std::runtime_error("Not enough quantity to fulfill the transaction");
     }
     double totalRevenue = transaction.quantity * transaction.pricePerUnit - transaction.fees;
-    try {
-        cashBalances_.at(transaction.SettlementCurrency) += totalRevenue;
-    } catch (const std::out_of_range& e) {
-        cashBalances_.at(transaction.SettlementCurrency) = totalRevenue;
-    }
+    cashBalances_[transaction.SettlementCurrency] += totalRevenue;
     lastTransactionMs_ = transaction.timestampsMs;
 }
 
@@ -198,13 +186,10 @@ void Portfolio::applyDeposit_(const Transaction& transaction) {
     if (transaction.quantity < 0) {
         throw std::runtime_error("Cannot deposit negative amount");
     }
-    try {
-        cashBalances_.at(transaction.SettlementCurrency) += transaction.quantity - transaction.fees;
-    } catch (const std::out_of_range& e) {
-        cashBalances_.at(transaction.SettlementCurrency) = transaction.quantity - transaction.fees;
-    }
+    cashBalances_[transaction.SettlementCurrency] += transaction.quantity - transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
 }
+
 void Portfolio::applyWithdrawal_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Withdrawal) {
         throw std::runtime_error("The Transaction is not a Withdrawal transaction");
@@ -229,17 +214,15 @@ void Portfolio::applyDividend_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Dividend) {
         throw std::runtime_error("The Transaction is not a Dividend transaction");
     }
-    double sharesNumber = 0.0;
-    try {
-        size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
-        sharesNumber = positions_[positionIndex].quantity;
-    } catch (const std::out_of_range& e) {
+    if (!positionsIndex_.contains(transaction.assetTicker)) {
+        throw std::runtime_error("Cannot apply a Dividend if you do not hold the position");
     }
-    try {
-        cashBalances_.at(transaction.SettlementCurrency) += sharesNumber * transaction.pricePerUnit - transaction.fees;
-    } catch (const std::out_of_range& e) {
-        cashBalances_.at(transaction.SettlementCurrency) = sharesNumber * transaction.pricePerUnit - transaction.fees;
+    double sharesNumber = positions_[positionsIndex_[transaction.assetTicker]].quantity;
+    if (sharesNumber == 0.0) {
+        lastTransactionMs_ = transaction.timestampsMs;
+        return;
     }
+    cashBalances_[transaction.SettlementCurrency] += sharesNumber * transaction.pricePerUnit - transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
 }
 

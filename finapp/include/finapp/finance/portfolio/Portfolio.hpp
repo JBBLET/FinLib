@@ -52,7 +52,8 @@ class Portfolio {
     void restoreFromSnapshot(const PortfolioSnapshot& snapshot);
 
  private:
-    Portfolio(std::string id, std::string name, Currency baseCurrency);
+    Portfolio(std::string id, std::string name, Currency baseCurrency)
+        : id_{id}, name_{name}, baseCurrency_{baseCurrency} {}
 
     std::string id_;
     std::string name_;
@@ -76,7 +77,8 @@ class Portfolio {
 
 class Portfolio::Builder {
  public:
-    Builder(std::string id, std::string name, Currency baseCurrency);
+    Builder(std::string id, std::string name, Currency baseCurrency)
+        : id_{id}, name_{name}, baseCurrency_{baseCurrency} {}
 
     Builder& addPosition(const AssetId& assetId, double quantity);
     Builder& addCash(Currency currency, double amount);
