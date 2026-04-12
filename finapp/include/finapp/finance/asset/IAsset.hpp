@@ -3,11 +3,9 @@
 
 #include <string>
 
+#include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/Currency.hpp"
-
 namespace finance {
-
-enum class AssetType : uint8_t { Equity, ETF, Bond, Cash };
 
 class IAsset {
  public:

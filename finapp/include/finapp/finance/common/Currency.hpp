@@ -29,6 +29,8 @@ inline const std::string toString(Currency c) {
             return "CAD";
         case (Currency::GBP):
             return "GBP";
+        default:
+            return "";
     }
 }
 inline Currency currencyFromString(const std::string& id) {

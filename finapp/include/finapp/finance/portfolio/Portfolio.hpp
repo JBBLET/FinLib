@@ -32,7 +32,7 @@ class Portfolio {
 
     // State
     const std::vector<SnapshotPosition>& positions() const { return positions_; }
-    double cashBalance(Currency currency) const;
+    double cashBalance(Currency currency) const { return cashBalances_.at(currency); }
 
     // Investment universe — the set of assets this portfolio is allowed to hold
     const std::vector<AssetId>& universe() const { return universe_; }
@@ -52,7 +52,8 @@ class Portfolio {
     void restoreFromSnapshot(const PortfolioSnapshot& snapshot);
 
  private:
-    Portfolio(std::string id, std::string name, Currency baseCurrency);
+    Portfolio(std::string id, std::string name, Currency baseCurrency)
+        : id_{id}, name_{name}, baseCurrency_{baseCurrency} {}
 
     std::string id_;
     std::string name_;
@@ -76,7 +77,8 @@ class Portfolio {
 
 class Portfolio::Builder {
  public:
-    Builder(std::string id, std::string name, Currency baseCurrency);
+    Builder(std::string id, std::string name, Currency baseCurrency)
+        : id_{id}, name_{name}, baseCurrency_{baseCurrency} {}
 
     Builder& addPosition(const AssetId& assetId, double quantity);
     Builder& addCash(Currency currency, double amount);
@@ -100,5 +102,7 @@ class Portfolio::Builder {
     std::vector<TargetAllocation> targetAllocations_;
     std::vector<Transaction> transactions_;
     std::optional<PortfolioSnapshot> snapshot_;
+
+    void checkPositions_();
 };
 }  // namespace finance
