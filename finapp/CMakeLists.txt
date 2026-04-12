@@ -40,6 +40,7 @@ add_library(finapp_csv_repository
     src/data/repository/implementation/CsvRepository/CSVCashRepository.cpp
     src/data/repository/implementation/CsvRepository/CSVFXRepository.cpp
     src/data/repository/implementation/CsvRepository/CSVEquityRepository.cpp
+    src/data/repository/implementation/CsvRepository/CSVPortfolioRepository.cpp
 )
 target_include_directories(finapp_csv_repository
     PUBLIC
