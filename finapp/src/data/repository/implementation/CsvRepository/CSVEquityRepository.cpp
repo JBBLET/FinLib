@@ -20,6 +20,50 @@ namespace finance {
 
 CSVEquityRepository::CSVEquityRepository(std::filesystem::path directory) : directory_(std::move(directory)) {}
 
+void CSVEquityRepository::save(const std::shared_ptr<const IAsset>& asset) {
+    // TODO(JBBLET) look into performance gain from switching to a static_pointer_cast
+    auto equity = std::dynamic_pointer_cast<const Equity>(asset);
+    if (!equity) {
+        throw std::runtime_error("CSVEquityRepository::save called with non-Equity asset");
+    }
+    writeAttributes_(equity);
+    writeCsv_(equity);
+}
+
+std::shared_ptr<const IAsset> CSVEquityRepository::load(const std::string& ticker) const {
+    std::shared_ptr<Equity> EquityPtr = readCsv_(ticker);
+    std::unordered_map<std::string, std::string> attributes;
+    try {
+        attributes = readAttribute_(ticker);
+        EquityPtr->setAttributes(attributes);
+    } catch (const std::runtime_error& e) {
+    }
+    return EquityPtr;
+}
+
+bool CSVEquityRepository::exists(const std::string& ticker) const { return std::filesystem::exists(csvPath_(ticker)); }
+
+std::vector<std::string> CSVEquityRepository::listTickers() const {
+    std::filesystem::path path = directory_ / assetTypeToString(assetType_);
+    std::vector<std::string> output;
+    output.reserve(100);
+    for (const auto& entry : std::filesystem::directory_iterator(path)) {
+        if (entry.path().extension() == ".csv") {
+            output.push_back(entry.path().stem());
+        }
+    }
+    return output;
+}
+
+std::unordered_map<std::string, std::shared_ptr<const IAsset>> CSVEquityRepository::loadAll(
+    const std::vector<std::string>& tickers) const {
+    std::unordered_map<std::string, std::shared_ptr<const IAsset>> output;
+    output.reserve(tickers.size());
+    for (const auto& ticker : tickers) {
+        output[ticker] = load(ticker);
+    }
+    return output;
+}
 std::filesystem::path CSVEquityRepository::csvPath_(const std::string& ticker) const {
     return directory_ / (assetTypeToString(assetType_)) / (ticker + ".csv");
 }
@@ -118,47 +162,4 @@ std::unordered_map<std::string, std::string> CSVEquityRepository::parseAttribute
     return output;
 }
 
-void CSVEquityRepository::save(const std::shared_ptr<const IAsset>& asset) {
-    // TODO(JBBLET) look into performance gain from switching to a static_pointer_cast
-    auto equity = std::dynamic_pointer_cast<const Equity>(asset);
-    if (!equity) {
-        throw std::runtime_error("CSVEquityRepository::save called with non-Equity asset");
-    }
-    writeAttributes_(equity);
-    writeCsv_(equity);
-}
-
-std::shared_ptr<const IAsset> CSVEquityRepository::load(const std::string& ticker) const {
-    std::shared_ptr<Equity> EquityPtr = readCsv_(ticker);
-    std::unordered_map<std::string, std::string> attributes;
-    try {
-        attributes = readAttribute_(ticker);
-        EquityPtr->setAttributes(attributes);
-    } catch (const std::runtime_error& e) {
-    }
-    return EquityPtr;
-}
-bool CSVEquityRepository::exists(const std::string& ticker) const { return std::filesystem::exists(csvPath_(ticker)); }
-
-std::vector<std::string> CSVEquityRepository::listTickers() const {
-    std::filesystem::path path = directory_ / assetTypeToString(assetType_);
-    std::vector<std::string> output;
-    output.reserve(100);
-    for (const auto& entry : std::filesystem::directory_iterator(path)) {
-        if (entry.path().extension() == ".csv") {
-            output.push_back(entry.path().stem());
-        }
-    }
-    return output;
-}
-
-std::unordered_map<std::string, std::shared_ptr<const IAsset>> CSVEquityRepository::loadAll(
-    const std::vector<std::string>& tickers) const {
-    std::unordered_map<std::string, std::shared_ptr<const IAsset>> output;
-    output.reserve(tickers.size());
-    for (const auto& ticker : tickers) {
-        output[ticker] = load(ticker);
-    }
-    return output;
-}
 }  // namespace finance

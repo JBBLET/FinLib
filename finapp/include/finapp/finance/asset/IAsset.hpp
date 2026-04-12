@@ -1,31 +1,11 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 
-#include <stdexcept>
 #include <string>
 
+#include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/Currency.hpp"
-
 namespace finance {
-
-enum class AssetType : uint8_t { Equity, ETF, Bond, Cash, Crypto };
-
-inline const std::string assetTypeToString(AssetType assetType) {
-    switch (assetType) {
-        case AssetType::Equity:
-            return "Equity";
-        case AssetType::ETF:
-            return "ETF";
-        case AssetType::Bond:
-            return "Bond";
-        case AssetType::Cash:
-            return "Cash";
-        case AssetType::Crypto:
-            return "Crypto";
-        default:
-            throw std::runtime_error("Illegal asset Type");
-    }
-}
 
 class IAsset {
  public:
