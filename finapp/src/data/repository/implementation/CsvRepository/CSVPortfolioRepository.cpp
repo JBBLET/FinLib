@@ -126,7 +126,7 @@ void CSVPortfolioRepository::writeSnapshotCsv_(const std::string& portfolioID, c
         throw std::runtime_error("Cannot open CSV file of snapshot for writing: " + path.string());
     }
     if (needsheader) {
-        file << "timestampMs,portfolioID,positions_id,cashBalances_id\n";
+        file << "name,baseCurrency,timestampMs,portfolioID,positions_id,cashBalances_id\n";
     }
     std::string timestampMsString = std::to_string(snapshot.timestampMs);
     std::string cashBalancesId = "";
@@ -137,7 +137,8 @@ void CSVPortfolioRepository::writeSnapshotCsv_(const std::string& portfolioID, c
     if (snapshot.cashBalances.size() > 0) {
         cashBalancesId = writeCashBalancesFile_(snapshot);
     }
-    file << timestampMsString << "," << portfolioID << "," << positionsId << "," << cashBalancesId << "\n";
+    file << snapshot.name << "," << toString(snapshot.baseCurrency) << "," << timestampMsString << "," << portfolioID
+         << "," << positionsId << "," << cashBalancesId << "\n";
 }
 
 std::string CSVPortfolioRepository::writeSnapshotPositionsFile_(const PortfolioSnapshot& snapshot) {
@@ -216,8 +217,9 @@ std::optional<PortfolioSnapshot> CSVPortfolioRepository::parseSnapshotCsvFile_(
         return output;
     }
     std::istringstream cell(prevLine);
-    std::string timestampsMsString, portfolioId, positionsId, cashBalancesId;
-    if (std::getline(cell, timestampsMsString, ',') && std::getline(cell, portfolioId, ',') &&
+    std::string name, baseCurrencyString, timestampsMsString, portfolioId, positionsId, cashBalancesId;
+    if (std::getline(cell, name, ',') && std::getline(cell, baseCurrencyString, ',') &&
+        std::getline(cell, timestampsMsString, ',') && std::getline(cell, portfolioId, ',') &&
         std::getline(cell, positionsId, ',')) {
         std::getline(cell, cashBalancesId);  // optional — may be empty at EOF
         std::unordered_map<Currency, double> cashBalance;
@@ -230,7 +232,12 @@ std::optional<PortfolioSnapshot> CSVPortfolioRepository::parseSnapshotCsvFile_(
             auto cashbalancePath = cashBalanceFilePath_(cashBalancesId);
             cashBalance = std::move(parseCashBalanceFile_(cashbalancePath));
         }
-        output = PortfolioSnapshot{std::stoll(timestampsMsString), portfolioId, positionsSnapshot, cashBalance};
+        output = PortfolioSnapshot{name,
+                                   currencyFromString(baseCurrencyString),
+                                   std::stoll(timestampsMsString),
+                                   portfolioId,
+                                   positionsSnapshot,
+                                   cashBalance};
     }
     return output;
 }

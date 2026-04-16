@@ -42,8 +42,10 @@ class CSVPortfolioRepositoryTest : public ::testing::Test {
 
     static PortfolioSnapshot makeSnapshot(const std::string& portfolioId, int64_t ts,
                                           const std::vector<SnapshotPosition>& positions,
-                                          const std::unordered_map<Currency, double>& cash) {
-        return PortfolioSnapshot{ts, portfolioId, positions, cash};
+                                          const std::unordered_map<Currency, double>& cash,
+                                          const std::string& name = "Test Portfolio",
+                                          Currency baseCurrency = Currency::USD) {
+        return PortfolioSnapshot{name, baseCurrency, ts, portfolioId, positions, cash};
     }
 };
 
@@ -139,13 +141,15 @@ TEST_F(CSVPortfolioRepositoryTest, SaveAndLoadSnapshotWithPositionsAndCash) {
     };
     std::unordered_map<Currency, double> cash = {{Currency::USD, 50000.0}, {Currency::EUR, 10000.0}};
 
-    auto snapshot = makeSnapshot("pf1", 1000, positions, cash);
+    auto snapshot = makeSnapshot("pf1", 1000, positions, cash, "My Portfolio", Currency::EUR);
     repo->saveSnapshot(snapshot);
 
     auto loaded = repo->loadLatestSnapshot("pf1");
     ASSERT_TRUE(loaded.has_value());
     EXPECT_EQ(loaded->timestampMs, 1000);
     EXPECT_EQ(loaded->portfolioId, "pf1");
+    EXPECT_EQ(loaded->name, "My Portfolio");
+    EXPECT_EQ(loaded->baseCurrency, Currency::EUR);
     ASSERT_EQ(loaded->positions.size(), 2);
     ASSERT_EQ(loaded->cashBalances.size(), 2);
     EXPECT_NEAR(loaded->cashBalances.at(Currency::USD), 50000.0, 1e-6);

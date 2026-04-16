@@ -42,9 +42,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical breakdown.
 - [x] Online forecasting session with drift detection
 - [x] Finance domain types (Currency, IAsset, Equity, Cash, Portfolio, Transaction)
 - [x] Finance data interfaces (IAssetRepository, IPortfolioRepository, IFXRepository)
-- [x] Service layer (AssetService, PortfolioService, FXService)
-- [ ] CSV implementations for finance repositories
+- [x] CSV implementations for finance repositories (Equity, Cash, FX, Portfolio) + unit tests
 - [x] Core portfolio logic (apply transactions, snapshot, value/weight computation)
+- [x] Service layer implementations (AssetService, FXService, PortfolioService — headers declared, `.cpp` pending)
 - [ ] Risk metrics (Sharpe ratio, basic Greeks)
 - [ ] Proto schema + gRPC PortfolioTracking server
 

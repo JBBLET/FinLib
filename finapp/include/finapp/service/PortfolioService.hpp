@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "finapp/data/repository/IPortfolioRepository.hpp"
+#include "finapp/data/repository/interface/IPortfolioRepository.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
 #include "finapp/service/AssetService.hpp"
@@ -36,7 +36,11 @@ class PortfolioService {
     // Derived TimeSeries over a range
     TimeSeries valueSeries(const std::string& portfolioId, int64_t startMs, int64_t endMs, int64_t frequencyMs);
     std::unordered_map<std::string, TimeSeries> weightSeries(const std::string& portfolioId, int64_t startMs,
-                                                              int64_t endMs, int64_t frequencyMs);
+                                                             int64_t endMs, int64_t frequencyMs);
+
+    // Shared-timestamp overloads — asset/FX series stay pointer-aligned on the caller's grid.
+    TimeSeries valueSeries(const std::string& portfolioId, TimestampPtr timestamps);
+    std::unordered_map<std::string, TimeSeries> weightSeries(const std::string& portfolioId, TimestampPtr timestamps);
 
  private:
     std::shared_ptr<IPortfolioRepository> portfolioRepository_;

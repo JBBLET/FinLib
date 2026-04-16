@@ -70,3 +70,67 @@ target_link_libraries(test_csv_portfolio_repository
 )
 
 add_test(NAME CSVPortfolioRepositoryTest COMMAND test_csv_portfolio_repository)
+
+# --------------------
+# Service Tests
+# --------------------
+
+add_executable(test_fx_service
+    fx_service_test.cpp
+)
+
+target_include_directories(test_fx_service
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(test_fx_service
+    PRIVATE
+        finapp_service
+        finapp_core
+        finlib_core
+        finlib_data
+        gtest_main
+)
+
+add_test(NAME FXServiceTest COMMAND test_fx_service)
+
+add_executable(test_asset_service
+    asset_service_test.cpp
+)
+
+target_include_directories(test_asset_service
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(test_asset_service
+    PRIVATE
+        finapp_service
+        finapp_core
+        finlib_core
+        finlib_data
+        gtest_main
+)
+
+add_test(NAME AssetServiceTest COMMAND test_asset_service)
+
+add_executable(test_portfolio_service
+    portfolio_service_test.cpp
+)
+
+target_include_directories(test_portfolio_service
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(test_portfolio_service
+    PRIVATE
+        finapp_service
+        finapp_core
+        finlib_core
+        finlib_data
+        gtest_main
+)
+
+add_test(NAME PortfolioServiceTest COMMAND test_portfolio_service)

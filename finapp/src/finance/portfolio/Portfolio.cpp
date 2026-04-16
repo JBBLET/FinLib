@@ -101,6 +101,8 @@ Portfolio::Builder& Portfolio::Builder::setUniverse(std::vector<AssetId> univers
 }
 
 void Portfolio::restoreFromSnapshot(const PortfolioSnapshot& snapshot) {
+    name_ = snapshot.name;
+    baseCurrency_ = snapshot.baseCurrency;
     positions_ = snapshot.positions;
     cashBalances_ = snapshot.cashBalances;
     lastTransactionMs_ = snapshot.timestampMs;
@@ -108,7 +110,7 @@ void Portfolio::restoreFromSnapshot(const PortfolioSnapshot& snapshot) {
 }
 
 PortfolioSnapshot Portfolio::snapshot(int64_t timestampsMs) const {
-    return PortfolioSnapshot{timestampsMs, id_, positions_, cashBalances_};
+    return PortfolioSnapshot{name_, baseCurrency_, timestampsMs, id_, positions_, cashBalances_};
 }
 
 void Portfolio::apply(const Transaction& transaction) {
