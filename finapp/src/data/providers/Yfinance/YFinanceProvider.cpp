@@ -16,7 +16,9 @@ using common::utils::time::msToStringDate;
 
 namespace py = pybind11;
 
-LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) const {
+namespace finapp {
+
+LoaderCapabilities YFinanceProvider::capabilities(const std::string& id) const {
     // YFinance provides daily data; earliest is roughly 1970 but practically ~1990s
     // TODO(Change to support intraday for less than 6 Days)
     constexpr int64_t dailyMs = 86'400'000;
@@ -24,7 +26,7 @@ LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) con
 }
 
 TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts) const {
-    finance::PythonRuntime::pythonRuntime();
+    PythonRuntime::pythonRuntime();
 
     py::module_ yfinanceTool = py::module_::import("YFinanceFetcher");
     yfinanceTool.attr("testVersion")();
@@ -33,6 +35,7 @@ TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, i
 
     py::dict result = yfinanceTool.attr("fetch_ohlcv")(symbol, start, end, "1d");
     auto timestamps = result["timestamps_ms"].cast<std::vector<int64_t>>();
+    // "close" is split- and dividend-adjusted (yfinance auto_adjust=True default).
     auto closes = result["close"].cast<std::vector<double>>();
     // std::string cmd = python_ + " " + scriptPath_ + " \"" + symbol + "\" \"" + start + "\" \"" +
     // end + "\" \"1d\"";
@@ -67,3 +70,5 @@ TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, i
     // pclose(pipe);
     return TimeSeries("Test", timestamps, closes);
 }
+
+}  // namespace finapp

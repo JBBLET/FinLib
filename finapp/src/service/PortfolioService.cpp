@@ -23,7 +23,9 @@
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
-namespace finance {
+namespace finapp {
+
+using namespace finance;
 
 namespace {
 
@@ -45,6 +47,23 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 // ---------------------------------------------------------------------------
 // Persistence
 // ---------------------------------------------------------------------------
+
+Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name,
+                                      Currency baseCurrency, int64_t timestampMs) {
+    if (portfolioRepository_->exists(portfolioId)) {
+        throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
+    }
+    Portfolio portfolio = Portfolio::Builder(portfolioId, name, baseCurrency).build();
+    portfolioRepository_->saveSnapshot(portfolio.snapshot(timestampMs));
+    return portfolio;
+}
+
+void PortfolioService::deletePortfolio(const std::string& portfolioId) {
+    if (!portfolioRepository_->exists(portfolioId)) {
+        throw std::runtime_error("PortfolioService::deletePortfolio: portfolio '" + portfolioId + "' does not exist.");
+    }
+    portfolioRepository_->deletePortfolio(portfolioId);
+}
 
 Portfolio PortfolioService::load(const std::string& portfolioId) {
     auto snapshotOpt = portfolioRepository_->loadLatestSnapshot(portfolioId);
@@ -257,7 +276,22 @@ TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, Timesta
     // Transactions must be chronological for the walk — the CSV path is already sorted by
     // timestamp but we can't assume that about every repo impl.
     std::sort(transactions.begin(), transactions.end(),
-              [](const Transaction& a, const Transaction& b) { return a.timestampsMs < b.timestampsMs; });
+              [](const Transaction& a, const Transaction& b) {
+                  if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
+                  // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
+                  auto pri = [](TransactionType t) -> int {
+                      switch (t) {
+                          case TransactionType::Deposit:    return 0;
+                          case TransactionType::Dividend:   return 1;
+                          case TransactionType::Buy:        return 2;
+                          case TransactionType::Sell:       return 2;
+                          case TransactionType::Withdrawal: return 3;
+                          case TransactionType::Split:      return 4;
+                          default:                          return 5;
+                      }
+                  };
+                  return pri(a.type) < pri(b.type);
+              });
 
     Portfolio runningPortfolio =
         Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();
@@ -357,7 +391,22 @@ std::unordered_map<std::string, TimeSeries> PortfolioService::weightSeries(const
         transactions = {};
     }
     std::sort(transactions.begin(), transactions.end(),
-              [](const Transaction& a, const Transaction& b) { return a.timestampsMs < b.timestampsMs; });
+              [](const Transaction& a, const Transaction& b) {
+                  if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
+                  // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
+                  auto pri = [](TransactionType t) -> int {
+                      switch (t) {
+                          case TransactionType::Deposit:    return 0;
+                          case TransactionType::Dividend:   return 1;
+                          case TransactionType::Buy:        return 2;
+                          case TransactionType::Sell:       return 2;
+                          case TransactionType::Withdrawal: return 3;
+                          case TransactionType::Split:      return 4;
+                          default:                          return 5;
+                      }
+                  };
+                  return pri(a.type) < pri(b.type);
+              });
 
     Portfolio runningPortfolio =
         Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();
@@ -455,4 +504,4 @@ void PortfolioService::recomputeAndCache_(const Portfolio&, int64_t, int64_t, in
     // cheap compared to the fetch cost. Kept as a hook for future memoization.
 }
 
-}  // namespace finance
+}  // namespace finapp

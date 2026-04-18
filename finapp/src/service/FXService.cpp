@@ -13,7 +13,9 @@
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
 
-namespace finance {
+namespace finapp {
+
+using namespace finance;
 
 FXService::FXService(std::shared_ptr<TimeSeriesService> timeSeriesService,
                      std::shared_ptr<IFXRepository> fxInfoRepository)
@@ -53,7 +55,14 @@ TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCu
 // ---------------------------------------------------------------------------
 
 std::string FXService::makePairId_(const Currency& base, const Currency& quote) {
-    return toString(base) + toString(quote);
+    // yfinance FX ticker convention: "EURUSD=X"
+    return toString(base) + toString(quote) + "=X";
+}
+
+void FXService::registerPair(const Currency& baseCurrency, const Currency& quoteCurrency,
+                              const std::string& timeseriesId) {
+    const std::string id = timeseriesId.empty() ? makePairId_(baseCurrency, quoteCurrency) : timeseriesId;
+    fxInfoRepository_->save(FXInfos{baseCurrency, quoteCurrency, id});
 }
 
 std::string FXService::resolveSeriesId_(const Currency& base, const Currency& quote) {
@@ -69,4 +78,4 @@ std::string FXService::resolveSeriesId_(const Currency& base, const Currency& qu
     return info.timeseriesID;
 }
 
-}  // namespace finance
+}  // namespace finapp

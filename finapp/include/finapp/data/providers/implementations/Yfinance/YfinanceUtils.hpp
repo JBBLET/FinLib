@@ -4,7 +4,7 @@
 #include <cpython/initconfig.h>
 #include <pybind11/embed.h>  // everything needed for embedding
 
-namespace finance {
+namespace finapp {
 
 class PythonRuntime {
  public:
@@ -32,4 +32,4 @@ class PythonRuntime {
     PythonRuntime& operator=(PythonRuntime&&) = delete;
     PythonRuntime& operator=(const PythonRuntime&) = delete;
 };
-}  // namespace finance
+}  // namespace finapp

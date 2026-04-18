@@ -14,7 +14,8 @@
 #include "support/service_test_fakes.hpp"
 
 using namespace finance;
-using namespace finance::test;
+using namespace finapp;
+using namespace finapp::test;
 
 namespace {
 
@@ -74,8 +75,8 @@ TEST_F(FXServiceTest, LoadExistingPairHitsRepositorySeriesId) {
 
 TEST_F(FXServiceTest, LoadUnknownPairCreatesFXInfosAndFetches) {
     ASSERT_FALSE(fxRepo->exists(Currency::USD, Currency::JPY));
-    // Canonical derived id is "<base><quote>" — provider must respond under that id.
-    provider->setSeries("USDJPY", makeFlatSeries("USDJPY", 0, 4 * kDay, kDay, 150.0));
+    // Canonical derived id is "<base><quote>=X" (yfinance FX ticker convention).
+    provider->setSeries("USDJPY=X", makeFlatSeries("USDJPY=X", 0, 4 * kDay, kDay, 150.0));
 
     TimeSeries result = service->load(Currency::USD, Currency::JPY, 0, 4 * kDay, kDay);
     ASSERT_EQ(result.size(), 5);
@@ -83,7 +84,7 @@ TEST_F(FXServiceTest, LoadUnknownPairCreatesFXInfosAndFetches) {
 
     // The new pair must now be persisted so subsequent calls hit the fast path.
     ASSERT_TRUE(fxRepo->exists(Currency::USD, Currency::JPY));
-    EXPECT_EQ(fxRepo->load(Currency::USD, Currency::JPY).timeseriesID, "USDJPY");
+    EXPECT_EQ(fxRepo->load(Currency::USD, Currency::JPY).timeseriesID, "USDJPY=X");
 }
 
 TEST_F(FXServiceTest, SharedTimestampOverloadKeepsPointerAlignment) {

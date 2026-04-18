@@ -12,7 +12,9 @@
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
-namespace finance {
+namespace finapp {
+
+using namespace finance;
 
 namespace {
 
@@ -128,4 +130,4 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampPt
     return timeSeriesService_->get(seriesId, std::move(timestamps));
 }
 
-}  // namespace finance
+}  // namespace finapp

@@ -26,7 +26,10 @@
 #include "finlib/data/interfaces/ITimeSeriesLoader.hpp"
 #include "finlib/data/interfaces/ITimeSeriesRepository.hpp"
 
-namespace finance::test {
+namespace finapp::test {
+
+using namespace finance;
+using namespace finapp;
 
 // ---------------------------------------------------------------------------
 // TimeSeries provider/repository fakes
@@ -272,6 +275,14 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
         return snapshots_.contains(portfolioId) || transactions_.contains(portfolioId);
     }
 
+    void deletePortfolio(const std::string& portfolioId) override {
+        if (!exists(portfolioId)) {
+            throw std::runtime_error("InMemoryPortfolioRepository: portfolio not found: " + portfolioId);
+        }
+        snapshots_.erase(portfolioId);
+        transactions_.erase(portfolioId);
+    }
+
  private:
     std::unordered_map<std::string, PortfolioSnapshot> snapshots_;
     std::unordered_map<std::string, std::vector<Transaction>> transactions_;
@@ -291,4 +302,4 @@ inline TimeSeries makeFlatSeries(const std::string& id, int64_t startMs, int64_t
     return TimeSeries(id, std::move(ts), std::move(vs));
 }
 
-}  // namespace finance::test
+}  // namespace finapp::test

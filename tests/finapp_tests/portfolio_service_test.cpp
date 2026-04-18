@@ -25,7 +25,8 @@
 #include "support/service_test_fakes.hpp"
 
 using namespace finance;
-using namespace finance::test;
+using namespace finapp;
+using namespace finapp::test;
 
 namespace {
 

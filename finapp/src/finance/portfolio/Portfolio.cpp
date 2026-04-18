@@ -55,9 +55,23 @@ Portfolio Portfolio::Builder::build() {
     }
     constructedPortfolio.universe_ = universe_;
     constructedPortfolio.targetAllocations_ = targetAllocations_;
+    // On equal timestamps, Deposits must precede Buys so that applyBuy_ sees
+    // the cash balance already credited. Priority: Deposit < Dividend < Buy/Sell < Withdrawal < Split.
+    auto txPriority = [](TransactionType t) -> int {
+        switch (t) {
+            case TransactionType::Deposit:    return 0;
+            case TransactionType::Dividend:   return 1;
+            case TransactionType::Buy:        return 2;
+            case TransactionType::Sell:       return 2;
+            case TransactionType::Withdrawal: return 3;
+            case TransactionType::Split:      return 4;
+            default:                          return 5;
+        }
+    };
     std::sort(transactions_.begin(), transactions_.end(),
-              [](const Transaction& transactionA, const Transaction& transactionB) {
-                  return transactionA.timestampsMs < transactionB.timestampsMs;
+              [&txPriority](const Transaction& a, const Transaction& b) {
+                  if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
+                  return txPriority(a.type) < txPriority(b.type);
               });
     std::ranges::for_each(transactions_, [&constructedPortfolio](const Transaction& transaction) {
         constructedPortfolio.apply(transaction);

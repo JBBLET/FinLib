@@ -16,7 +16,9 @@
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
 
-namespace finance {
+namespace finapp {
+
+using namespace finance;
 
 CSVEquityRepository::CSVEquityRepository(std::filesystem::path directory) : directory_(std::move(directory)) {}
 
@@ -162,4 +164,4 @@ std::unordered_map<std::string, std::string> CSVEquityRepository::parseAttribute
     return output;
 }
 
-}  // namespace finance
+}  // namespace finapp

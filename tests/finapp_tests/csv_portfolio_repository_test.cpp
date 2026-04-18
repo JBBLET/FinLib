@@ -17,6 +17,7 @@
 #include "finapp/finance/portfolio/Transaction.hpp"
 
 using namespace finance;
+using namespace finapp;
 
 class CSVPortfolioRepositoryTest : public ::testing::Test {
  protected:

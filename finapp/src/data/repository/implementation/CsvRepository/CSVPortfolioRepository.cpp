@@ -22,7 +22,9 @@
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
 
-namespace finance {
+namespace finapp {
+
+using namespace finance;
 
 // IPortfolioRepository Interface
 void CSVPortfolioRepository::saveSnapshot(const PortfolioSnapshot& snapshot) {
@@ -85,9 +87,24 @@ std::vector<std::string> CSVPortfolioRepository::listPortfolioIds() const {
 }
 
 bool CSVPortfolioRepository::exists(const std::string& portfolioId) const {
-    bool exists = std::filesystem::exists(csvSnapshotPath_(portfolioId)) ||
-                  std::filesystem::exists(csvTransactionsPath_(portfolioId));
-    return exists;
+    return std::filesystem::exists(csvSnapshotPath_(portfolioId)) ||
+           std::filesystem::exists(csvTransactionsPath_(portfolioId));
+}
+
+void CSVPortfolioRepository::deletePortfolio(const std::string& portfolioId) {
+    const auto snapshotPath     = csvSnapshotPath_(portfolioId);
+    const auto transactionsPath = csvTransactionsPath_(portfolioId);
+
+    if (!std::filesystem::exists(snapshotPath) && !std::filesystem::exists(transactionsPath)) {
+        throw std::runtime_error("CSVPortfolioRepository::deletePortfolio: portfolio '" + portfolioId +
+                                 "' does not exist.");
+    }
+    if (std::filesystem::exists(snapshotPath)) {
+        std::filesystem::rename(snapshotPath, csvDeletedSnapshotPath_(portfolioId));
+    }
+    if (std::filesystem::exists(transactionsPath)) {
+        std::filesystem::rename(transactionsPath, csvDeletedTransactionsPath_(portfolioId));
+    }
 }
 
 // Helper functions
@@ -97,6 +114,14 @@ std::filesystem::path CSVPortfolioRepository::csvSnapshotPath_(const std::string
 
 std::filesystem::path CSVPortfolioRepository::csvTransactionsPath_(const std::string& portfolioID) const {
     return directory_ / "Portfolio" / (portfolioID + "_transactions.csv");
+}
+
+std::filesystem::path CSVPortfolioRepository::csvDeletedSnapshotPath_(const std::string& portfolioID) const {
+    return directory_ / "Portfolio" / (portfolioID + "_snapshot.csv.deleted");
+}
+
+std::filesystem::path CSVPortfolioRepository::csvDeletedTransactionsPath_(const std::string& portfolioID) const {
+    return directory_ / "Portfolio" / (portfolioID + "_transactions.csv.deleted");
 }
 
 std::filesystem::path CSVPortfolioRepository::csvSnapshotPositionsPath_(const std::string& portfolioID,
@@ -350,4 +375,4 @@ std::vector<Transaction> CSVPortfolioRepository::parseTransactionsCsvFile_(const
     }
     return output;
 }
-}  // namespace finance
+}  // namespace finapp

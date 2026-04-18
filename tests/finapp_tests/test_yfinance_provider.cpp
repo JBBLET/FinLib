@@ -6,6 +6,8 @@
 
 #include "finapp/data/providers/implementations/Yfinance/YFinanceProvider.hpp"
 
+using namespace finapp;
+
 TEST(YFinanceProvider, DownloadAAPLLast10Days) {
     YFinanceProvider provider("/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python",
                               "/home/jbblet/user/Documents/Projects/FinLib/finapp/scripts/YFinanceFetcher.py");
