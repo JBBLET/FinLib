@@ -29,6 +29,7 @@ Key design principles:
 - **Hard domain boundary** — finlib has zero includes from finapp
 - **Interfaces everywhere** — swap CSV for TimescaleDB or kdb+ by implementing one interface
 - **Event sourcing** — portfolio state derived from transaction log + snapshots
+- **Namespace separation** — `finance::` for domain types, `finapp::` for infrastructure (repositories, services, providers)
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical breakdown.
 
@@ -42,14 +43,17 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical breakdown.
 - [x] Online forecasting session with drift detection
 - [x] Finance domain types (Currency, IAsset, Equity, Cash, Portfolio, Transaction)
 - [x] Finance data interfaces (IAssetRepository, IPortfolioRepository, IFXRepository)
-- [x] Service layer (AssetService, PortfolioService, FXService)
-- [ ] CSV implementations for finance repositories
+- [x] CSV implementations for finance repositories (Equity, Cash, FX, Portfolio) + unit tests
 - [x] Core portfolio logic (apply transactions, snapshot, value/weight computation)
+- [x] Service layer (AssetService, FXService, PortfolioService) with full unit tests
+- [x] YFinance market data via pybind11 (price series + equity metadata)
+- [x] Yahoo Finance CSV importer (YahooFinanceImporter — parse export → Transaction list)
+- [x] Portfolio lifecycle management (createNew, soft delete)
+- [x] Namespace refactor: `finance::` domain types / `finapp::` infrastructure
 - [ ] Risk metrics (Sharpe ratio, basic Greeks)
 - [ ] Proto schema + gRPC PortfolioTracking server
 
 ### Phase 2 — Persistence and UI
-- Replace Python scripts with pybind11 bindings
 - TimescaleDB repositories (time series + finance data)
 - Simple UI (TUI or Tauri)
 

@@ -19,7 +19,13 @@ target_include_directories(finapp_core
 # --------------------
 
 add_library(finapp_providers
-    src/data/providers/YFinanceProvider.cpp
+    src/data/providers/Yfinance/YFinanceProvider.cpp
+    src/data/providers/Yfinance/YFinanceEquityProvider.cpp
+)
+
+target_compile_definitions(finapp_providers
+      PRIVATE
+          FINAPP_PYTHON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scripts"
 )
 
 target_include_directories(finapp_providers
@@ -29,6 +35,7 @@ target_include_directories(finapp_providers
 
 target_link_libraries(finapp_providers
     PUBLIC
+        pybind11::embed
         finlib_data
 )
 
@@ -50,4 +57,44 @@ target_include_directories(finapp_csv_repository
 target_link_libraries(finapp_csv_repository
     PUBLIC
         finapp_core
+)
+
+# --------------------
+# Importers library
+# --------------------
+
+add_library(finapp_importers
+    src/data/importers/YahooFinanceImporter.cpp
+)
+
+target_include_directories(finapp_importers
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(finapp_importers
+    PUBLIC
+        finapp_core
+        finlib_core
+)
+
+# --------------------
+# Service library
+# --------------------
+
+add_library(finapp_service
+    src/service/FXService.cpp
+    src/service/AssetService.cpp
+    src/service/PortfolioService.cpp
+)
+
+target_include_directories(finapp_service
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(finapp_service
+    PUBLIC
+        finapp_core
+        finlib_data
 )
