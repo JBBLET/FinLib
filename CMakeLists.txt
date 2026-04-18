@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(FinancialTimeSeriesLib VERSION 0.1)
 
@@ -32,7 +33,6 @@ set(EIGEN_BUILD_DOC OFF)
 FetchContent_MakeAvailable(Eigen)
 
 #Pybind11
-
 set(Python3_VIRTUALENV ONLY)
 set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python")
 set(PYBIND11_FINDPYTHON ON)
@@ -46,10 +46,31 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(pybind11)
 
+# gRPC + Protobuf via FetchContent
+set(FETCHCONTENT_QUIET OFF)
+set(gRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(gRPC_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(gRPC_BUILD_CSHARP_EXT OFF CACHE BOOL "" FORCE)
+set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(absl_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(gRPC_INSTALL OFF CACHE BOOL "" FORCE)
+set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  gRPC
+  GIT_REPOSITORY https://github.com/grpc/grpc
+  GIT_TAG        v1.64.0
+  GIT_SHALLOW    TRUE
+  GIT_PROGRESS   TRUE
+)
+FetchContent_MakeAvailable(gRPC)
+include(cmake/GrpcHelpers.cmake)
 # --- Subdirectories ---
 
 add_subdirectory(finlib)  # FinLib — Domain A (generic time series)
 add_subdirectory(finapp)  # FinApp — Domain B (finance application)
+add_subdirectory(finAppImplementation) # Example System using the FinApp into an actual project
 
 if(BUILD_TESTS)
     enable_testing()
