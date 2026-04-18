@@ -12,17 +12,18 @@
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
-namespace finance {
+namespace finapp {
 
 class CSVPortfolioRepository : public IPortfolioRepository {
  public:
     explicit CSVPortfolioRepository(std::filesystem::path directory) : directory_{std::move(directory)} {};
-    void saveSnapshot(const PortfolioSnapshot& snapshot) override;
-    std::optional<PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolio) const override;
-    void appendTransactions(const std::string& portfolioId, const std::vector<Transaction>& transactions) override;
-    std::vector<Transaction> loadTransactions(const std::string& portfolioId, int64_t afterTimestamps) const override;
+    void saveSnapshot(const finance::PortfolioSnapshot& snapshot) override;
+    std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolio) const override;
+    void appendTransactions(const std::string& portfolioId, const std::vector<finance::Transaction>& transactions) override;
+    std::vector<finance::Transaction> loadTransactions(const std::string& portfolioId, int64_t afterTimestamps) const override;
     std::vector<std::string> listPortfolioIds() const override;
     bool exists(const std::string& portfolioID) const override;
+    void deletePortfolio(const std::string& portfolioId) override;
 
  private:
     std::filesystem::path directory_;
@@ -35,18 +36,20 @@ class CSVPortfolioRepository : public IPortfolioRepository {
                                                        const int64_t& timestampMs) const;
 
     std::filesystem::path csvTransactionsPath_(const std::string& portfolioID) const;
+    std::filesystem::path csvDeletedSnapshotPath_(const std::string& portfolioID) const;
+    std::filesystem::path csvDeletedTransactionsPath_(const std::string& portfolioID) const;
 
-    void writeSnapshotCsv_(const std::string& portfolioID, const PortfolioSnapshot& snapshot);
-    std::string writeSnapshotPositionsFile_(const PortfolioSnapshot& snapshot);
-    std::string writeCashBalancesFile_(const PortfolioSnapshot& snapshot);
+    void writeSnapshotCsv_(const std::string& portfolioID, const finance::PortfolioSnapshot& snapshot);
+    std::string writeSnapshotPositionsFile_(const finance::PortfolioSnapshot& snapshot);
+    std::string writeCashBalancesFile_(const finance::PortfolioSnapshot& snapshot);
 
-    void writeFullTransactionsCsv_(const std::filesystem::path& path, const std::vector<Transaction>& transactions);
-    void appendTransactionsCsv_(const std::filesystem::path& path, const std::vector<Transaction>& transactions);
+    void writeFullTransactionsCsv_(const std::filesystem::path& path, const std::vector<finance::Transaction>& transactions);
+    void appendTransactionsCsv_(const std::filesystem::path& path, const std::vector<finance::Transaction>& transactions);
 
-    std::optional<PortfolioSnapshot> parseSnapshotCsvFile_(const std::filesystem::path& path) const;
-    std::vector<SnapshotPosition> parsePositionsSnapshotFile_(const std::filesystem::path& path) const;
-    std::unordered_map<Currency, double> parseCashBalanceFile_(const std::filesystem::path& path) const;
-    std::vector<Transaction> parseTransactionsCsvFile_(const std::filesystem::path& path,
+    std::optional<finance::PortfolioSnapshot> parseSnapshotCsvFile_(const std::filesystem::path& path) const;
+    std::vector<finance::SnapshotPosition> parsePositionsSnapshotFile_(const std::filesystem::path& path) const;
+    std::unordered_map<finance::Currency, double> parseCashBalanceFile_(const std::filesystem::path& path) const;
+    std::vector<finance::Transaction> parseTransactionsCsvFile_(const std::filesystem::path& path,
                                                        int64_t afterTimestamps) const;
 };
-}  // namespace finance
+}  // namespace finapp

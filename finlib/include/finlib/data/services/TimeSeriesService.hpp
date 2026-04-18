@@ -18,6 +18,11 @@ class TimeSeriesService {
 
     TimeSeries get(const std::string& id, int64_t startMs, int64_t endMs, int64_t requestedFrequencyMs);
 
+    // Overload taking a caller-owned, regularly-spaced timestamp grid. The returned
+    // TimeSeries shares the same TimestampPtr, so multiple series fetched on the same
+    // grid stay pointer-aligned for downstream operators.
+    TimeSeries get(const std::string& id, TimestampPtr timestamps);
+
     // Returns raw data without resampling — supports non-regular time series
     TimeSeries getRaw(const std::string& id, int64_t startMs, int64_t endMs);
 

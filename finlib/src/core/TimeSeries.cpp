@@ -43,7 +43,7 @@ double applyStrategy(InterpolationStrategy strategy, std::mt19937& gen, int64_t 
         return linearVal + calculateNoise(target, t1, t2, annualVolatility, gen);
     }
     if (strategy == InterpolationStrategy::Nearest) {
-        return (target - t1 < t2 - target) ? t1 : t2;
+        return (target - t1 < t2 - target) ? v1 : v2;
     }
     return v1;
 }
@@ -114,6 +114,43 @@ TimeSeries TimeSeries::resampling(const vector<int64_t>& targetTimestamps, Inter
         }
         return TimeSeries("Resampled " + id_, targetTimestamps, std::move(newValues));
     }
+}
+
+TimeSeries TimeSeries::resampling(TimestampPtr targetTimestamps, InterpolationStrategy strategy,
+                                  std::optional<uint32_t> seed) const {
+    if (!targetTimestamps) {
+        throw invalid_argument("targetTimestamps pointer is null.");
+    }
+    const auto& ts = *targetTimestamps;
+    if (!std::is_sorted(ts.begin(), ts.end())) {
+        throw invalid_argument("target_timestamps must be sorted for resampling.");
+    }
+
+    const size_t PARALLEL_THRESHOLD = 20000;
+    if (ts.size() < PARALLEL_THRESHOLD) {
+        vector<double> newValues = partialWalk(ts, 0, ts.size(), strategy, seed);
+        return TimeSeries("Resampled " + id_, std::move(targetTimestamps), std::move(newValues));
+    }
+
+    unsigned int numCores = std::thread::hardware_concurrency();
+    size_t chunkSize = ts.size() / numCores;
+
+    vector<future<vector<double>>> futures;
+    for (unsigned int i = 0; i < numCores; ++i) {
+        size_t start = i * chunkSize;
+        size_t end = (i == numCores - 1) ? ts.size() : (i + 1) * chunkSize;
+
+        futures.push_back(std::async(std::launch::async, [this, &ts, start, end, strategy, seed]() {
+            return this->partialWalk(ts, start, end, strategy, seed);
+        }));
+    }
+    vector<double> newValues;
+    newValues.reserve(ts.size());
+    for (auto& fut : futures) {
+        auto partial = fut.get();
+        newValues.insert(newValues.end(), partial.begin(), partial.end());
+    }
+    return TimeSeries("Resampled " + id_, std::move(targetTimestamps), std::move(newValues));
 }
 
 void TimeSeries::verifyAlignment(const TimeSeries& other) const {

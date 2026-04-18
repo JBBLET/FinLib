@@ -12,7 +12,9 @@
 
 #include "finapp/finance/common/Currency.hpp"
 
-namespace finance {
+namespace finapp {
+
+using namespace finance;
 
 CSVFXRepository::CSVFXRepository(std::filesystem::path directory) : directory_(std::move(directory)) {}
 
@@ -91,4 +93,4 @@ bool CSVFXRepository::exists(const Currency& baseCurrency, const Currency& quote
     }
     return false;
 }
-}  // namespace finance
+}  // namespace finapp

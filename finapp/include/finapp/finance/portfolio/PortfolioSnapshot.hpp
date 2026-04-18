@@ -16,6 +16,8 @@ struct SnapshotPosition {
 };
 
 struct PortfolioSnapshot {
+    std::string name;
+    Currency baseCurrency;
     int64_t timestampMs;
     std::string portfolioId;
     std::vector<SnapshotPosition> positions;

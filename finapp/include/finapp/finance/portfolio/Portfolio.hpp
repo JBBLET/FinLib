@@ -33,6 +33,7 @@ class Portfolio {
     // State
     const std::vector<SnapshotPosition>& positions() const { return positions_; }
     double cashBalance(Currency currency) const { return cashBalances_.at(currency); }
+    const std::unordered_map<Currency, double>& cashBalances() const { return cashBalances_; }
 
     // Investment universe — the set of assets this portfolio is allowed to hold
     const std::vector<AssetId>& universe() const { return universe_; }

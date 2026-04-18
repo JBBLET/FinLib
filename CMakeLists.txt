@@ -31,6 +31,21 @@ set(EIGEN_BUILD_DOC OFF)
 # Download and make Eigen available in your project
 FetchContent_MakeAvailable(Eigen)
 
+#Pybind11
+
+set(Python3_VIRTUALENV ONLY)
+set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+set(PYBIND11_FINDPYTHON ON)
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+FetchContent_Declare(
+  pybind11
+  GIT_REPOSITORY https://github.com/pybind/pybind11
+  GIT_TAG        v2.13.1
+)
+
+FetchContent_MakeAvailable(pybind11)
+
 # --- Subdirectories ---
 
 add_subdirectory(finlib)  # FinLib — Domain A (generic time series)

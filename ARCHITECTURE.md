@@ -6,12 +6,13 @@ This repository is a monorepo with two peer domains:
 
 1. **FinLib (Domain A)** — a generic C++20 time series library. Reusable on any time-indexed data (weather, sensors, finance). Has zero knowledge of finance, no network dependencies, no Python runtime. Depends only on Eigen3.
 
-2. **FinApp (Domain B)** — a finance analysis application that depends on FinLib. Contains data providers (YFinance), finance types (Asset, Portfolio), risk metrics, gRPC server, and UI. All external runtime dependencies (Python, TimescaleDB, network) live here.
+2. **FinApp (Domain B)** — a finance analysis application that depends on FinLib. Contains data providers (YFinance via pybind11), finance types (Asset, Portfolio), risk metrics, gRPC server, and UI. All external runtime dependencies (Python, TimescaleDB, network) live here.
 
 **Guiding principles:**
 - **Caller owns all configuration** — pure dependency injection, no config files, no singletons
 - **Hard domain boundary** — FinLib has zero `#include` of anything in `finapp/`
 - **Interfaces at every extension point** — all concrete implementations are replaceable
+- **Namespace separation** — `finance::` holds pure domain types; `finapp::` holds all infrastructure (repositories, providers, services, importers)
 
 When a second project needs generic time series analysis, FinLib can be extracted to its own repo and loaded via `FetchContent` — all `target_link_libraries` calls remain unchanged because the CMake target names are stable.
 
@@ -84,18 +85,31 @@ finapp/                                     # Domain B — finance application
 ├── CMakeLists.txt
 ├── include/finapp/
 │   ├── data/
+│   │   ├── importers/
+│   │   │   └── YahooFinanceImporter.hpp    # Parse Yahoo Finance CSV exports → Transaction list
 │   │   ├── providers/
 │   │   │   ├── interfaces/
 │   │   │   │   └── IAssetProviders.hpp     # Abstract asset metadata fetcher per AssetType
 │   │   │   └── implementations/
-│   │   │       └── YFinanceProvider.hpp    # ITimeSeriesLoader impl (Python/yfinance)
+│   │   │       └── Yfinance/
+│   │   │           ├── YFinanceProvider.hpp        # ITimeSeriesLoader impl (pybind11/yfinance)
+│   │   │           ├── YFinanceEquityProvider.hpp  # IAssetProvider impl for equity metadata
+│   │   │           └── YfinanceUtils.hpp           # PythonRuntime singleton (pybind11 guard)
 │   │   └── repository/
-│   │       ├── IAssetRepository.hpp        # CRUD for asset metadata per AssetType
-│   │       ├── IPortfolioRepository.hpp    # Snapshots + transaction log
-│   │       └── IFXRepository.hpp           # FX pair metadata (timeseriesID lookup)
-│   ├── finance/
+│   │       ├── interface/
+│   │       │   ├── IAssetRepository.hpp    # CRUD for asset metadata per AssetType
+│   │       │   ├── IPortfolioRepository.hpp # Snapshots + transaction log + soft delete
+│   │       │   └── IFXRepository.hpp       # FX pair → timeseriesID + FXInfos struct
+│   │       └── implementation/
+│   │           └── CsvRepository/
+│   │               ├── CSVEquityRepository.hpp
+│   │               ├── CSVCashRepository.hpp
+│   │               ├── CSVFXRepository.hpp
+│   │               └── CSVPortfolioRepository.hpp  # Soft delete: rename to .csv.deleted
+│   ├── finance/                            # Pure domain types — namespace finance::
 │   │   ├── common/
-│   │   │   └── Currency.hpp                # Currency enum + string conversion
+│   │   │   ├── Currency.hpp                # Currency enum + string conversion
+│   │   │   └── AssetId.hpp
 │   │   ├── asset/
 │   │   │   ├── IAsset.hpp                  # Abstract asset + Position struct
 │   │   │   ├── Equity.hpp                  # Stock: ticker, exchange, sector
@@ -106,15 +120,28 @@ finapp/                                     # Domain B — finance application
 │   │       ├── Transaction.hpp             # Buy/Sell/Deposit/Withdrawal/Dividend/Split
 │   │       ├── Portfolio.hpp               # Portfolio + Builder, positions + target allocations
 │   │       └── PortfolioSnapshot.hpp       # Point-in-time snapshot (positions + cash balances)
-│   └── service/
+│   └── service/                            # Infrastructure services — namespace finapp::
 │       ├── AssetService.hpp                # Dispatches to per-type repos/providers + TimeSeriesService
-│       ├── PortfolioService.hpp            # Reconstruct, save, compute value/weight series
-│       └── FXService.hpp                   # FX rate lookup via TimeSeriesService + IFXRepository
+│       ├── PortfolioService.hpp            # Reconstruct, save, compute value/weight series; createNew/delete
+│       └── FXService.hpp                   # FX rate lookup + pair registration; yfinance "<BASE><QUOTE>=X" ids
 ├── src/
-│   └── data/providers/
-│       └── YFinanceProvider.cpp
+│   ├── data/
+│   │   ├── importers/YahooFinanceImporter.cpp
+│   │   ├── providers/Yfinance/
+│   │   │   ├── YFinanceProvider.cpp
+│   │   │   └── YFinanceEquityProvider.cpp
+│   │   └── repository/implementation/CsvRepository/
+│   │       ├── CSVEquityRepository.cpp
+│   │       ├── CSVCashRepository.cpp
+│   │       ├── CSVFXRepository.cpp
+│   │       └── CSVPortfolioRepository.cpp
+│   ├── finance/portfolio/Portfolio.cpp
+│   └── service/
+│       ├── AssetService.cpp
+│       ├── FXService.cpp
+│       └── PortfolioService.cpp
 └── scripts/
-    └── YFinance_loader.py                  # Python script called by YFinanceProvider
+    └── YFinanceFetcher.py                  # pybind11 Python module: fetch_ohlcv, fetch_equity_info, equity_exists
 
 tests/
 ├── unit_tests/                             # Domain A tests
@@ -127,7 +154,15 @@ tests/
 │   ├── csv_repository_test.cpp
 │   └── model_session_test.cpp
 └── finapp_tests/                           # Domain B tests
-    └── test_yfinance_provider.cpp
+    ├── test_yfinance_provider.cpp          # Integration test (hits real yfinance)
+    ├── csv_equity_repository_test.cpp
+    ├── csv_cash_repository_test.cpp
+    ├── csv_fx_repository_test.cpp
+    ├── csv_portfolio_repository_test.cpp
+    ├── fx_service_test.cpp
+    ├── asset_service_test.cpp
+    ├── portfolio_service_test.cpp
+    └── support/service_test_fakes.hpp      # In-memory fakes shared across service tests
 ```
 
 ---
@@ -152,17 +187,20 @@ finlib_core          (Eigen3)
 Domain B (FinApp) — depends on Domain A
 ═══════════════════════════════════════════
 
-                    finlib_core
-                    /         \
-             finlib_data    finlib_analysis
-                |
-        finapp_providers (YFinanceProvider)
-                |
-        TimeSeriesService (cache -> repo -> provider)
-               / \
-  AssetService    FXService
-        \          /
-     PortfolioService ──> IPortfolioRepository
+                      finlib_core
+                      /         \
+               finlib_data    finlib_analysis
+                  |
+          finapp_core (Portfolio, domain types)
+         /           \
+finapp_providers   finapp_csv_repository
+(YFinanceProvider,  (CSV impls of all
+ YFinanceEquity     IRepository interfaces)
+ Provider)     \
+                \   finapp_importers
+                 \  (YahooFinanceImporter)
+                  \
+           finapp_service (AssetService, FXService, PortfolioService)
 ```
 
 ### Domain A Libraries
@@ -179,9 +217,11 @@ Domain B (FinApp) — depends on Domain A
 
 | Library | Sources | Dependencies |
 |---------|---------|-------------|
-| `finapp_providers` | YFinanceProvider | finlib_data |
-| `finapp_finance` | Portfolio, Transaction, Asset types | finlib_core |
-| `finapp_service` | AssetService, PortfolioService, FXService | finapp_finance, finlib_data |
+| `finapp_core` | Portfolio, Transaction, Asset types | finlib_core |
+| `finapp_providers` | YFinanceProvider, YFinanceEquityProvider | finlib_data, pybind11 |
+| `finapp_csv_repository` | CSVEquity/Cash/FX/PortfolioRepository | finapp_core |
+| `finapp_importers` | YahooFinanceImporter | finapp_core, finlib_core |
+| `finapp_service` | AssetService, PortfolioService, FXService | finapp_core, finlib_data |
 
 ---
 
@@ -266,9 +306,9 @@ ITimeSeriesLoader          ITimeSeriesSaver
 ### Implementations (Domain B)
 
 **YFinanceProvider** (`ITimeSeriesLoader`) — in `finapp/`
-- Executes a Python script via `popen()`, parses CSV output.
+- Calls `YFinanceFetcher.fetch_ohlcv(symbol, start, end, "1d")` via pybind11 in-process.
+- Returns adjusted close prices (`auto_adjust=True`; split- and dividend-adjusted).
 - Reports daily frequency (86,400,000 ms) as its finest grain.
-- Caller provides Python executable path and script path (no defaults).
 
 **TimescaleDBTimeSeriesRepository** (planned, Phase 2) — will implement `ITimeSeriesRepository`.
 
@@ -401,6 +441,27 @@ Stateful online forecasting session. Lifecycle:
 
 ---
 
+## Namespace Convention (Domain B)
+
+```
+namespace finance::   — pure domain types only
+    Currency, IAsset, Equity, Cash, ETF, Bond
+    Portfolio, Transaction, PortfolioSnapshot, SnapshotPosition
+    TransactionType, AssetType, AssetId
+
+namespace finapp::    — all infrastructure
+    IAssetRepository, IPortfolioRepository, IFXRepository
+    IAssetProvider, FXInfos
+    AssetService, FXService, PortfolioService
+    YFinanceProvider, YFinanceEquityProvider
+    YahooFinanceImporter
+    CSV repository implementations
+```
+
+`.cpp` implementation files inside `namespace finapp {}` blocks use `using namespace finance;` locally to avoid verbose qualification.
+
+---
+
 ## Finance Module (Domain B)
 
 ### Currency
@@ -463,26 +524,39 @@ struct PortfolioSnapshot {
 
 ## Finance Data Layer (Domain B)
 
-### Repositories
+### Repositories (namespace `finapp::`)
 
 | Interface | Key | Purpose |
 |-----------|-----|---------|
 | `IAssetRepository` | `ticker` | CRUD for asset metadata (per AssetType) |
-| `IPortfolioRepository` | `portfolioId` | Snapshots (point-in-time) + transaction log (append-only) |
-| `IFXRepository` | `(baseCurrency, quoteCurrency)` | Maps currency pairs to TimeSeries IDs |
+| `IPortfolioRepository` | `portfolioId` | Snapshots (point-in-time) + transaction log (append-only) + soft delete |
+| `IFXRepository` | `(baseCurrency, quoteCurrency)` | Maps currency pairs to TimeSeries IDs via `FXInfos` struct |
 
 `IAssetRepository` is one interface, but `AssetService` holds a `map<AssetType, shared_ptr<IAssetRepository>>` — different implementations per asset type since Bond metadata differs from Equity metadata.
 
-### Providers
+`IPortfolioRepository::deletePortfolio()` is a soft delete. The CSV implementation renames `_snapshot.csv` → `_snapshot.csv.deleted`; `exists()` and `listPortfolioIds()` filter on `.csv` extension so deleted portfolios become invisible.
 
-| Interface | Purpose |
-|-----------|---------|
-| `IAssetProvider` | Fetch asset metadata from external source (per AssetType) |
-| `ITimeSeriesLoader` (Domain A) | Fetch price data (YFinanceProvider) |
+`FXInfos` struct (`finapp::`) holds `{baseCurrency, quoteCurrency, timeseriesID}`. FX series IDs follow the yfinance convention: `"<BASE><QUOTE>=X"` (e.g., `"EURUSD=X"`).
+
+### Providers (namespace `finapp::`)
+
+| Interface | Implementation | Purpose |
+|-----------|---------------|---------|
+| `IAssetProvider` | `YFinanceEquityProvider` | Fetch equity metadata (name, currency, exchange, sector) via yfinance |
+| `ITimeSeriesLoader` (Domain A) | `YFinanceProvider` | Fetch OHLCV price data via yfinance; returns adjusted close |
 
 `AssetService` holds a `map<AssetType, shared_ptr<IAssetProvider>>` mirroring the repository map.
 
-### Services
+Both `YFinanceProvider` and `YFinanceEquityProvider` use pybind11 to call `YFinanceFetcher.py` functions directly in-process via a `PythonRuntime` singleton that guards `py::initialize_interpreter()`.
+
+### Importers (namespace `finapp::`)
+
+**`YahooFinanceImporter`** — pure static parser, no service dependency.
+- Input: Yahoo Finance portfolio CSV export path + `Config{baseCurrency, currencyResolver}`
+- Output: `vector<Transaction>` sorted by timestamp (priority tiebreaker: Deposit < Dividend < Buy/Sell < Withdrawal < Split)
+- `$$CASH_TX` rows → `Deposit` / `Withdrawal`; symbol rows → `Buy` / `Sell` / `Dividend`; SPLIT rows are skipped (no price in Yahoo exports)
+
+### Services (namespace `finapp::`)
 
 ```
 AssetService
@@ -491,13 +565,16 @@ AssetService
 └── TimeSeriesService                  — price data (already cached by CachedTimeSeriesRepository)
 
 FXService
-├── IFXRepository                      — maps (EUR,USD) → timeSeriesId "EURUSD"
-└── TimeSeriesService                  — FX rate data
+├── IFXRepository                      — maps (EUR,USD) → timeSeriesId "EURUSD=X"
+├── TimeSeriesService                  — FX rate data
+└── registerPair(base, quote, id)      — explicit pair registration (optional id override)
 
 PortfolioService
 ├── IPortfolioRepository               — snapshots + transactions
 ├── AssetService                       — resolve tickers to IAsset objects + price data
-└── FXService                          — cross-currency conversion
+├── FXService                          — cross-currency conversion
+├── createNew(id, name, currency, ts)  — seed empty portfolio + initial snapshot
+└── deletePortfolio(id)                — soft delete via repository
 ```
 
 ### Data Flow: Load Portfolio Value Series

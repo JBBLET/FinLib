@@ -6,6 +6,8 @@
 
 #include "finlib/data/interfaces/ITimeSeriesLoader.hpp"
 
+namespace finapp {
+
 class YFinanceProvider : public ITimeSeriesLoader {
  public:
     explicit YFinanceProvider(std::string pythonExec, std::string scriptPath)
@@ -17,3 +19,5 @@ class YFinanceProvider : public ITimeSeriesLoader {
     std::string python_;
     std::string scriptPath_;
 };
+
+}  // namespace finapp

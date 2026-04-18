@@ -90,6 +90,36 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
     return fetched;
 }
 
+TimeSeries TimeSeriesService::get(const std::string& id, TimestampPtr timestamps) {
+    if (!timestamps || timestamps->empty()) {
+        throw std::invalid_argument("TimeSeriesService::get: timestamps must be non-empty.");
+    }
+    const auto& ts = *timestamps;
+    if (!std::is_sorted(ts.begin(), ts.end())) {
+        throw std::invalid_argument("TimeSeriesService::get: timestamps must be sorted.");
+    }
+
+    int64_t startMs = ts.front();
+    int64_t endMs = ts.back();
+
+    // Infer frequency from the grid and require regular spacing. If this ever needs
+    // to support irregular grids, use getRaw and resample at the call site instead.
+    int64_t frequencyMs = ts.size() >= 2 ? ts[1] - ts[0] : endMs - startMs;
+    if (frequencyMs <= 0) {
+        throw std::invalid_argument("TimeSeriesService::get: frequency derived from timestamps must be positive.");
+    }
+    for (size_t i = 2; i < ts.size(); ++i) {
+        if (ts[i] - ts[i - 1] != frequencyMs) {
+            throw std::invalid_argument("TimeSeriesService::get: timestamps must be regularly spaced.");
+        }
+    }
+
+    // Resolve via cache/repo/provider at the inferred frequency, then re-bind onto the
+    // caller-owned timestamp vector so downstream callers can pointer-align.
+    TimeSeries raw = get(id, startMs, endMs, frequencyMs);
+    return raw.resampling(std::move(timestamps), InterpolationStrategy::Nearest);
+}
+
 TimeSeries TimeSeriesService::getRaw(const std::string& id, int64_t startMs, int64_t endMs) {
     // Try to find any local key that covers the range
     auto localKey = findLocalCoveringKey_(id, startMs, endMs, INT64_MAX);

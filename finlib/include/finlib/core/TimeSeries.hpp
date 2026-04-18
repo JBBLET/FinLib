@@ -90,6 +90,11 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimeSeries resampling(const std::vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
                           std::optional<uint32_t> seed = std::nullopt) const;
 
+    // Overload that shares the caller-owned timestamp vector — avoids an extra allocation
+    // and lets downstream operators short-circuit alignment checks via pointer equality.
+    TimeSeries resampling(TimestampPtr targetTimestamps, InterpolationStrategy strategy,
+                          std::optional<uint32_t> seed = std::nullopt) const;
+
     template <typename Func>
     TimeSeries apply(Func func) const& {
         // Create a new Time-series Object

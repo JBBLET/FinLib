@@ -10,6 +10,7 @@
 #include "finapp/finance/common/Currency.hpp"
 
 using namespace finance;
+using namespace finapp;
 
 class CSVFXRepositoryTest : public ::testing::Test {
  protected:
