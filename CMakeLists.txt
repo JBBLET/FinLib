@@ -60,7 +60,7 @@ set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   gRPC
   GIT_REPOSITORY https://github.com/grpc/grpc
-  GIT_TAG        v1.64.0
+  GIT_TAG        v1.68.0
   GIT_SHALLOW    TRUE
   GIT_PROGRESS   TRUE
 )
