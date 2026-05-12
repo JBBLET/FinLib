@@ -13,7 +13,12 @@ namespace finapp {
 
 class IPortfolioRepository {
  public:
+    IPortfolioRepository() = default;
     virtual ~IPortfolioRepository() = default;
+    IPortfolioRepository(const IPortfolioRepository&) = default;
+    IPortfolioRepository& operator=(const IPortfolioRepository&) = default;
+    IPortfolioRepository(IPortfolioRepository&&) = default;
+    IPortfolioRepository& operator=(IPortfolioRepository&&) = default;
 
     virtual void saveSnapshot(const finance::PortfolioSnapshot& snapshot) = 0;
     virtual std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolioId) const = 0;

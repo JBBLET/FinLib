@@ -28,8 +28,8 @@ FXService::FXService(std::shared_ptr<TimeSeriesService> timeSeriesService,
 TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, int64_t fromMs, int64_t endMs,
                            int64_t frequencyMs) {
     if (baseCurrency == quoteCurrency) {
-        return common::utils::timeSeries::generateConstantTimeSeries(makePairId_(baseCurrency, quoteCurrency), fromMs,
-                                                                      endMs, frequencyMs, 1.0);
+        return common::utils::timeSeries::generateConstantTimeSeries(
+            makePairId_(baseCurrency, quoteCurrency), fromMs, endMs, frequencyMs, 1.0);
     }
 
     const std::string seriesId = resolveSeriesId_(baseCurrency, quoteCurrency);
@@ -42,8 +42,8 @@ TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCu
     }
 
     if (baseCurrency == quoteCurrency) {
-        return common::utils::timeSeries::generateConstantTimeSeries(makePairId_(baseCurrency, quoteCurrency),
-                                                                      std::move(timestamps), 1.0);
+        return common::utils::timeSeries::generateConstantTimeSeries(
+            makePairId_(baseCurrency, quoteCurrency), std::move(timestamps), 1.0);
     }
 
     const std::string seriesId = resolveSeriesId_(baseCurrency, quoteCurrency);
@@ -60,7 +60,7 @@ std::string FXService::makePairId_(const Currency& base, const Currency& quote) 
 }
 
 void FXService::registerPair(const Currency& baseCurrency, const Currency& quoteCurrency,
-                              const std::string& timeseriesId) {
+                             const std::string& timeseriesId) {
     const std::string id = timeseriesId.empty() ? makePairId_(baseCurrency, quoteCurrency) : timeseriesId;
     fxInfoRepository_->save(FXInfos{baseCurrency, quoteCurrency, id});
 }
