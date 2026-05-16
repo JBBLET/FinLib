@@ -26,6 +26,9 @@ class IPortfolioRepository {
     virtual void appendTransactions(const std::string& portfolioId, const std::vector<finance::Transaction>& transactions) = 0;
     virtual std::vector<finance::Transaction> loadTransactions(const std::string& portfolioId,
                                                       int64_t afterTimestamps = 0) const = 0;
+    // Removes the transaction with the given id and invalidates all snapshots at or after its
+    // timestampsMs, since those snapshots were built with the deleted transaction applied.
+    virtual void deleteTransaction(const std::string& portfolioId, const std::string& transactionId) = 0;
 
     virtual std::vector<std::string> listPortfolioIds() const = 0;
     virtual bool exists(const std::string& portfolioId) const = 0;
