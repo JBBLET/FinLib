@@ -33,12 +33,17 @@ class CSVPortfolioRepositoryTest : public ::testing::Test {
 
     void TearDown() override { std::filesystem::remove_all(testDir); }
 
+    static std::string nextId() {
+        static int n = 0;
+        return "test-tx-" + std::to_string(++n);
+    }
+
     static Transaction makeBuy(int64_t ts, const std::string& ticker, double qty, double price, double fees = 0.0) {
-        return Transaction{ts, TransactionType::Buy, AssetType::Equity, ticker, qty, price, fees, Currency::USD};
+        return Transaction{nextId(), ts, TransactionType::Buy, AssetType::Equity, ticker, qty, price, fees, Currency::USD};
     }
 
     static Transaction makeDeposit(int64_t ts, double qty, Currency currency = Currency::USD) {
-        return Transaction{ts, TransactionType::Deposit, AssetType::Cash, toString(currency), qty, 1.0, 0.0, currency};
+        return Transaction{nextId(), ts, TransactionType::Deposit, AssetType::Cash, toString(currency), qty, 1.0, 0.0, currency};
     }
 
     static PortfolioSnapshot makeSnapshot(const std::string& portfolioId, int64_t ts,
@@ -61,20 +66,23 @@ TEST_F(CSVPortfolioRepositoryTest, AppendAndLoadTransactions) {
     auto loaded = repo->loadTransactions("pf1", 0);
 
     ASSERT_EQ(loaded.size(), 2);
+    EXPECT_EQ(loaded[0].id, txns[0].id);
     EXPECT_EQ(loaded[0].timestampsMs, 1000);
     EXPECT_EQ(loaded[0].assetTicker, "AAPL");
     EXPECT_NEAR(loaded[0].quantity, 10.0, 1e-9);
     EXPECT_NEAR(loaded[0].pricePerUnit, 150.0, 1e-9);
+    EXPECT_EQ(loaded[1].id, txns[1].id);
     EXPECT_EQ(loaded[1].timestampsMs, 2000);
     EXPECT_EQ(loaded[1].assetTicker, "MSFT");
 }
 
 TEST_F(CSVPortfolioRepositoryTest, AppendTransactionsPreservesAllFields) {
-    Transaction txn{1000, TransactionType::Sell, AssetType::Equity, "GOOG", 3.5, 2800.0, 9.99, Currency::EUR};
+    Transaction txn{"preserve-id-1", 1000, TransactionType::Sell, AssetType::Equity, "GOOG", 3.5, 2800.0, 9.99, Currency::EUR};
     repo->appendTransactions("pf1", {txn});
 
     auto loaded = repo->loadTransactions("pf1", 0);
     ASSERT_EQ(loaded.size(), 1);
+    EXPECT_EQ(loaded[0].id, "preserve-id-1");
     EXPECT_EQ(loaded[0].type, TransactionType::Sell);
     EXPECT_EQ(loaded[0].assetType, AssetType::Equity);
     EXPECT_EQ(loaded[0].assetTicker, "GOOG");
@@ -85,12 +93,12 @@ TEST_F(CSVPortfolioRepositoryTest, AppendTransactionsPreservesAllFields) {
 }
 
 TEST_F(CSVPortfolioRepositoryTest, AppendTransactionsDeduplicates) {
-    std::vector<Transaction> txns = {makeBuy(1000, "AAPL", 10.0, 150.0)};
-    repo->appendTransactions("pf1", txns);
+    // Deduplication is id-based: appending the same id twice must not create a duplicate.
+    Transaction tx{"dedup-id-1", 1000, TransactionType::Buy, AssetType::Equity, "AAPL", 10.0, 150.0, 0.0, Currency::USD};
+    repo->appendTransactions("pf1", {tx});
 
-    // Append same transaction again plus a new one
-    std::vector<Transaction> txns2 = {makeBuy(1000, "AAPL", 10.0, 150.0), makeBuy(2000, "MSFT", 5.0, 300.0)};
-    repo->appendTransactions("pf1", txns2);
+    Transaction newTx = makeBuy(2000, "MSFT", 5.0, 300.0);
+    repo->appendTransactions("pf1", {tx, newTx});  // tx has same id — should be ignored
 
     auto loaded = repo->loadTransactions("pf1", 0);
     ASSERT_EQ(loaded.size(), 2);
@@ -278,12 +286,12 @@ TEST_F(CSVPortfolioRepositoryTest, ListPortfolioIdsDoesNotIncludeTransactionFile
 
 TEST_F(CSVPortfolioRepositoryTest, AllTransactionTypesRoundtrip) {
     std::vector<Transaction> txns = {
-        {1000, TransactionType::Buy, AssetType::Equity, "AAPL", 10.0, 150.0, 5.0, Currency::USD},
-        {2000, TransactionType::Sell, AssetType::Equity, "AAPL", 5.0, 160.0, 5.0, Currency::USD},
-        {3000, TransactionType::Deposit, AssetType::Cash, "USD", 10000.0, 1.0, 0.0, Currency::USD},
-        {4000, TransactionType::Withdrawal, AssetType::Cash, "USD", 500.0, 1.0, 0.0, Currency::USD},
-        {5000, TransactionType::Dividend, AssetType::Equity, "AAPL", 0.0, 0.82, 0.0, Currency::USD},
-        {6000, TransactionType::Split, AssetType::Equity, "AAPL", 4.0, 0.0, 0.0, Currency::USD},
+        {"rt-1", 1000, TransactionType::Buy, AssetType::Equity, "AAPL", 10.0, 150.0, 5.0, Currency::USD},
+        {"rt-2", 2000, TransactionType::Sell, AssetType::Equity, "AAPL", 5.0, 160.0, 5.0, Currency::USD},
+        {"rt-3", 3000, TransactionType::Deposit, AssetType::Cash, "USD", 10000.0, 1.0, 0.0, Currency::USD},
+        {"rt-4", 4000, TransactionType::Withdrawal, AssetType::Cash, "USD", 500.0, 1.0, 0.0, Currency::USD},
+        {"rt-5", 5000, TransactionType::Dividend, AssetType::Equity, "AAPL", 0.0, 0.82, 0.0, Currency::USD},
+        {"rt-6", 6000, TransactionType::Split, AssetType::Equity, "AAPL", 4.0, 0.0, 0.0, Currency::USD},
     };
 
     repo->appendTransactions("pf1", txns);
@@ -296,4 +304,52 @@ TEST_F(CSVPortfolioRepositoryTest, AllTransactionTypesRoundtrip) {
     EXPECT_EQ(loaded[3].type, TransactionType::Withdrawal);
     EXPECT_EQ(loaded[4].type, TransactionType::Dividend);
     EXPECT_EQ(loaded[5].type, TransactionType::Split);
+}
+
+// ============================================================
+// deleteTransaction
+// ============================================================
+
+TEST_F(CSVPortfolioRepositoryTest, DeleteTransactionRemovesFromLog) {
+    Transaction tx{"del-1", 2000, TransactionType::Buy, AssetType::Equity, "AAPL", 10.0, 150.0, 0.0, Currency::USD};
+    repo->appendTransactions("pf1", {tx, makeBuy(3000, "MSFT", 5.0, 300.0)});
+
+    repo->deleteTransaction("pf1", "del-1");
+
+    auto loaded = repo->loadTransactions("pf1", 0);
+    ASSERT_EQ(loaded.size(), 1);
+    EXPECT_EQ(loaded[0].assetTicker, "MSFT");
+}
+
+TEST_F(CSVPortfolioRepositoryTest, DeleteTransactionInvalidatesSubsequentSnapshots) {
+    // Snapshot before the transaction.
+    repo->saveSnapshot(makeSnapshot("pf1", 1000, {}, {{Currency::USD, 10000.0}}));
+
+    Transaction tx{"cascade-1", 2000, TransactionType::Buy, AssetType::Equity, "AAPL", 10.0, 150.0, 0.0, Currency::USD};
+    repo->appendTransactions("pf1", {tx});
+
+    // Snapshot after the transaction — must be invalidated by delete.
+    repo->saveSnapshot(makeSnapshot("pf1", 3000,
+                                    {SnapshotPosition{AssetId{AssetType::Equity, "AAPL"}, 10.0}},
+                                    {{Currency::USD, 8500.0}}));
+    ASSERT_EQ(repo->loadLatestSnapshot("pf1")->timestampMs, 3000);
+
+    repo->deleteTransaction("pf1", "cascade-1");
+
+    // Latest snapshot rolls back to the one before the deleted transaction.
+    auto latest = repo->loadLatestSnapshot("pf1");
+    ASSERT_TRUE(latest.has_value());
+    EXPECT_EQ(latest->timestampMs, 1000);
+
+    // Transaction log is now empty.
+    EXPECT_TRUE(repo->loadTransactions("pf1", 0).empty());
+}
+
+TEST_F(CSVPortfolioRepositoryTest, DeleteTransactionThrowsWhenIdNotFound) {
+    repo->appendTransactions("pf1", {makeBuy(1000, "AAPL", 10.0, 150.0)});
+    EXPECT_THROW(repo->deleteTransaction("pf1", "nonexistent-id"), std::runtime_error);
+}
+
+TEST_F(CSVPortfolioRepositoryTest, DeleteTransactionThrowsWhenNoFile) {
+    EXPECT_THROW(repo->deleteTransaction("nonexistent", "any-id"), std::runtime_error);
 }

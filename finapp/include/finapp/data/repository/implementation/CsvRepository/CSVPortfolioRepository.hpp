@@ -24,6 +24,7 @@ class CSVPortfolioRepository : public IPortfolioRepository {
     std::vector<std::string> listPortfolioIds() const override;
     bool exists(const std::string& portfolioID) const override;
     void deletePortfolio(const std::string& portfolioId) override;
+    void deleteTransaction(const std::string& portfolioId, const std::string& transactionId) override;
 
  private:
     std::filesystem::path directory_;

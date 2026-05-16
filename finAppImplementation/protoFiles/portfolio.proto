@@ -1,0 +1,170 @@
+syntax = "proto3";
+
+// finapp_rpc avoids a naming collision with the C++ finapp::PortfolioService class.
+package finapp_rpc;
+
+// =================== Enums — ordinals match the finance:: C++ enums ===================
+
+enum Currency {
+  USD = 0;
+  EUR = 1;
+  JPY = 2;
+  KRW = 3;
+  CAD = 4;
+  GBP = 5;
+}
+
+enum TransactionType {
+  BUY = 0;
+  SELL = 1;
+  DEPOSIT = 2;
+  WITHDRAWAL = 3;
+  DIVIDEND = 4;
+  SPLIT = 5;
+}
+
+enum AssetType {
+  EQUITY = 0;
+  ETF = 1;
+  BOND = 2;
+  CASH = 3;
+  CRYPTO = 4;
+}
+
+// =================== Service ===================
+
+service PortfolioService {
+  rpc ListPortfoliosSummary(ListPortfoliosSummaryInput) returns (ListPortfoliosSummaryOutput);
+
+  rpc GetPortfoliosByIds(GetPortfoliosByIdsInput) returns (GetPortfoliosByIdsOutput);
+  rpc GetPortfolioTimeSeriesById(GetPortfolioTimeSeriesByIdInput) returns (GetPortfolioTimeSeriesByIdOutput);
+  rpc GetPortfolioAnalysisById(GetPortfolioAnalysisByIdInput) returns (GetPortfolioAnalysisByIdOutput);
+
+  rpc CreatePortfolio(CreatePortfolioInput) returns (CreatePortfolioOutput);
+  rpc DeletePortfolioById(DeletePortfolioByIdInput) returns (DeletePortfolioByIdOutput);
+
+  rpc ListPortfolioTransactionsByPortfolioId(ListPortfolioTransactionsByPortfolioIdInput) returns (ListPortfolioTransactionsByPortfolioIdOutput);
+  rpc RequestAddTransaction(RequestAddTransactionInput) returns (RequestAddTransactionOutput);
+}
+
+// =================== Type definitions ===================
+
+message CashBalance {
+  Currency currency = 1;
+  double amount = 2;
+}
+
+message Position {
+  string ticker = 1;
+  double quantity = 2;
+  double value = 3;   // computed by the server: weight * totalValue
+  double weight = 4;  // computed by the server via PortfolioService::weights()
+}
+
+message PortfolioIdentification {
+  string id = 1;
+  string name = 2;
+}
+
+message Portfolio {
+  PortfolioIdentification portfolioIdentification = 1;
+  Currency baseCurrency = 2;
+  double totalValue = 3;
+  repeated CashBalance cashBalances = 4;
+  repeated Position positions = 5;
+}
+
+message PortfolioTimeSeries {
+  repeated int64 timestampsMs = 1;
+  repeated double closeValues = 2; }
+
+message PortfolioAnalysis {
+  // TODO(JBBLET) implement once analysis is added to FinApp
+  string emptyReturn = 1;
+}
+
+message Transaction {
+  string id = 1;
+  int64 timestampsMs = 2;
+  TransactionType type = 3;
+  AssetType assetType = 4;
+  string assetTicker = 5;
+  double quantity = 6;
+  double pricePerUnit = 7;
+  double fees = 8;
+  Currency settlementCurrency = 9;
+}
+
+// =================== RPC messages ===================
+
+message ListPortfoliosSummaryInput {}
+
+message ListPortfoliosSummaryOutput {
+  repeated PortfolioIdentification listPortfoliosIdentification = 1;
+}
+
+message GetPortfoliosByIdsInput {
+  repeated string id = 1;
+  int64 timestampMs = 2;
+}
+
+message GetPortfoliosByIdsOutput {
+  repeated Portfolio listPortfolios = 1;
+}
+
+message GetPortfolioTimeSeriesByIdInput {
+  string id = 1;
+  int64 startMs = 2;
+  int64 endMs = 3;
+  int64 deltaTMs = 4;
+}
+
+message GetPortfolioTimeSeriesByIdOutput {
+  Portfolio portfolio = 1;
+  PortfolioTimeSeries timeSeries = 2;
+}
+
+message GetPortfolioAnalysisByIdInput {
+  string id = 1;
+}
+
+message GetPortfolioAnalysisByIdOutput {
+  Portfolio portfolio = 1;
+  PortfolioAnalysis analysis = 2;
+}
+
+message CreatePortfolioInput {
+  string name = 1;
+  Currency baseCurrency = 2;
+  int64 timestampMs = 3;
+}
+
+message CreatePortfolioOutput {
+  string id = 1;
+}
+
+message DeletePortfolioByIdInput {
+  string id = 1;
+}
+
+message DeletePortfolioByIdOutput {
+  string id = 1;
+}
+
+message ListPortfolioTransactionsByPortfolioIdInput {
+  string portfolioId = 1;
+  int64 afterTimestampMs = 2;
+}
+
+message ListPortfolioTransactionsByPortfolioIdOutput {
+  repeated Transaction transactionList = 1;
+}
+
+message RequestAddTransactionInput {
+  string portfolioId = 1;
+  Transaction transaction = 2;
+}
+
+message RequestAddTransactionOutput {
+  string transactionId = 1;
+}

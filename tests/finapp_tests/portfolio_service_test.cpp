@@ -107,7 +107,7 @@ TEST_F(PortfolioServiceTest, LoadAppliesPostSnapshotTransactions) {
     PortfolioSnapshot snap{"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}};
     portfolioRepo->saveSnapshot(snap);
     portfolioRepo->appendTransactions(
-        "pf1", {Transaction{1 * kDay, TransactionType::Buy, AssetType::Equity, "AAPL", 10.0, 150.0, 0.0, Currency::USD}});
+        "pf1", {Transaction{"tx-load-1", 1 * kDay, TransactionType::Buy, AssetType::Equity, "AAPL", 10.0, 150.0, 0.0, Currency::USD}});
 
     Portfolio p = service->load("pf1");
     ASSERT_EQ(p.positions().size(), 1);
@@ -305,7 +305,7 @@ TEST_F(PortfolioServiceTest, ValueSeriesAppliesTransactionsAtTick) {
     PortfolioSnapshot snap{"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 1000.0}}};
     portfolioRepo->saveSnapshot(snap);
     portfolioRepo->appendTransactions(
-        "pf1", {Transaction{2 * kDay, TransactionType::Buy, AssetType::Equity, "AAPL", 5.0, 100.0, 0.0, Currency::USD}});
+        "pf1", {Transaction{"tx-series-1", 2 * kDay, TransactionType::Buy, AssetType::Equity, "AAPL", 5.0, 100.0, 0.0, Currency::USD}});
 
     TimeSeries series = service->valueSeries("pf1", 0, 3 * kDay, kDay);
     ASSERT_EQ(series.size(), 4);
@@ -384,4 +384,113 @@ TEST_F(PortfolioServiceTest, ValueSeriesEmptyTimestampsThrows) {
     portfolioRepo->saveSnapshot(snap);
     auto empty = std::make_shared<const std::vector<int64_t>>();
     EXPECT_THROW(service->valueSeries("pf1", empty), std::invalid_argument);
+}
+
+// ============================================================
+// listPortfolioIds / listTransactions
+// ============================================================
+
+TEST_F(PortfolioServiceTest, ListPortfolioIdsReturnsAll) {
+    portfolioRepo->saveSnapshot({"pf-a", Currency::USD, 0, "pf-a", {}, {}});
+    portfolioRepo->saveSnapshot({"pf-b", Currency::USD, 0, "pf-b", {}, {}});
+
+    auto ids = service->listPortfolioIds();
+    ASSERT_EQ(ids.size(), 2);
+    std::sort(ids.begin(), ids.end());
+    EXPECT_EQ(ids[0], "pf-a");
+    EXPECT_EQ(ids[1], "pf-b");
+}
+
+TEST_F(PortfolioServiceTest, ListTransactionsDelegatesToRepository) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}});
+    portfolioRepo->appendTransactions("pf1", {
+        Transaction{"lt-1", 1 * kDay, TransactionType::Deposit, AssetType::Cash, "USD", 1000.0, 1.0, 0.0, Currency::USD},
+        Transaction{"lt-2", 2 * kDay, TransactionType::Deposit, AssetType::Cash, "USD", 2000.0, 1.0, 0.0, Currency::USD},
+    });
+
+    auto all = service->listTransactions("pf1", 0);
+    ASSERT_EQ(all.size(), 2);
+
+    auto filtered = service->listTransactions("pf1", 2 * kDay);
+    ASSERT_EQ(filtered.size(), 1);
+    EXPECT_EQ(filtered[0].id, "lt-2");
+}
+
+// ============================================================
+// addTransaction
+// ============================================================
+
+TEST_F(PortfolioServiceTest, AddTransactionReturnsNonEmptyId) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}});
+
+    Transaction tx{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD};
+    std::string id = service->addTransaction("pf1", tx, 2 * kDay);
+
+    EXPECT_FALSE(id.empty());
+}
+
+TEST_F(PortfolioServiceTest, AddTransactionPersistsWithGeneratedId) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}});
+
+    Transaction tx{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD};
+    std::string id = service->addTransaction("pf1", tx, 2 * kDay);
+
+    auto txns = service->listTransactions("pf1", 0);
+    ASSERT_EQ(txns.size(), 1);
+    EXPECT_EQ(txns[0].id, id);
+    EXPECT_NEAR(txns[0].quantity, 5000.0, 1e-9);
+}
+
+TEST_F(PortfolioServiceTest, AddTransactionIdsAreUnique) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 50000.0}}});
+
+    Transaction tx{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 1000.0, 1.0, 0.0, Currency::USD};
+    std::string id1 = service->addTransaction("pf1", tx, 2 * kDay);
+    std::string id2 = service->addTransaction("pf1", tx, 3 * kDay);
+
+    EXPECT_NE(id1, id2);
+}
+
+// ============================================================
+// deleteTransaction
+// ============================================================
+
+TEST_F(PortfolioServiceTest, DeleteTransactionRemovesIt) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}});
+
+    std::string id = service->addTransaction(
+        "pf1", Transaction{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD},
+        2 * kDay);
+
+    service->deleteTransaction("pf1", id);
+
+    EXPECT_TRUE(service->listTransactions("pf1", 0).empty());
+}
+
+TEST_F(PortfolioServiceTest, DeleteTransactionThrowsWhenIdNotFound) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {}});
+    EXPECT_THROW(service->deleteTransaction("pf1", "nonexistent"), std::runtime_error);
+}
+
+// ============================================================
+// updateTransaction
+// ============================================================
+
+TEST_F(PortfolioServiceTest, UpdateTransactionReplacesWithNewId) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 50000.0}}});
+
+    std::string oldId = service->addTransaction(
+        "pf1", Transaction{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD},
+        2 * kDay);
+
+    Transaction corrected{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 7000.0, 1.0, 0.0, Currency::USD};
+    std::string newId = service->updateTransaction("pf1", oldId, corrected, 3 * kDay);
+
+    EXPECT_NE(newId, oldId);
+    EXPECT_FALSE(newId.empty());
+
+    auto txns = service->listTransactions("pf1", 0);
+    ASSERT_EQ(txns.size(), 1);
+    EXPECT_EQ(txns[0].id, newId);
+    EXPECT_NEAR(txns[0].quantity, 7000.0, 1e-9);
 }
