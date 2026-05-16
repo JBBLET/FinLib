@@ -4,8 +4,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iomanip>
 #include <memory>
 #include <optional>
+#include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -24,18 +27,31 @@
 #include "finlib/core/TimeSeries.hpp"
 
 namespace finapp {
-
-using namespace finance;
-
-namespace {
-
+using finance::AssetId;
+using finance::AssetType;
+using finance::Currency;
+using finance::IAsset;
+using finance::Portfolio;
+using finance::PortfolioSnapshot;
+using finance::SnapshotPosition;
+using finance::TargetAllocation;
+using finance::Transaction;
+using finance::TransactionType;
 // Daily — used for single-point market-data lookups (totalValue / weights / rebalance).
 // The shared-timestamp path in TimeSeriesService::get requires >= 2 points to infer
 // frequency, so singleton queries go through the (start, end, freq) overload instead.
+namespace {
 constexpr int64_t kDefaultSpotFrequencyMs = 86'400'000;
 
 std::string cashKey(Currency c) { return "CASH:" + toString(c); }
 
+std::string generateTransactionId() {
+    static std::mt19937_64 gen{std::random_device{}()};
+    std::uniform_int_distribution<uint64_t> dis;
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0') << std::setw(16) << dis(gen);
+    return oss.str();
+}
 }  // namespace
 
 PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfolioRepository,
@@ -48,8 +64,8 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 // Persistence
 // ---------------------------------------------------------------------------
 
-Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name,
-                                      Currency baseCurrency, int64_t timestampMs) {
+Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency,
+                                      int64_t timestampMs) {
     if (portfolioRepository_->exists(portfolioId)) {
         throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
     }
@@ -92,10 +108,6 @@ void PortfolioService::save(const Portfolio& portfolio, int64_t timestampMs) {
     portfolioRepository_->saveSnapshot(portfolio.snapshot(timestampMs));
 }
 
-// ---------------------------------------------------------------------------
-// Single-point market-data computations
-// ---------------------------------------------------------------------------
-
 double PortfolioService::totalValue(const Portfolio& portfolio, int64_t timestampMs) {
     const Currency base = portfolio.baseCurrency();
     double total = 0.0;
@@ -116,7 +128,6 @@ double PortfolioService::totalValue(const Portfolio& portfolio, int64_t timestam
             TimeSeries fxSeries = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs);
             fx = fxSeries.getValues().front();
         }
-
         total += pos.quantity * price * fx;
     }
 
@@ -275,26 +286,31 @@ TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, Timesta
     }
     // Transactions must be chronological for the walk — the CSV path is already sorted by
     // timestamp but we can't assume that about every repo impl.
-    std::sort(transactions.begin(), transactions.end(),
-              [](const Transaction& a, const Transaction& b) {
-                  if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
-                  // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
-                  auto pri = [](TransactionType t) -> int {
-                      switch (t) {
-                          case TransactionType::Deposit:    return 0;
-                          case TransactionType::Dividend:   return 1;
-                          case TransactionType::Buy:        return 2;
-                          case TransactionType::Sell:       return 2;
-                          case TransactionType::Withdrawal: return 3;
-                          case TransactionType::Split:      return 4;
-                          default:                          return 5;
-                      }
-                  };
-                  return pri(a.type) < pri(b.type);
-              });
+    std::sort(transactions.begin(), transactions.end(), [](const Transaction& a, const Transaction& b) {
+        if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
+        // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
+        auto pri = [](TransactionType t) -> int {
+            switch (t) {
+                case TransactionType::Deposit:
+                    return 0;
+                case TransactionType::Dividend:
+                    return 1;
+                case TransactionType::Buy:
+                    return 2;
+                case TransactionType::Sell:
+                    return 2;
+                case TransactionType::Withdrawal:
+                    return 3;
+                case TransactionType::Split:
+                    return 4;
+                default:
+                    return 5;
+            }
+        };
+        return pri(a.type) < pri(b.type);
+    });
 
-    Portfolio runningPortfolio =
-        Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();
+    Portfolio runningPortfolio = Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();
 
     // Collect the universe of assets and currencies that ever appear in snapshot + transactions.
     std::unordered_set<AssetId> uniqueAssetIds;
@@ -390,26 +406,31 @@ std::unordered_map<std::string, TimeSeries> PortfolioService::weightSeries(const
     } catch (const std::runtime_error&) {
         transactions = {};
     }
-    std::sort(transactions.begin(), transactions.end(),
-              [](const Transaction& a, const Transaction& b) {
-                  if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
-                  // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
-                  auto pri = [](TransactionType t) -> int {
-                      switch (t) {
-                          case TransactionType::Deposit:    return 0;
-                          case TransactionType::Dividend:   return 1;
-                          case TransactionType::Buy:        return 2;
-                          case TransactionType::Sell:       return 2;
-                          case TransactionType::Withdrawal: return 3;
-                          case TransactionType::Split:      return 4;
-                          default:                          return 5;
-                      }
-                  };
-                  return pri(a.type) < pri(b.type);
-              });
+    std::sort(transactions.begin(), transactions.end(), [](const Transaction& a, const Transaction& b) {
+        if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
+        // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
+        auto pri = [](TransactionType t) -> int {
+            switch (t) {
+                case TransactionType::Deposit:
+                    return 0;
+                case TransactionType::Dividend:
+                    return 1;
+                case TransactionType::Buy:
+                    return 2;
+                case TransactionType::Sell:
+                    return 2;
+                case TransactionType::Withdrawal:
+                    return 3;
+                case TransactionType::Split:
+                    return 4;
+                default:
+                    return 5;
+            }
+        };
+        return pri(a.type) < pri(b.type);
+    });
 
-    Portfolio runningPortfolio =
-        Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();
+    Portfolio runningPortfolio = Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();
 
     std::unordered_set<AssetId> uniqueAssetIds;
     std::unordered_set<Currency> uniqueCurrencies;
@@ -492,6 +513,36 @@ std::unordered_map<std::string, TimeSeries> PortfolioService::weightSeries(const
         result.emplace(key, TimeSeries(portfolioId + "_weight_" + key, timestamps, std::move(valueVec)));
     }
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// Listing and transaction management
+// ---------------------------------------------------------------------------
+
+std::vector<std::string> PortfolioService::listPortfolioIds() { return portfolioRepository_->listPortfolioIds(); }
+
+std::vector<Transaction> PortfolioService::listTransactions(const std::string& portfolioId, int64_t afterTimestampMs) {
+    return portfolioRepository_->loadTransactions(portfolioId, afterTimestampMs);
+}
+
+std::string PortfolioService::addTransaction(const std::string& portfolioId, Transaction transaction,
+                                             int64_t timestampMs) {
+    transaction.id = generateTransactionId();
+    Portfolio portfolio = load(portfolioId);
+    portfolio.apply(transaction);
+    portfolioRepository_->appendTransactions(portfolioId, {transaction});
+    save(portfolio, timestampMs);
+    return transaction.id;
+}
+
+void PortfolioService::deleteTransaction(const std::string& portfolioId, const std::string& transactionId) {
+    portfolioRepository_->deleteTransaction(portfolioId, transactionId);
+}
+
+std::string PortfolioService::updateTransaction(const std::string& portfolioId, const std::string& transactionId,
+                                                Transaction corrected, int64_t timestampMs) {
+    deleteTransaction(portfolioId, transactionId);
+    return addTransaction(portfolioId, std::move(corrected), timestampMs);
 }
 
 // ---------------------------------------------------------------------------

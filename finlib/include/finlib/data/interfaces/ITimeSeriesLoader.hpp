@@ -11,7 +11,12 @@ struct LoaderCapabilities {
 
 class ITimeSeriesLoader {
  public:
+    ITimeSeriesLoader() = default;
     virtual ~ITimeSeriesLoader() = default;
+    ITimeSeriesLoader(const ITimeSeriesLoader&) = default;
+    ITimeSeriesLoader& operator=(const ITimeSeriesLoader&) = default;
+    ITimeSeriesLoader(ITimeSeriesLoader&&) = default;
+    ITimeSeriesLoader& operator=(ITimeSeriesLoader&&) = default;
 
     virtual TimeSeries load(const std::string& id, int64_t startTimestampMs, int64_t endTimestampMs) const = 0;
     virtual LoaderCapabilities capabilities(const std::string& id) const = 0;

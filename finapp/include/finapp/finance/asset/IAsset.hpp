@@ -9,7 +9,12 @@ namespace finance {
 
 class IAsset {
  public:
+    IAsset() = default;
     virtual ~IAsset() = default;
+    IAsset(const IAsset&) = default;
+    IAsset& operator=(const IAsset&) = default;
+    IAsset(IAsset&&) = default;
+    IAsset& operator=(IAsset&&) = default;
 
     virtual std::string ticker() const = 0;
     virtual std::string name() const = 0;

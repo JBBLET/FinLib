@@ -283,6 +283,20 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
         transactions_.erase(portfolioId);
     }
 
+    void deleteTransaction(const std::string& portfolioId, const std::string& transactionId) override {
+        auto it = transactions_.find(portfolioId);
+        if (it == transactions_.end()) {
+            throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
+        }
+        auto& txns = it->second;
+        auto txIt = std::find_if(txns.begin(), txns.end(), [&](const Transaction& t) { return t.id == transactionId; });
+        if (txIt == txns.end()) {
+            throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
+        }
+        txns.erase(txIt);
+        // Snapshot cascade is not implemented in this fake — tested via CSVPortfolioRepository tests.
+    }
+
  private:
     std::unordered_map<std::string, PortfolioSnapshot> snapshots_;
     std::unordered_map<std::string, std::vector<Transaction>> transactions_;

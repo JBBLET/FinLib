@@ -38,6 +38,23 @@ class PortfolioService {
     // Persist snapshot + append new transactions
     void save(const finance::Portfolio& portfolio, int64_t timestampMs);
 
+    // Listing
+    std::vector<std::string> listPortfolioIds();
+    std::vector<finance::Transaction> listTransactions(const std::string& portfolioId, int64_t afterTimestampMs = 0);
+
+    // Assigns a generated id, applies the transaction, appends it to the log, and saves a snapshot.
+    // Returns the generated id — the only information the caller didn't already have.
+    std::string addTransaction(const std::string& portfolioId, finance::Transaction transaction, int64_t timestampMs);
+
+    // Remove a transaction by id and invalidate snapshots at or after its timestamp.
+    // The portfolio will be rebuilt from the preceding snapshot on next load().
+    void deleteTransaction(const std::string& portfolioId, const std::string& transactionId);
+
+    // Convenience: delete the old transaction then re-add the corrected one.
+    // Returns the new generated id assigned to the corrected transaction.
+    std::string updateTransaction(const std::string& portfolioId, const std::string& transactionId,
+                                  finance::Transaction corrected, int64_t timestampMs);
+
     // Market-data-dependent computations (fetches prices/FX internally)
     double totalValue(const finance::Portfolio& portfolio, int64_t timestampMs);
     std::unordered_map<std::string, double> weights(const finance::Portfolio& portfolio, int64_t timestampMs);

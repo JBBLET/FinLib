@@ -79,7 +79,7 @@ std::vector<Transaction> YahooFinanceImporter::parse(const std::filesystem::path
                 continue;
             }
             // Ticker for Cash assets is the 3-letter currency code (AssetService convention).
-            result.push_back(Transaction{timestampMs, type, AssetType::Cash,
+            result.push_back(Transaction{"", timestampMs, type, AssetType::Cash,
                                          toString(config.baseCurrency), quantity, 1.0, fees,
                                          config.baseCurrency});
         } else {
@@ -96,7 +96,7 @@ std::vector<Transaction> YahooFinanceImporter::parse(const std::filesystem::path
             }
             const Currency settlement = resolveCurrency(symbol);
             result.push_back(
-                Transaction{timestampMs, type, AssetType::Equity, symbol, quantity, price, fees, settlement});
+                Transaction{"", timestampMs, type, AssetType::Equity, symbol, quantity, price, fees, settlement});
         }
     }
 

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(FinancialTimeSeriesLib VERSION 0.1)
 
@@ -46,10 +47,47 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(pybind11)
 
+# gRPC + Protobuf via FetchContent
+set(FETCHCONTENT_QUIET OFF)
+set(gRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(gRPC_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(gRPC_BUILD_CSHARP_EXT OFF CACHE BOOL "" FORCE)
+set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(absl_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(gRPC_INSTALL OFF CACHE BOOL "" FORCE)
+set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  gRPC
+  GIT_REPOSITORY https://github.com/grpc/grpc
+  GIT_TAG        v1.68.0
+  GIT_SHALLOW    TRUE
+  GIT_PROGRESS   TRUE
+)
+
+FetchContent_MakeAvailable(gRPC)
+include(cmake/GrpcHelpers.cmake)
+
+# FTXUI C++
+set(FTXUI_BUILD_EXAMPLES OFF)
+set(FTXUI_BUILD_DOCS OFF)
+set(FTXUI_BUILD_TESTS OFF)
+set(FTXUI_ENABLE_INSTALL OFF)
+
+FetchContent_Declare(ftxui
+  GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI
+  GIT_TAG v6.1.9  # Replace with a version, tag, or commit hash
+)
+
+FetchContent_MakeAvailable(ftxui)
+
 # --- Subdirectories ---
 
 add_subdirectory(finlib)  # FinLib — Domain A (generic time series)
 add_subdirectory(finapp)  # FinApp — Domain B (finance application)
+add_subdirectory(finAppImplementation) # Example System using the FinApp into an actual project
+add_subdirectory(finui) # Example small UI using a grpc stub in finAppImplementation
 
 if(BUILD_TESTS)
     enable_testing()

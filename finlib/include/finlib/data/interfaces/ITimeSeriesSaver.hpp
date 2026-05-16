@@ -7,7 +7,12 @@
 
 class ITimeSeriesSaver {
  public:
+    ITimeSeriesSaver() = default;
     virtual ~ITimeSeriesSaver() = default;
+    ITimeSeriesSaver(const ITimeSeriesSaver&) = default;
+    ITimeSeriesSaver& operator=(const ITimeSeriesSaver&) = default;
+    ITimeSeriesSaver(ITimeSeriesSaver&&) = default;
+    ITimeSeriesSaver& operator=(ITimeSeriesSaver&&) = default;
 
     virtual void save(const SeriesKey& key, const TimeSeries& TimeSeries, const CoverageInfo& coverageInfo) = 0;
     virtual void merge(const SeriesKey& key, const TimeSeries& newTimeSeries) = 0;

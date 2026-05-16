@@ -134,3 +134,62 @@ target_link_libraries(test_portfolio_service
 )
 
 add_test(NAME PortfolioServiceTest COMMAND test_portfolio_service)
+
+# --------------------
+# Portfolio Tracking Tests
+# --------------------
+
+add_executable(test_portfolio_tracking_math
+    portfolio_tracking_math_test.cpp
+)
+
+target_include_directories(test_portfolio_tracking_math
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(test_portfolio_tracking_math
+    PRIVATE
+        finapp_service
+        finapp_core
+        finlib_core
+        finlib_data
+        gtest_main
+)
+
+add_test(NAME PortfolioTrackingMathTest COMMAND test_portfolio_tracking_math)
+
+add_executable(test_portfolio_tracking_live
+    portfolio_tracking_live_test.cpp
+)
+
+target_include_directories(test_portfolio_tracking_live
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_definitions(test_portfolio_tracking_live
+    PRIVATE
+        FINAPP_TEST_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources"
+        FINAPP_PYTHON_DIR="${CMAKE_SOURCE_DIR}/finapp/scripts"
+)
+
+target_link_libraries(test_portfolio_tracking_live
+    PRIVATE
+        finapp_service
+        finapp_core
+        finapp_providers
+        finapp_csv_repository
+        finapp_importers
+        finlib_core
+        finlib_data
+        gtest_main
+)
+
+add_test(NAME PortfolioTrackingLiveTest COMMAND test_portfolio_tracking_live)
+
+set_tests_properties(PortfolioTrackingLiveTest
+    PROPERTIES
+        LABELS "integration"
+        TIMEOUT 300
+)

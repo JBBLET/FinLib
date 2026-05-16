@@ -8,7 +8,12 @@ namespace models {
 
 class IModel : public std::enable_shared_from_this<IModel> {
  public:
+    IModel() = default;
     virtual ~IModel() = default;
+    IModel(const IModel&) = default;
+    IModel& operator=(const IModel&) = default;
+    IModel(IModel&&) = default;
+    IModel& operator=(IModel&&) = default;
 
     virtual std::string name() const = 0;
     virtual std::string print() const = 0;

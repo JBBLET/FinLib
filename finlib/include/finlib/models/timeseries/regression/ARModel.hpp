@@ -25,6 +25,10 @@ class ARModel : public BaseRegressionModel {
     }
 
     ARModel(const ARModel&) = default;
+    ARModel& operator=(const ARModel&) = default;
+    ARModel(ARModel&&) = default;
+    ARModel& operator=(ARModel&&) = default;
+    ~ARModel() override = default;
 
     std::string name() const override { return std::format("AR ({})", q_); };
     // std::string print() const override;

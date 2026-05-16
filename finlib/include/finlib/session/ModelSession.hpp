@@ -59,6 +59,10 @@ class ModelSession {
         lastActualTimeStamp_ = view.timestamp(viewLength - 1);
     }
     ~ModelSession() { flush_(); }
+    ModelSession(const ModelSession&) = delete;
+    ModelSession& operator=(const ModelSession&) = delete;
+    ModelSession(ModelSession&&) = delete;
+    ModelSession& operator=(ModelSession&&) = delete;
 
     std::vector<PredictionEntry> forecast(size_t steps);
     void observe(double value, int64_t timestamp);
