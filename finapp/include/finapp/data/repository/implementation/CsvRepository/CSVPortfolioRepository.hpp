@@ -16,7 +16,7 @@ namespace finapp {
 
 class CSVPortfolioRepository : public IPortfolioRepository {
  public:
-    explicit CSVPortfolioRepository(std::filesystem::path directory) : directory_{std::move(directory)} {};
+    explicit CSVPortfolioRepository(std::filesystem::path directory);
     void saveSnapshot(const finance::PortfolioSnapshot& snapshot) override;
     std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolio) const override;
     void appendTransactions(const std::string& portfolioId, const std::vector<finance::Transaction>& transactions) override;

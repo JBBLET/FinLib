@@ -288,26 +288,7 @@ TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, Timesta
     // timestamp but we can't assume that about every repo impl.
     std::sort(transactions.begin(), transactions.end(), [](const Transaction& a, const Transaction& b) {
         if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
-        // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
-        auto pri = [](TransactionType t) -> int {
-            switch (t) {
-                case TransactionType::Deposit:
-                    return 0;
-                case TransactionType::Dividend:
-                    return 1;
-                case TransactionType::Buy:
-                    return 2;
-                case TransactionType::Sell:
-                    return 2;
-                case TransactionType::Withdrawal:
-                    return 3;
-                case TransactionType::Split:
-                    return 4;
-                default:
-                    return 5;
-            }
-        };
-        return pri(a.type) < pri(b.type);
+        return transactionTypePriority(a.type) < transactionTypePriority(b.type);
     });
 
     Portfolio runningPortfolio = Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();
@@ -408,26 +389,7 @@ std::unordered_map<std::string, TimeSeries> PortfolioService::weightSeries(const
     }
     std::sort(transactions.begin(), transactions.end(), [](const Transaction& a, const Transaction& b) {
         if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
-        // Deposits before Buys on the same timestamp — mirrors Portfolio::Builder sort.
-        auto pri = [](TransactionType t) -> int {
-            switch (t) {
-                case TransactionType::Deposit:
-                    return 0;
-                case TransactionType::Dividend:
-                    return 1;
-                case TransactionType::Buy:
-                    return 2;
-                case TransactionType::Sell:
-                    return 2;
-                case TransactionType::Withdrawal:
-                    return 3;
-                case TransactionType::Split:
-                    return 4;
-                default:
-                    return 5;
-            }
-        };
-        return pri(a.type) < pri(b.type);
+        return transactionTypePriority(a.type) < transactionTypePriority(b.type);
     });
 
     Portfolio runningPortfolio = Portfolio::Builder(portfolioId, snapshot.name, base).fromSnapshot(snapshot).build();

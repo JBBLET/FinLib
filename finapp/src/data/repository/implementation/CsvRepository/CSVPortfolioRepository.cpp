@@ -27,6 +27,12 @@ namespace finapp {
 
 using namespace finance;
 
+CSVPortfolioRepository::CSVPortfolioRepository(std::filesystem::path directory)
+    : directory_{std::move(directory)} {
+    std::filesystem::create_directories(directory_ / "Portfolio" / "Positions");
+    std::filesystem::create_directories(directory_ / "Portfolio" / "Cash");
+}
+
 // IPortfolioRepository Interface
 void CSVPortfolioRepository::saveSnapshot(const PortfolioSnapshot& snapshot) {
     writeSnapshotCsv_(snapshot.portfolioId, snapshot);
