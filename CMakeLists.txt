@@ -87,7 +87,7 @@ FetchContent_MakeAvailable(ftxui)
 add_subdirectory(finlib)  # FinLib — Domain A (generic time series)
 add_subdirectory(finapp)  # FinApp — Domain B (finance application)
 add_subdirectory(finAppImplementation) # Example System using the FinApp into an actual project
-add_subdirectory(finui) # Example small UI using a grpc stub in finAppImplementation
+add_subdirectory(finTUI) # Example small UI using a grpc stub in finAppImplementation
 
 if(BUILD_TESTS)
     enable_testing()

@@ -45,6 +45,8 @@ service PortfolioService {
 
   rpc ListPortfolioTransactionsByPortfolioId(ListPortfolioTransactionsByPortfolioIdInput) returns (ListPortfolioTransactionsByPortfolioIdOutput);
   rpc RequestAddTransaction(RequestAddTransactionInput) returns (RequestAddTransactionOutput);
+  rpc RequestAddTranssactionByCsv(RequestAddTransactionByCsvInput) returns (RequestAddTransactionOutput);
+  rpc DeleteTransaction(DeleteTransactionInput) returns (DeleteTransactionOutput);
 }
 
 // =================== Type definitions ===================
@@ -166,5 +168,19 @@ message RequestAddTransactionInput {
 }
 
 message RequestAddTransactionOutput {
+  string transactionId = 1;
+}
+
+message RequestAddTransactionByCsvInput {
+  string portfolioId = 1;
+  string csvData     = 2;
+}
+
+message DeleteTransactionInput {
+  string portfolioId   = 1;
+  string transactionId = 2;
+}
+
+message DeleteTransactionOutput {
   string transactionId = 1;
 }

@@ -481,6 +481,12 @@ std::unordered_map<std::string, TimeSeries> PortfolioService::weightSeries(const
 // Listing and transaction management
 // ---------------------------------------------------------------------------
 
+PortfolioService::PortfolioMetadata PortfolioService::loadMetadata(const std::string& portfolioId) {
+    auto snap = portfolioRepository_->loadLatestSnapshot(portfolioId);
+    if (!snap.has_value()) throw std::runtime_error("No snapshot for portfolio: " + portfolioId);
+    return {snap->portfolioId, snap->name, snap->baseCurrency};
+}
+
 std::vector<std::string> PortfolioService::listPortfolioIds() { return portfolioRepository_->listPortfolioIds(); }
 
 std::vector<Transaction> PortfolioService::listTransactions(const std::string& portfolioId, int64_t afterTimestampMs) {

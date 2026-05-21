@@ -38,6 +38,16 @@ class PortfolioService {
     // Persist snapshot + append new transactions
     void save(const finance::Portfolio& portfolio, int64_t timestampMs);
 
+    struct PortfolioMetadata {
+        std::string       id;
+        std::string       name;
+        finance::Currency baseCurrency;
+    };
+
+    // Returns id/name/baseCurrency from the latest snapshot only.
+    // Does NOT replay transactions or call AssetService/FXService.
+    PortfolioMetadata loadMetadata(const std::string& portfolioId);
+
     // Listing
     std::vector<std::string> listPortfolioIds();
     std::vector<finance::Transaction> listTransactions(const std::string& portfolioId, int64_t afterTimestampMs = 0);

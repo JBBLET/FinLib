@@ -1,8 +1,4 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
-//
-// Integration tests that parse real Yahoo Finance CSV exports and call
-// PortfolioService::valueSeries() with live yfinance price data.
-// These tests require network access and are labelled "integration".
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -10,8 +6,6 @@
 #include <filesystem>
 #include <memory>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 #include "finapp/data/importers/YahooFinanceImporter.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YFinanceEquityProvider.hpp"
@@ -44,9 +38,9 @@ const std::filesystem::path kResourcesDir{FINAPP_TEST_RESOURCES_DIR};
 // wired to live yfinance and a CSVPortfolioRepository in a temp directory.
 // The temp directory is deleted on destruction.
 struct LiveBundle {
-    std::unique_ptr<PortfolioService>       service;
+    std::unique_ptr<PortfolioService> service;
     std::shared_ptr<CSVPortfolioRepository> portfolioRepo;
-    std::filesystem::path                   repoDir;
+    std::filesystem::path repoDir;
 
     ~LiveBundle() { std::filesystem::remove_all(repoDir); }
 };
@@ -57,26 +51,25 @@ LiveBundle makeLiveBundle(const std::string& testName) {
     std::filesystem::create_directories(repoDir);
 
     // Time-series: live yfinance loader backed by an in-memory cache.
-    auto innerRepo  = std::make_shared<InMemoryTimeSeriesRepository>();
+    auto innerRepo = std::make_shared<InMemoryTimeSeriesRepository>();
     auto cachedRepo = std::make_shared<CachedTimeSeriesRepository>(innerRepo);
-    auto tsLoader   = std::make_shared<YFinanceProvider>(
-        "/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python",
-        FINAPP_PYTHON_DIR "/YFinanceFetcher.py");
+    auto tsLoader = std::make_shared<YFinanceProvider>("/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python",
+                                                       FINAPP_PYTHON_DIR "/YFinanceFetcher.py");
     auto tsService = std::make_shared<TimeSeriesService>(cachedRepo, tsLoader);
 
     // Asset: in-memory repo + live yfinance equity provider to resolve denomination.
-    auto equityRepo     = std::make_shared<InMemoryAssetRepository>();
+    auto equityRepo = std::make_shared<InMemoryAssetRepository>();
     auto equityProvider = std::make_shared<YFinanceEquityProvider>();
-    std::unordered_map<AssetType, std::shared_ptr<IAssetRepository>> repos     = {{AssetType::Equity, equityRepo}};
-    std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>>   providers = {{AssetType::Equity, equityProvider}};
+    std::unordered_map<AssetType, std::shared_ptr<IAssetRepository>> repos = {{AssetType::Equity, equityRepo}};
+    std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>> providers = {{AssetType::Equity, equityProvider}};
     auto assetService = std::make_shared<AssetService>(tsService, std::move(repos), std::move(providers));
 
     // FX: empty repo — both portfolios use a single base currency throughout.
-    auto fxRepo    = std::make_shared<InMemoryFXRepository>();
+    auto fxRepo = std::make_shared<InMemoryFXRepository>();
     auto fxService = std::make_shared<FXService>(tsService, fxRepo);
 
     auto portfolioRepo = std::make_shared<CSVPortfolioRepository>(repoDir);
-    auto service       = std::make_unique<PortfolioService>(portfolioRepo, assetService, fxService);
+    auto service = std::make_unique<PortfolioService>(portfolioRepo, assetService, fxService);
 
     return {std::move(service), std::move(portfolioRepo), repoDir};
 }
@@ -85,10 +78,8 @@ void assertValidValueSeries(const TimeSeries& series, const std::string& label) 
     ASSERT_GT(series.size(), 0u) << label << ": series is empty";
 
     for (size_t i = 0; i < series.getValues().size(); ++i) {
-        EXPECT_TRUE(std::isfinite(series.getValues()[i]))
-            << label << ": non-finite value at index " << i;
-        EXPECT_GE(series.getValues()[i], 0.0)
-            << label << ": negative value at index " << i;
+        EXPECT_TRUE(std::isfinite(series.getValues()[i])) << label << ": non-finite value at index " << i;
+        EXPECT_GE(series.getValues()[i], 0.0) << label << ": negative value at index " << i;
     }
 
     EXPECT_GT(series.getValues().back(), 0.0) << label << ": final portfolio value is zero";
@@ -108,12 +99,11 @@ TEST(PortfolioTrackingLive, PEA_ValueSeriesFromCSV) {
     ASSERT_FALSE(txns.empty()) << "No transactions parsed from PEA CSV";
 
     // Seed 30 EUR to cover small interest/rounding credits not captured in the Yahoo export.
-    bundle.portfolioRepo->saveSnapshot(
-        PortfolioSnapshot{"PEA", Currency::EUR, 0, "pea", {}, {{Currency::EUR, 30.0}}});
+    bundle.portfolioRepo->saveSnapshot(PortfolioSnapshot{"PEA", Currency::EUR, 0, "pea", {}, {{Currency::EUR, 30.0}}});
     bundle.portfolioRepo->appendTransactions("pea", txns);
 
     const int64_t firstMs = txns.front().timestampsMs;
-    const int64_t lastMs  = txns.back().timestampsMs;
+    const int64_t lastMs = txns.back().timestampsMs;
 
     TimeSeries series = bundle.service->valueSeries("pea", firstMs, lastMs, kWeekMs);
     assertValidValueSeries(series, "PEA");
@@ -135,7 +125,7 @@ TEST(PortfolioTrackingLive, NISA_ValueSeriesFromCSV) {
     bundle.portfolioRepo->appendTransactions("nisa", txns);
 
     const int64_t firstMs = txns.front().timestampsMs;
-    const int64_t lastMs  = txns.back().timestampsMs;
+    const int64_t lastMs = txns.back().timestampsMs;
 
     TimeSeries series = bundle.service->valueSeries("nisa", firstMs, lastMs, kWeekMs);
     assertValidValueSeries(series, "NISA");

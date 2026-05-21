@@ -46,6 +46,9 @@ class PortfolioGrpcServiceImpl final : public finapp_rpc::PortfolioService::Serv
     grpc::Status RequestAddTransaction(grpc::ServerContext*, const finapp_rpc::RequestAddTransactionInput* request,
                                        finapp_rpc::RequestAddTransactionOutput* reply) override;
 
+    grpc::Status DeleteTransaction(grpc::ServerContext*, const finapp_rpc::DeleteTransactionInput* request,
+                                   finapp_rpc::DeleteTransactionOutput* reply) override;
+
  private:
     std::shared_ptr<finapp::PortfolioService> portfolioService_;
 };

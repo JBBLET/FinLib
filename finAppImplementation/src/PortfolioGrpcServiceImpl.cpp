@@ -25,8 +25,10 @@ grpc::Status PortfolioGrpcServiceImpl::ListPortfoliosSummary(grpc::ServerContext
                                                              finapp_rpc::ListPortfoliosSummaryOutput* reply) {
     try {
         for (const auto& id : portfolioService_->listPortfolioIds()) {
+            auto meta = portfolioService_->loadMetadata(id);
             auto* ident = reply->add_listportfoliosidentification();
-            ident->set_id(id);
+            ident->set_id(meta.id);
+            ident->set_name(meta.name);
         }
         return grpc::Status::OK;
     } catch (const std::exception& e) {
@@ -154,6 +156,18 @@ grpc::Status PortfolioGrpcServiceImpl::RequestAddTransaction(grpc::ServerContext
         reply->set_transactionid(transactionId);
         return grpc::Status::OK;
     } catch (std::exception& e) {
+        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+    }
+}
+
+grpc::Status PortfolioGrpcServiceImpl::DeleteTransaction(grpc::ServerContext*,
+                                                          const finapp_rpc::DeleteTransactionInput* request,
+                                                          finapp_rpc::DeleteTransactionOutput* reply) {
+    try {
+        portfolioService_->deleteTransaction(request->portfolioid(), request->transactionid());
+        reply->set_transactionid(request->transactionid());
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
         return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
     }
 }
