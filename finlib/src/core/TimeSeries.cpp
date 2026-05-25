@@ -59,10 +59,14 @@ vector<double> TimeSeries::partialWalk(const vector<int64_t>& targetTimestamps, 
     vector<double> newValues;
     newValues.resize(chunkLength);
 
+    const size_t originalSize = timestamps_->size();
+    if (originalSize == 0) {
+        throw std::runtime_error("TimeSeries::resampling: cannot resample from empty series '" + id_ + "'");
+    }
+
     auto it = std::lower_bound(timestamps_->begin(), timestamps_->end(), targetTimestamps[startIndex]);
     size_t dataIndex = std::distance(timestamps_->begin(), it);
     if (dataIndex > 0) dataIndex--;
-    const size_t originalSize = timestamps_->size();
 
     for (size_t i = 0; i < chunkLength; i++) {
         int64_t currentTarget = targetTimestamps[startIndex + i];

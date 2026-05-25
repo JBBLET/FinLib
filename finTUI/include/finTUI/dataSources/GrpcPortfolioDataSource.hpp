@@ -25,6 +25,7 @@ class GrpcPortfolioDataSource : public IPortfolioDataSource {
     void deleteTransaction(const std::string& portfolioId, const std::string& txnId) override;
     TimeSeriesData getTimeSeries(const std::string& portfolioId, int64_t startMs, int64_t endMs,
                                  int64_t deltaMs) override;
+    void importCsv(const std::string& portfolioId, const std::string& csvData) override;
 
  private:
     std::unique_ptr<finapp_rpc::PortfolioService::Stub> stub_;

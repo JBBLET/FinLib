@@ -1,13 +1,14 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 #include <functional>
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
 
 #include "ftxui/component/component.hpp"
+#include "ftxui/component/component_base.hpp"
 #include "ftxui/component/event.hpp"
-#include "ftxui/dom/node.hpp"
 
 namespace finui {
 struct TextDef {
@@ -47,12 +48,13 @@ struct SubmitButtonDef {
 
 using FieldDef = std::variant<TextDef, NumberDef, DateDef, SelectDef, ToggleDef, SubmitButtonDef>;
 
-class FormDialog {
+class TuiFormDialog : public ftxui::ComponentBase {
  public:
-    FormDialog(std::string title, std::vector<FieldDef> fields, std::string hint = "");
+    TuiFormDialog(std::string title, std::vector<FieldDef> fields, std::string hint = "");
 
-    ftxui::Component inputComponent();
-    ftxui::Element render() const;
+    ftxui::Element OnRender() override;
+    bool Focusable() const override { return true; }
+    bool OnEvent(ftxui::Event e) override;
     void reset();
 
  private:
@@ -61,8 +63,11 @@ class FormDialog {
 
     std::vector<ftxui::Component> inputs_;
     std::vector<ftxui::Element> rows_;
-    // helpers
-    //
+
+    std::function<void()> cancelFn_;
+    std::function<void()> confirmFn_;
+
+    //  Helpers
     void buildComponent_(TextDef& field);
     void buildComponent_(NumberDef& field);
     void buildComponent_(DateDef& field);
@@ -84,4 +89,23 @@ class FormDialog {
     void reset(ToggleDef& field);
     void reset(SubmitButtonDef& field);
 };
+
+class TuiFormDialogBuilder {
+ public:
+    explicit TuiFormDialogBuilder(std::string title);
+
+    TuiFormDialogBuilder& add(FieldDef field);
+    TuiFormDialogBuilder& setOnCancel(std::string label, std::function<void()> fn);
+    TuiFormDialogBuilder& setOnConfirm(std::string label, std::function<void()> fn);
+    std::shared_ptr<TuiFormDialog> build();
+
+ private:
+    std::string title_;
+    std::vector<FieldDef> fields_;
+    std::string cancelLabel_ = "Cancel";
+    std::string confirmLabel_ = "Ok";
+    std::function<void()> cancelFn_;
+    std::function<void()> confirmFn_;
+};
+
 }  // namespace finui

@@ -7,6 +7,9 @@
 
 namespace finui {
 
+inline const std::vector<std::string> currencies = {"USD", "EUR", "GBP", "JPY", "KRW", "CAD"};
+inline const std::vector<std::string> transactionTypes = {"BUY", "SELL", "DEPOSIT", "WITHDRAWAL", "DIVIDEND", "SPLIT"};
+
 struct PositionRow {
     std::string ticker;
     double quantity = 0.0;
@@ -63,21 +66,6 @@ struct AddTransactionParams {
     double pricePerUnit = 0.0;
     double fees = 0.0;
     std::string currency;
-};
-
-class IPortfolioDataSource {
- public:
-    virtual ~IPortfolioDataSource() = default;
-
-    virtual std::vector<PortfolioListEntry> listPortfolios() = 0;
-    virtual PortfolioSummary loadSummary(const std::string& portfolioId) = 0;
-    virtual std::vector<TransactionRow> listTransactions(const std::string& portfolioId) = 0;
-    virtual std::string createPortfolio(const CreatePortfolioParams& p) = 0;
-    virtual void deletePortfolio(const std::string& portfolioId) = 0;
-    virtual std::string addTransaction(const std::string& portfolioId, const AddTransactionParams& p) = 0;
-    virtual void deleteTransaction(const std::string& portfolioId, const std::string& txnId) = 0;
-    virtual TimeSeriesData getTimeSeries(const std::string& portfolioId, int64_t startMs, int64_t endMs,
-                                         int64_t deltaMs) = 0;
 };
 
 }  // namespace finui

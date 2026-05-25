@@ -44,7 +44,11 @@ class YahooFinanceImporter {
     // Throws std::runtime_error if the file cannot be opened.
     static std::vector<finance::Transaction> parse(const std::filesystem::path& csvPath, const Config& config);
 
+    // Same as parse() but reads from an in-memory CSV string (e.g. data received over gRPC).
+    static std::vector<finance::Transaction> parseFromString(const std::string& csvData, const Config& config);
+
  private:
+    static std::vector<finance::Transaction> parseStream_(std::istream& stream, const Config& config);
     static int64_t yyyymmddToMs_(const std::string& yyyymmdd);
     static double parseOptionalDouble_(const std::string& s);
 };

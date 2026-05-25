@@ -20,6 +20,7 @@ using namespace finance;
 
 std::shared_ptr<finance::IAsset> YFinanceEquityProvider::fetch(const std::string& ticker) const {
     PythonRuntime::pythonRuntime();
+    py::gil_scoped_acquire gil;
     py::module_ yfinanceTool = py::module_::import("YFinanceFetcher");
 
     py::dict result = yfinanceTool.attr("fetch_equity_info")(ticker);
@@ -38,6 +39,7 @@ std::shared_ptr<finance::IAsset> YFinanceEquityProvider::fetch(const std::string
 
 bool YFinanceEquityProvider::exists(const std::string& ticker) const {
     PythonRuntime::pythonRuntime();
+    py::gil_scoped_acquire gil;
     py::module_ yfinanceTool = py::module_::import("YFinanceFetcher");
     return yfinanceTool.attr("equity_exists")(ticker).cast<bool>();
 }

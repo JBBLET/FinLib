@@ -45,7 +45,7 @@ service PortfolioService {
 
   rpc ListPortfolioTransactionsByPortfolioId(ListPortfolioTransactionsByPortfolioIdInput) returns (ListPortfolioTransactionsByPortfolioIdOutput);
   rpc RequestAddTransaction(RequestAddTransactionInput) returns (RequestAddTransactionOutput);
-  rpc RequestAddTranssactionByCsv(RequestAddTransactionByCsvInput) returns (RequestAddTransactionOutput);
+  rpc RequestAddTransactionByCsv(RequestAddTransactionByCsvInput) returns (RequestAddTransactionOutput);
   rpc DeleteTransaction(DeleteTransactionInput) returns (DeleteTransactionOutput);
 }
 

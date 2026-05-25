@@ -3,13 +3,16 @@
 
 #include <chrono>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "portfolio.pb.h"
 
 namespace {
 
-const std::unordered_map<std::string, finapp_rpc::Currency> kCurrencyFromStr = {
+const std::unordered_map<std::string, finapp_rpc::Currency> rpcCurrencyFromStr = {
     {"USD", finapp_rpc::Currency::USD},
     {"EUR", finapp_rpc::Currency::EUR},
     {"JPY", finapp_rpc::Currency::JPY},
@@ -18,7 +21,7 @@ const std::unordered_map<std::string, finapp_rpc::Currency> kCurrencyFromStr = {
     {"GBP", finapp_rpc::Currency::GBP},
 };
 
-const std::unordered_map<std::string, finapp_rpc::TransactionType> kTxnTypeFromStr = {
+const std::unordered_map<std::string, finapp_rpc::TransactionType> rpcTransactionTypeFromStr = {
     {"BUY", finapp_rpc::TransactionType::BUY},
     {"SELL", finapp_rpc::TransactionType::SELL},
     {"DEPOSIT", finapp_rpc::TransactionType::DEPOSIT},
@@ -110,8 +113,8 @@ std::string GrpcPortfolioDataSource::createPortfolio(const CreatePortfolioParams
     finapp_rpc::CreatePortfolioInput req;
     req.set_name(p.name);
     req.set_timestampms(p.timestampMs);
-    auto cit = kCurrencyFromStr.find(p.currency);
-    if (cit != kCurrencyFromStr.end()) req.set_basecurrency(cit->second);
+    auto cit = rpcCurrencyFromStr.find(p.currency);
+    if (cit != rpcCurrencyFromStr.end()) req.set_basecurrency(cit->second);
 
     finapp_rpc::CreatePortfolioOutput reply;
     grpc::ClientContext ctx;
@@ -135,8 +138,8 @@ std::string GrpcPortfolioDataSource::addTransaction(const std::string& portfolio
     auto* t = req.mutable_transaction();
     t->set_timestampsms(p.timestampMs);
 
-    auto tit = kTxnTypeFromStr.find(p.type);
-    if (tit != kTxnTypeFromStr.end()) t->set_type(tit->second);
+    auto tit = rpcTransactionTypeFromStr.find(p.type);
+    if (tit != rpcTransactionTypeFromStr.end()) t->set_type(tit->second);
 
     const bool isCash = (p.type == "DEPOSIT" || p.type == "WITHDRAWAL");
     t->set_assettype(isCash ? finapp_rpc::AssetType::CASH : finapp_rpc::AssetType::EQUITY);
@@ -146,14 +149,24 @@ std::string GrpcPortfolioDataSource::addTransaction(const std::string& portfolio
     t->set_priceperunit(p.pricePerUnit);
     t->set_fees(p.fees);
 
-    auto cit = kCurrencyFromStr.find(p.currency);
-    if (cit != kCurrencyFromStr.end()) t->set_settlementcurrency(cit->second);
+    auto cit = rpcCurrencyFromStr.find(p.currency);
+    if (cit != rpcCurrencyFromStr.end()) t->set_settlementcurrency(cit->second);
 
     finapp_rpc::RequestAddTransactionOutput reply;
     grpc::ClientContext ctx;
     auto status = stub_->RequestAddTransaction(&ctx, req, &reply);
     if (!status.ok()) throw std::runtime_error("RequestAddTransaction: " + status.error_message());
     return reply.transactionid();
+}
+
+void GrpcPortfolioDataSource::importCsv(const std::string& portfolioId, const std::string& csvData) {
+    finapp_rpc::RequestAddTransactionByCsvInput req;
+    req.set_portfolioid(portfolioId);
+    req.set_csvdata(csvData);
+    finapp_rpc::RequestAddTransactionOutput reply;
+    grpc::ClientContext ctx;
+    auto status = stub_->RequestAddTransactionByCsv(&ctx, req, &reply);
+    if (!status.ok()) throw std::runtime_error("ImportCsv: " + status.error_message());
 }
 
 void GrpcPortfolioDataSource::deleteTransaction(const std::string& portfolioId, const std::string& txnId) {

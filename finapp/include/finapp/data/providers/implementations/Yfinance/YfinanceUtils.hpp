@@ -21,6 +21,14 @@ class PythonRuntime {
             return true;
         }();
         (void)pathInit;
+        // Release the GIL after initialization so any C++ thread can acquire it via
+        // py::gil_scoped_acquire. Without this, only the initializing thread holds the
+        // GIL — other threads (e.g. gRPC worker pool) crash when calling Python.
+        static bool gilReleased = [] {
+            PyEval_SaveThread();
+            return true;
+        }();
+        (void)gilReleased;
         return instance;
     }
 

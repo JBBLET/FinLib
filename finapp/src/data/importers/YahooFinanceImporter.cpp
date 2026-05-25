@@ -35,15 +35,23 @@ std::vector<Transaction> YahooFinanceImporter::parse(const std::filesystem::path
     if (!file.is_open()) {
         throw std::runtime_error("YahooFinanceImporter: cannot open file: " + csvPath.string());
     }
+    return parseStream_(file, config);
+}
 
+std::vector<Transaction> YahooFinanceImporter::parseFromString(const std::string& csvData, const Config& config) {
+    std::istringstream stream(csvData);
+    return parseStream_(stream, config);
+}
+
+std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream, const Config& config) {
     auto resolveCurrency = config.currencyResolver ? config.currencyResolver
                                                    : [&config](const std::string&) { return config.baseCurrency; };
 
     std::vector<Transaction> result;
     std::string line;
-    std::getline(file, line);  // skip header
+    std::getline(stream, line);  // skip header
 
-    while (std::getline(file, line)) {
+    while (std::getline(stream, line)) {
         if (line.empty()) continue;
 
         std::vector<std::string> cols;
@@ -78,7 +86,6 @@ std::vector<Transaction> YahooFinanceImporter::parse(const std::filesystem::path
             } else {
                 continue;
             }
-            // Ticker for Cash assets is the 3-letter currency code (AssetService convention).
             result.push_back(Transaction{"",
                                          timestampMs,
                                          type,
