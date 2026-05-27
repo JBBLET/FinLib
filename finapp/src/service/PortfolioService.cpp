@@ -63,13 +63,12 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 // Persistence
 // ---------------------------------------------------------------------------
 
-Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency,
-                                      int64_t timestampMs) {
+Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency) {
     if (portfolioRepository_->exists(portfolioId)) {
         throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
     }
     Portfolio portfolio = Portfolio::Builder(portfolioId, name, baseCurrency).build();
-    portfolioRepository_->saveSnapshot(portfolio.snapshot(timestampMs));
+    portfolioRepository_->saveSnapshot(portfolio.snapshot(0));
     return portfolio;
 }
 
@@ -545,12 +544,24 @@ void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, int
     Portfolio portfolio =
         Portfolio::Builder(portfolioId, baseSnap->name, baseSnap->baseCurrency).fromSnapshot(*baseSnap).build();
 
+    // Apply every transaction in chronological order (deposits before buys at
+    // the same timestamp, thanks to transactionTypePriority sorting above).
+    // Capture a snapshot after each transaction that falls at or after the
+    // rebuild boundary — but keep only the *last* snapshot per unique timestamp
+    // to avoid same-timestamp .pos/.cash file collisions.
     std::vector<PortfolioSnapshot> newSnapshots;
     newSnapshots.reserve(allTxs.size());
     for (const auto& tx : allTxs) {
         portfolio.apply(tx);
         if (tx.timestampsMs >= fromTimestampMs) {
-            newSnapshots.push_back(portfolio.snapshot(tx.timestampsMs));
+            // Overwrite the previous entry if it has the same timestamp so that
+            // the intermediate states of same-day transactions don't collide on
+            // their side-car files.
+            if (!newSnapshots.empty() && newSnapshots.back().timestampMs == tx.timestampsMs) {
+                newSnapshots.back() = portfolio.snapshot(tx.timestampsMs);
+            } else {
+                newSnapshots.push_back(portfolio.snapshot(tx.timestampsMs));
+            }
         }
     }
 

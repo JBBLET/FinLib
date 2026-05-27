@@ -30,9 +30,15 @@ std::shared_ptr<finance::IAsset> YFinanceEquityProvider::fetch(const std::string
     std::string exchange = result["exchange"].cast<std::string>();
     std::string sector   = result["sector"].cast<std::string>();
 
-    // currencyFromString throws std::out_of_range for unsupported currency codes.
+    // currencyFromString throws std::invalid_argument for unsupported currency codes.
     // Phase 1 supports: USD, EUR, JPY, KRW, CAD, GBP.
-    Currency denom = currencyFromString(currency);
+    Currency denom = [&] {
+        try {
+            return currencyFromString(currency);
+        } catch (const std::invalid_argument& e) {
+            throw std::invalid_argument(std::string(e.what()) + " (ticker: " + ticker + ")");
+        }
+    }();
 
     return std::make_shared<Equity>(ticker, name, denom, exchange, sector);
 }

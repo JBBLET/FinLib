@@ -12,7 +12,6 @@
 
 #include "finTUI/finTuiUtils/FinTuiUtils.hpp"
 #include "finTUI/modules/portfolioModule/PortfolioModuleTypes.hpp"
-#include "finTUI/uiComponents/TuiFormDialog.hpp"
 #include "ftxui/component/component.hpp"
 #include "ftxui/component/event.hpp"
 #include "ftxui/dom/elements.hpp"
@@ -191,8 +190,10 @@ void PortfolioModule::loadPortfolioList_() {
         chart_.setData({});
         statusMsg_ = portfolioList_.empty() ? "No portfolios found."
                                             : std::to_string(portfolioList_.size()) + " portfolio(s) loaded.";
+        statusIsError_ = false;
     } catch (const std::exception& e) {
         statusMsg_ = std::string("Error: ") + e.what();
+        statusIsError_ = true;
     }
 }
 
@@ -205,8 +206,10 @@ void PortfolioModule::loadSelectedPortfolio_() {
         currentTimeSeries_ = {};
         chart_.setData({});
         statusMsg_ = "Loaded: " + currentSummary_.name;
+        statusIsError_ = false;
     } catch (const std::exception& e) {
         statusMsg_ = std::string("Error: ") + e.what();
+        statusIsError_ = true;
     }
 }
 
@@ -215,8 +218,10 @@ void PortfolioModule::loadTransactions_() {
     try {
         currentTransactions_ = dataSource_->listTransactions(currentSummary_.id);
         txnTable_->setRowCount(static_cast<int>(currentTransactions_.size()));
+        statusIsError_ = false;
     } catch (const std::exception& e) {
         statusMsg_ = std::string("Error loading transactions: ") + e.what();
+        statusIsError_ = true;
     }
 }
 
@@ -229,8 +234,10 @@ void PortfolioModule::loadTimeSeries_() {
         const int64_t startMs = nowMs - 30LL * 86'400'000LL;
         currentTimeSeries_ = dataSource_->getTimeSeries(currentSummary_.id, startMs, nowMs, 86'400'000LL);
         chart_.setData(currentTimeSeries_.values);
+        statusIsError_ = false;
     } catch (const std::exception& e) {
         statusMsg_ = std::string("Error loading chart: ") + e.what();
+        statusIsError_ = true;
     }
 }
 
@@ -245,12 +252,13 @@ void PortfolioModule::submitCreatePortfolio_() {
             CreatePortfolioParams p;
             p.name = createForm_.name;
             p.currency = currencies[createForm_.currencyIdx];
-            p.timestampMs = createForm_.date.empty() ? nowMs : Utils::parseDate(createForm_.date);
             dataSource_->createPortfolio(p);
             loadPortfolioList_();
             statusMsg_ = "Created: " + createForm_.name;
+            statusIsError_ = false;
         } catch (const std::exception& ex) {
             statusMsg_ = std::string("Error: ") + ex.what();
+            statusIsError_ = true;
         }
     }
     enterNormal_();
@@ -262,8 +270,10 @@ void PortfolioModule::confirmDeletePortfolio_() {
             dataSource_->deletePortfolio(portfolioList_[selectedPortfolio_].id);
             loadPortfolioList_();
             statusMsg_ = "Portfolio deleted.";
+            statusIsError_ = false;
         } catch (const std::exception& ex) {
             statusMsg_ = std::string("Error: ") + ex.what();
+            statusIsError_ = true;
         }
     }
     enterNormal_();
@@ -285,8 +295,10 @@ void PortfolioModule::submitAddTransaction_() {
             txnTable_->setRowCount(0);
             loadTransactions_();
             statusMsg_ = "Transaction added.";
+            statusIsError_ = false;
         } catch (const std::exception& ex) {
             statusMsg_ = std::string("Error: ") + ex.what();
+            statusIsError_ = true;
         }
     }
     enterNormal_();
@@ -344,8 +356,10 @@ void PortfolioModule::submitEditTransaction_() {
             txnTable_->setRowCount(0);
             loadTransactions_();
             statusMsg_ = "Transaction updated.";
+            statusIsError_ = false;
         } catch (const std::exception& ex) {
             statusMsg_ = std::string("Error: ") + ex.what();
+            statusIsError_ = true;
         }
     }
     enterNormal_();
@@ -360,8 +374,10 @@ void PortfolioModule::confirmDeleteTransaction_() {
             txnTable_->setRowCount(0);
             loadTransactions_();
             statusMsg_ = "Transaction deleted.";
+            statusIsError_ = false;
         } catch (const std::exception& ex) {
             statusMsg_ = std::string("Error: ") + ex.what();
+            statusIsError_ = true;
         }
     }
     enterNormal_();
@@ -377,8 +393,10 @@ void PortfolioModule::submitImportTransactions_(const std::string& path) {
         currentTransactions_.clear();
         txnTable_->setRowCount(0);
         statusMsg_ = "Imported: " + std::filesystem::path(path).filename().string();
+        statusIsError_ = false;
     } catch (const std::exception& ex) {
         statusMsg_ = std::string("Import error: ") + ex.what();
+        statusIsError_ = true;
     }
     enterNormal_();
 }
@@ -483,17 +501,38 @@ ftxui::Element PortfolioModule::buildChartPanel_() const {
 }
 
 ftxui::Element PortfolioModule::renderRoot_() const {
+    // Status message: red + bold on errors, dim on info.
+    // When the message is long (> 80 chars) and it is an error, show a second
+    // wrapped line so the full text is readable regardless of terminal width.
+    constexpr int kStatusInlineMax = 80;
+    const bool longError = statusIsError_ && static_cast<int>(statusMsg_.size()) > kStatusInlineMax;
+
+    const std::string inlineMsg = longError ? statusMsg_.substr(0, kStatusInlineMax) + "…" : statusMsg_;
+
+    auto msgElement = statusIsError_
+                          ? (ftxui::text(inlineMsg) | ftxui::color(ftxui::Color::Red) | ftxui::bold | ftxui::flex_grow)
+                          : (ftxui::text(inlineMsg) | ftxui::dim | ftxui::flex_grow);
+
     auto statusBar = ftxui::hbox({
         ftxui::text(" finapp") | ftxui::bold,
         ftxui::text("  ·  " + std::to_string(portfolioList_.size()) + " portfolios  ·  ") | ftxui::dim,
-        ftxui::text(statusMsg_) | ftxui::dim | ftxui::flex_grow,
+        msgElement,
         ftxui::text(currentSummary_.name.empty() ? "" : "  " + currentSummary_.name + "  ") | ftxui::inverted,
         ftxui::text("  [q] quit  ") | ftxui::dim,
     });
 
     ftxui::Element content = ftxui::hbox({buildLeftPanel_(), rightPanel_->Render() | ftxui::flex_grow});
 
-    ftxui::Element root = ftxui::vbox({content | ftxui::flex_grow, ftxui::separator(), statusBar});
+    // When there is a long error, add a second line below the status bar that
+    // wraps the full message so nothing is hidden.
+    ftxui::Elements bottomRows;
+    bottomRows.push_back(ftxui::separator());
+    bottomRows.push_back(statusBar);
+    if (longError)
+        bottomRows.push_back(ftxui::paragraph(statusMsg_) | ftxui::color(ftxui::Color::Red) |
+                             size(ftxui::HEIGHT, ftxui::LESS_THAN, 4));
+
+    ftxui::Element root = ftxui::vbox({content | ftxui::flex_grow, ftxui::vbox(std::move(bottomRows))});
 
     if (showCreatePortfolio_)
         root = ftxui::dbox({root, createDialog_->Render() | ftxui::clear_under | ftxui::center});

@@ -112,7 +112,6 @@ std::vector<TransactionRow> GrpcPortfolioDataSource::listTransactions(const std:
 std::string GrpcPortfolioDataSource::createPortfolio(const CreatePortfolioParams& p) {
     finapp_rpc::CreatePortfolioInput req;
     req.set_name(p.name);
-    req.set_timestampms(p.timestampMs);
     auto cit = rpcCurrencyFromStr.find(p.currency);
     if (cit != rpcCurrencyFromStr.end()) req.set_basecurrency(cit->second);
 

@@ -146,11 +146,7 @@ void Portfolio::applyBuy_(const Transaction& transaction) {
         throw std::runtime_error("The Transaction is not a Buy transaction");
     }
     double totalCost = transaction.quantity * transaction.pricePerUnit + transaction.fees;
-    double remainingFund = cashBalances_[transaction.settlementCurrency];
-    if (totalCost > remainingFund) {
-        throw std::runtime_error("Insufficient funds to buy");
-    }
-    cashBalances_[transaction.settlementCurrency] = remainingFund - totalCost;
+    cashBalances_[transaction.settlementCurrency] -= totalCost;
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
         positions_[positionIndex].quantity += transaction.quantity;
@@ -199,16 +195,7 @@ void Portfolio::applyWithdrawal_(const Transaction& transaction) {
     if (transaction.quantity < 0) {
         throw std::runtime_error("Cannot withdraw a negative amount");
     }
-    double currentAmmount = 0.0;
-    try {
-        currentAmmount = cashBalances_.at(transaction.settlementCurrency);
-        if (currentAmmount < transaction.quantity + transaction.fees) {
-            throw std::runtime_error("Not enough currency to cover the Withdrawal");
-        }
-        cashBalances_.at(transaction.settlementCurrency) -= transaction.quantity + transaction.fees;
-    } catch (const std::out_of_range& e) {
-        throw std::runtime_error("No currency to withdraw");
-    }
+    cashBalances_[transaction.settlementCurrency] -= transaction.quantity + transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
 }
 

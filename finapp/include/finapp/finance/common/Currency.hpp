@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <functional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
@@ -36,8 +37,12 @@ inline const std::string toString(Currency c) {
 inline Currency currencyFromString(const std::string& id) {
     std::string upperCaseStr = id;
     std::transform(upperCaseStr.begin(), upperCaseStr.end(), upperCaseStr.begin(), ::toupper);
-    Currency currency = stringToCurrencyMap.at(upperCaseStr);
-    return currency;
+    auto it = stringToCurrencyMap.find(upperCaseStr);
+    if (it == stringToCurrencyMap.end()) {
+        throw std::invalid_argument("Unsupported currency code: '" + id +
+                                    "'. Supported: USD, EUR, JPY, KRW, CAD, GBP.");
+    }
+    return it->second;
 }
 }  // namespace finance
 

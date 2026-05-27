@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -28,6 +29,13 @@ constexpr int kColQuantity = 11;
 constexpr int kColCommission = 12;
 constexpr int kColTxType = 16;
 constexpr int kMinCols = 17;
+// Optional column — not included in kMinCols so rows that omit it are still valid.
+// When present and non-empty, its value overrides the settlement currency for that row
+// (both equity buys/sells and $$CASH_TX deposits/withdrawals).
+// Example CSV header: ...,Transaction Type,Currency
+//   $$CASH_TX row:  ...,DEPOSIT,JPY
+//   Equity row:     ...,BUY,USD
+constexpr int kColCurrency = 17;
 }  // namespace
 
 std::vector<Transaction> YahooFinanceImporter::parse(const std::filesystem::path& csvPath, const Config& config) {
@@ -77,6 +85,19 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
         const double price = parseOptionalDouble_(cols[kColPurchasePrice]);
         const double fees = parseOptionalDouble_(cols[kColCommission]);
 
+        // Resolve the settlement currency: column 17 wins when present and valid;
+        // otherwise fall back to the resolver (equity) or baseCurrency (cash).
+        auto readCurrencyCol = [&]() -> std::optional<Currency> {
+            if (static_cast<int>(cols.size()) > kColCurrency && !cols[kColCurrency].empty()) {
+                try {
+                    return finance::currencyFromString(cols[kColCurrency]);
+                } catch (...) {
+                    // Unrecognised string — treat as absent.
+                }
+            }
+            return std::nullopt;
+        };
+
         if (symbol == "$$CASH_TX") {
             TransactionType type;
             if (txType == "DEPOSIT") {
@@ -86,15 +107,16 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
             } else {
                 continue;
             }
+            const Currency txCurrency = readCurrencyCol().value_or(config.baseCurrency);
             result.push_back(Transaction{"",
                                          timestampMs,
                                          type,
                                          AssetType::Cash,
-                                         toString(config.baseCurrency),
+                                         toString(txCurrency),
                                          quantity,
                                          1.0,
                                          fees,
-                                         config.baseCurrency});
+                                         txCurrency});
         } else {
             TransactionType type;
             if (txType == "BUY") {
@@ -107,7 +129,7 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
                 // SPLIT has no price in Yahoo exports — skip and handle manually if needed.
                 continue;
             }
-            const Currency settlement = resolveCurrency(symbol);
+            const Currency settlement = readCurrencyCol().value_or(resolveCurrency(symbol));
             result.push_back(
                 Transaction{"", timestampMs, type, AssetType::Equity, symbol, quantity, price, fees, settlement});
         }

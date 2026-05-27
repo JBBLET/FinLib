@@ -25,7 +25,7 @@ class PortfolioService {
     // Create and persist a new empty portfolio. Seeds an empty snapshot so load()
     // works immediately. Throws if a portfolio with that id already exists.
     finance::Portfolio createNew(const std::string& portfolioId, const std::string& name,
-                                 finance::Currency baseCurrency, int64_t timestampMs);
+                                 finance::Currency baseCurrency);
 
     // Reconstruct from snapshot + transactions
     finance::Portfolio load(const std::string& portfolioId);

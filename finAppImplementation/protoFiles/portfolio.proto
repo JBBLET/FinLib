@@ -138,7 +138,7 @@ message GetPortfolioAnalysisByIdOutput {
 message CreatePortfolioInput {
   string name = 1;
   Currency baseCurrency = 2;
-  int64 timestampMs = 3;
+  int64 timestampMs = 3;  // used for portfolio ID generation only; not stored in the snapshot
 }
 
 message CreatePortfolioOutput {

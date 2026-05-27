@@ -56,6 +56,7 @@ class PortfolioModule : public IModule {
     std::vector<TransactionRow> currentTransactions_;
     TimeSeriesData currentTimeSeries_;
     std::string statusMsg_;
+    bool        statusIsError_ = false;  // true while the last status message is an error
 
     // ── Forms — declared before dialogs that bind pointers into them ──────────
     CreatePortfolioForm createForm_;
