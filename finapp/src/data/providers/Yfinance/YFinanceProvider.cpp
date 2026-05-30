@@ -27,11 +27,12 @@ LoaderCapabilities YFinanceProvider::capabilities(const std::string& id) const {
 
 TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts) const {
     PythonRuntime::pythonRuntime();
+    py::gil_scoped_acquire gil;
 
     py::module_ yfinanceTool = py::module_::import("YFinanceFetcher");
-    yfinanceTool.attr("testVersion")();
     std::string start = msToStringDate(start_ts);
-    std::string end = msToStringDate(end_ts);
+    // yfinance end is exclusive — advance by one day so end_ts's calendar day is included.
+    std::string end = msToStringDate(end_ts + 86'400'000LL);
 
     py::dict result = yfinanceTool.attr("fetch_ohlcv")(symbol, start, end, "1d");
     auto timestamps = result["timestamps_ms"].cast<std::vector<int64_t>>();

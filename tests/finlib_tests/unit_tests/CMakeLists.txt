@@ -72,7 +72,6 @@ target_link_libraries(ar_model_test
         gtest_main
 )
 
-
 add_test(
   NAME TimeSeriesResamplingTest
     COMMAND resampling_test

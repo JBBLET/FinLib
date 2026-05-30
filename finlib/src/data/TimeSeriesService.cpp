@@ -79,6 +79,10 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
 
     // No existing data at all — full fetch
     TimeSeries fetched = provider_->load(id, startMs, endMs);
+    if (fetched.size() == 0) {
+        throw std::runtime_error("TimeSeriesService::get: no data returned by provider for series '" + id +
+                                 "' (ticker may be delisted or unavailable)");
+    }
 
     int64_t nowMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
@@ -190,6 +194,9 @@ void TimeSeriesService::fetchAndMergeGaps_(const SeriesKey& key, const std::vect
     }
 
     for (const auto& gap : gaps) {
+        // Skip gaps narrower than the series frequency — a daily provider has no new
+        // data points to fill within an intraday gap.
+        if (gap.endTimeStampMs - gap.startTimeStampMs < key.frequencyInMs) continue;
         TimeSeries gapData = provider_->load(key.SeriesId, gap.startTimeStampMs, gap.endTimeStampMs);
         if (gapData.size() > 0) {
             cache_->merge(key, gapData);

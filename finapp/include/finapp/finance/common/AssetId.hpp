@@ -5,8 +5,7 @@
 #include <cstdint>
 #include <string>
 
-#include "finapp/finance/asset/IAsset.hpp"
-
+#include "finapp/finance/asset/AssetType.hpp"
 namespace finance {
 
 struct AssetId {

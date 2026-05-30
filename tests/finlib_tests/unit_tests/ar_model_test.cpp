@@ -256,8 +256,8 @@ TEST_F(ARModelTest, SetDataAcceptsRegularData) {
 // ============================================================
 
 TEST_F(ARModelTest, FitThrowsWithInsufficientData) {
-    auto small = std::make_shared<TimeSeries>("ThrowInsufficientDataTS", std::vector<int64_t>{1000, 2000, 3000},
-                                              std::vector<double>{1.0, 2.0, 3.0});
+    auto small = std::make_shared<TimeSeries>(
+        "ThrowInsufficientDataTS", std::vector<int64_t>{1000, 2000, 3000}, std::vector<double>{1.0, 2.0, 3.0});
     models::regression::ARModel model(5);  // AR(5) on 3 points
     auto view = small->view();
     model.setData(view, 1.0, 0.0);

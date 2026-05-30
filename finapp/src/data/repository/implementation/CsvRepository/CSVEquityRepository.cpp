@@ -20,7 +20,9 @@ namespace finapp {
 
 using namespace finance;
 
-CSVEquityRepository::CSVEquityRepository(std::filesystem::path directory) : directory_(std::move(directory)) {}
+CSVEquityRepository::CSVEquityRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
+    std::filesystem::create_directories(directory_ / assetTypeToString(assetType_));
+}
 
 void CSVEquityRepository::save(const std::shared_ptr<const IAsset>& asset) {
     // TODO(JBBLET) look into performance gain from switching to a static_pointer_cast

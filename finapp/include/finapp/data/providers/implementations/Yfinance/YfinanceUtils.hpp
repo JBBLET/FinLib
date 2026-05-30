@@ -21,6 +21,29 @@ class PythonRuntime {
             return true;
         }();
         (void)pathInit;
+
+        // Release the GIL after initialization so any C++ thread can acquire it via
+        // py::gil_scoped_acquire. Without this, only the initializing thread holds the
+        // GIL — other threads (e.g. gRPC worker pool) crash when calling Python.
+        //
+        // We must restore the GIL before ~scoped_interpreter() fires (which calls
+        // Py_FinalizeEx). Static locals are destroyed in reverse construction order, so
+        // gilGuard (constructed 5th) is destroyed BEFORE interpreter (constructed 2nd),
+        // giving us the correct sequencing.
+        struct GilRestoreGuard {
+            PyThreadState* tstate = nullptr;
+            ~GilRestoreGuard() {
+                if (tstate && Py_IsInitialized()) {
+                    PyEval_RestoreThread(tstate);
+                }
+            }
+        };
+        static GilRestoreGuard gilGuard;
+        static bool gilReleased = [] {
+            gilGuard.tstate = PyEval_SaveThread();
+            return true;
+        }();
+        (void)gilReleased;
         return instance;
     }
 

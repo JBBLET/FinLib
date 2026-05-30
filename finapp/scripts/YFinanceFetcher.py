@@ -45,7 +45,9 @@ def fetch_ohlcv(symbol, start_iso, end_iso, interval):
         start=start_iso, end=end_iso, interval=interval, auto_adjust=True
     )
     return {
-        "timestamps_ms": (hist.index.astype("int64") // 10**6).tolist(),
+        # hist.index dtype varies by pandas version: datetime64[ns] (old) or datetime64[s] (new).
+        # Use .timestamp() which always returns POSIX seconds as float, then convert to ms.
+        "timestamps_ms": [int(ts.timestamp() * 1000) for ts in hist.index],
         "open": hist["Open"].tolist(),
         "high": hist["High"].tolist(),
         "low": hist["Low"].tolist(),

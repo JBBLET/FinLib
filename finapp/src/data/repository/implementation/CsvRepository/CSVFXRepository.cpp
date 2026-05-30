@@ -16,7 +16,9 @@ namespace finapp {
 
 using namespace finance;
 
-CSVFXRepository::CSVFXRepository(std::filesystem::path directory) : directory_(std::move(directory)) {}
+CSVFXRepository::CSVFXRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
+    std::filesystem::create_directories(directory_);
+}
 
 std::filesystem::path CSVFXRepository::csvPath_() const { return directory_ / "fx_pairs.csv"; }
 
