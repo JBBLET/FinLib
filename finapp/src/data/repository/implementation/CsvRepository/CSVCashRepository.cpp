@@ -20,7 +20,9 @@ namespace finapp {
 
 using namespace finance;
 
-CSVCashRepository::CSVCashRepository(std::filesystem::path directory) : directory_(std::move(directory)) {}
+CSVCashRepository::CSVCashRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
+    std::filesystem::create_directories(directory_ / assetTypeToString(assetType_));
+}
 
 std::filesystem::path CSVCashRepository::csvPath_(const std::string& ticker) const {
     return directory_ / (assetTypeToString(assetType_)) / (ticker + ".csv");

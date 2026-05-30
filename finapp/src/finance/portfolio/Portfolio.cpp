@@ -55,29 +55,9 @@ Portfolio Portfolio::Builder::build() {
     }
     constructedPortfolio.universe_ = universe_;
     constructedPortfolio.targetAllocations_ = targetAllocations_;
-    // On equal timestamps, Deposits must precede Buys so that applyBuy_ sees
-    // the cash balance already credited. Priority: Deposit < Dividend < Buy/Sell < Withdrawal < Split.
-    auto txPriority = [](TransactionType t) -> int {
-        switch (t) {
-            case TransactionType::Deposit:
-                return 0;
-            case TransactionType::Dividend:
-                return 1;
-            case TransactionType::Buy:
-                return 2;
-            case TransactionType::Sell:
-                return 2;
-            case TransactionType::Withdrawal:
-                return 3;
-            case TransactionType::Split:
-                return 4;
-            default:
-                return 5;
-        }
-    };
-    std::sort(transactions_.begin(), transactions_.end(), [&txPriority](const Transaction& a, const Transaction& b) {
+    std::sort(transactions_.begin(), transactions_.end(), [](const Transaction& a, const Transaction& b) {
         if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
-        return txPriority(a.type) < txPriority(b.type);
+        return transactionTypePriority(a.type) < transactionTypePriority(b.type);
     });
     std::ranges::for_each(transactions_, [&constructedPortfolio](const Transaction& transaction) {
         constructedPortfolio.apply(transaction);
@@ -166,11 +146,7 @@ void Portfolio::applyBuy_(const Transaction& transaction) {
         throw std::runtime_error("The Transaction is not a Buy transaction");
     }
     double totalCost = transaction.quantity * transaction.pricePerUnit + transaction.fees;
-    double remainingFund = cashBalances_[transaction.settlementCurrency];
-    if (totalCost > remainingFund) {
-        throw std::runtime_error("Insufficient funds to buy");
-    }
-    cashBalances_[transaction.settlementCurrency] = remainingFund - totalCost;
+    cashBalances_[transaction.settlementCurrency] -= totalCost;
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
         positions_[positionIndex].quantity += transaction.quantity;
@@ -219,16 +195,7 @@ void Portfolio::applyWithdrawal_(const Transaction& transaction) {
     if (transaction.quantity < 0) {
         throw std::runtime_error("Cannot withdraw a negative amount");
     }
-    double currentAmmount = 0.0;
-    try {
-        currentAmmount = cashBalances_.at(transaction.settlementCurrency);
-        if (currentAmmount < transaction.quantity + transaction.fees) {
-            throw std::runtime_error("Not enough currency to cover the Withdrawal");
-        }
-        cashBalances_.at(transaction.settlementCurrency) -= transaction.quantity + transaction.fees;
-    } catch (const std::out_of_range& e) {
-        throw std::runtime_error("No currency to withdraw");
-    }
+    cashBalances_[transaction.settlementCurrency] -= transaction.quantity + transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
 }
 

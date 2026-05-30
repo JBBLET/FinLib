@@ -18,7 +18,9 @@
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
 
-CSVRepository::CSVRepository(std::filesystem::path directory) : directory_(std::move(directory)) {}
+CSVRepository::CSVRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
+    std::filesystem::create_directories(directory_);
+}
 
 // ITimeSeriesLoader Interface
 TimeSeries CSVRepository::load(const std::string& id, int64_t startMs, int64_t endMs) const {

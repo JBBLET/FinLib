@@ -7,9 +7,21 @@
 #include <chrono>
 #include <cstdint>
 #include <exception>
+#include <iostream>
 #include <string>
+#include <utility>
 
 #include "converters/ProtoConverters.hpp"
+
+// Helper: print a one-line error to stderr and return the gRPC status.
+// Using a macro so __func__ expands to the correct method name at each call site.
+#define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                       \
+    do {                                                                                      \
+        std::cerr << "[gRPC ERROR] " << __func__ << ": " << (e).what() << "\n" << std::flush; \
+        return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                          \
+    } while (false)
+
+#include "finapp/data/importers/YahooFinanceImporter.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -25,12 +37,14 @@ grpc::Status PortfolioGrpcServiceImpl::ListPortfoliosSummary(grpc::ServerContext
                                                              finapp_rpc::ListPortfoliosSummaryOutput* reply) {
     try {
         for (const auto& id : portfolioService_->listPortfolioIds()) {
+            auto meta = portfolioService_->loadMetadata(id);
             auto* ident = reply->add_listportfoliosidentification();
-            ident->set_id(id);
+            ident->set_id(meta.id);
+            ident->set_name(meta.name);
         }
         return grpc::Status::OK;
     } catch (const std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 
@@ -47,7 +61,7 @@ grpc::Status PortfolioGrpcServiceImpl::GetPortfoliosByIds(grpc::ServerContext*,
         }
         return grpc::Status::OK;
     } catch (const std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 
@@ -57,11 +71,11 @@ grpc::Status PortfolioGrpcServiceImpl::CreatePortfolio(grpc::ServerContext*,
     try {
         const std::string id = std::to_string(request->timestampms()) + "_" + request->name();
         finance::Currency base = finapp_rpc::converters::fromProto(request->basecurrency());
-        portfolioService_->createNew(id, request->name(), base, request->timestampms());
+        portfolioService_->createNew(id, request->name(), base);
         reply->set_id(id);
         return grpc::Status::OK;
-    } catch (std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 
@@ -73,8 +87,8 @@ grpc::Status PortfolioGrpcServiceImpl::DeletePortfolioById(grpc::ServerContext*,
         portfolioService_->deletePortfolio(id);
         reply->set_id(id);
         return grpc::Status::OK;
-    } catch (std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 // ===================================
@@ -101,7 +115,7 @@ grpc::Status PortfolioGrpcServiceImpl::GetPortfolioTimeSeriesById(
 
         return grpc::Status::OK;
     } catch (const std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 
@@ -121,8 +135,8 @@ grpc::Status PortfolioGrpcServiceImpl::GetPortfolioAnalysisById(
         *reply->mutable_portfolio() = finapp_rpc::converters::toProto(portfolio, total, weights);
         reply->mutable_analysis()->set_emptyreturn("Analysis not yet implemented");
         return grpc::Status::OK;
-    } catch (std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 // ===================================
@@ -137,8 +151,8 @@ grpc::Status PortfolioGrpcServiceImpl::ListPortfolioTransactionsByPortfolioId(
             *reply->add_transactionlist() = finapp_rpc::converters::toProto(transaction);
         }
         return grpc::Status::OK;
-    } catch (std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 
@@ -150,10 +164,41 @@ grpc::Status PortfolioGrpcServiceImpl::RequestAddTransaction(grpc::ServerContext
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
                 .count();
         finance::Transaction transaction = finapp_rpc::converters::fromProto(request->transaction());
-        const std::string transactionId = portfolioService_->addTransaction(request->portfolioid(), transaction, nowMs);
+        const std::string transactionId = portfolioService_->addTransaction(request->portfolioid(), transaction);
         reply->set_transactionid(transactionId);
         return grpc::Status::OK;
     } catch (std::exception& e) {
         return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+    }
+}
+
+grpc::Status PortfolioGrpcServiceImpl::RequestAddTransactionByCsv(
+    grpc::ServerContext*, const finapp_rpc::RequestAddTransactionByCsvInput* request,
+    finapp_rpc::RequestAddTransactionOutput* reply) {
+    try {
+        const int64_t nowMs =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count();
+        auto meta = portfolioService_->loadMetadata(request->portfolioid());
+        finapp::YahooFinanceImporter::Config config{meta.baseCurrency, nullptr};
+        auto transactions = finapp::YahooFinanceImporter::parseFromString(request->csvdata(), config);
+        if (transactions.empty())
+            return grpc::Status{grpc::StatusCode::INVALID_ARGUMENT, "No valid transactions found in CSV data"};
+        portfolioService_->importTransactions(request->portfolioid(), std::move(transactions));
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
+    }
+}
+
+grpc::Status PortfolioGrpcServiceImpl::DeleteTransaction(grpc::ServerContext*,
+                                                         const finapp_rpc::DeleteTransactionInput* request,
+                                                         finapp_rpc::DeleteTransactionOutput* reply) {
+    try {
+        portfolioService_->deleteTransaction(request->portfolioid(), request->transactionid());
+        reply->set_transactionid(request->transactionid());
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }

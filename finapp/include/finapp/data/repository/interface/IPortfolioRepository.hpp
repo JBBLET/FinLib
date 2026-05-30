@@ -22,12 +22,14 @@ class IPortfolioRepository {
 
     virtual void saveSnapshot(const finance::PortfolioSnapshot& snapshot) = 0;
     virtual std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolioId) const = 0;
+    virtual std::vector<finance::PortfolioSnapshot> loadAllSnapshots(const std::string& portfolioId) const = 0;
+    virtual void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
+                                      const std::vector<finance::PortfolioSnapshot>& newSnapshots) = 0;
 
-    virtual void appendTransactions(const std::string& portfolioId, const std::vector<finance::Transaction>& transactions) = 0;
+    virtual void appendTransactions(const std::string& portfolioId,
+                                    const std::vector<finance::Transaction>& transactions) = 0;
     virtual std::vector<finance::Transaction> loadTransactions(const std::string& portfolioId,
-                                                      int64_t afterTimestamps = 0) const = 0;
-    // Removes the transaction with the given id and invalidates all snapshots at or after its
-    // timestampsMs, since those snapshots were built with the deleted transaction applied.
+                                                               int64_t afterTimestamps = 0) const = 0;
     virtual void deleteTransaction(const std::string& portfolioId, const std::string& transactionId) = 0;
 
     virtual std::vector<std::string> listPortfolioIds() const = 0;

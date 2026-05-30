@@ -45,6 +45,8 @@ service PortfolioService {
 
   rpc ListPortfolioTransactionsByPortfolioId(ListPortfolioTransactionsByPortfolioIdInput) returns (ListPortfolioTransactionsByPortfolioIdOutput);
   rpc RequestAddTransaction(RequestAddTransactionInput) returns (RequestAddTransactionOutput);
+  rpc RequestAddTransactionByCsv(RequestAddTransactionByCsvInput) returns (RequestAddTransactionOutput);
+  rpc DeleteTransaction(DeleteTransactionInput) returns (DeleteTransactionOutput);
 }
 
 // =================== Type definitions ===================
@@ -136,7 +138,7 @@ message GetPortfolioAnalysisByIdOutput {
 message CreatePortfolioInput {
   string name = 1;
   Currency baseCurrency = 2;
-  int64 timestampMs = 3;
+  int64 timestampMs = 3;  // used for portfolio ID generation only; not stored in the snapshot
 }
 
 message CreatePortfolioOutput {
@@ -166,5 +168,19 @@ message RequestAddTransactionInput {
 }
 
 message RequestAddTransactionOutput {
+  string transactionId = 1;
+}
+
+message RequestAddTransactionByCsvInput {
+  string portfolioId = 1;
+  string csvData     = 2;
+}
+
+message DeleteTransactionInput {
+  string portfolioId   = 1;
+  string transactionId = 2;
+}
+
+message DeleteTransactionOutput {
   string transactionId = 1;
 }
