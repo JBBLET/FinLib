@@ -3,7 +3,6 @@ syntax = "proto3";
 // finapp_rpc avoids a naming collision with the C++ finapp::PortfolioService class.
 package finapp_rpc;
 
-// =================== Enums — ordinals match the finance:: C++ enums ===================
 
 enum Currency {
   USD = 0;
@@ -59,8 +58,8 @@ message CashBalance {
 message Position {
   string ticker = 1;
   double quantity = 2;
-  double value = 3;   // computed by the server: weight * totalValue
-  double weight = 4;  // computed by the server via PortfolioService::weights()
+  double value = 3;
+  double weight = 4;
 }
 
 message PortfolioIdentification {
@@ -138,7 +137,7 @@ message GetPortfolioAnalysisByIdOutput {
 message CreatePortfolioInput {
   string name = 1;
   Currency baseCurrency = 2;
-  int64 timestampMs = 3;  // used for portfolio ID generation only; not stored in the snapshot
+  int64 timestampMs = 3;  // used for portfolio ID generation only; not stored in the snapshot TODO(instead of creating the )
 }
 
 message CreatePortfolioOutput {

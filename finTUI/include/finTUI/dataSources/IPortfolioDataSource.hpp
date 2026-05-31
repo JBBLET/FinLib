@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "finTUI/modules/portfolioModule/PortfolioModuleTypes.hpp"
 

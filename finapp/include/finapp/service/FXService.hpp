@@ -7,16 +7,19 @@
 
 #include "finapp/data/repository/interface/IFXRepository.hpp"
 #include "finapp/finance/common/Currency.hpp"
+#include "finapp/common/logger/ILogger.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
 
 namespace finapp {
 
 class FXService {
  public:
-    FXService(std::shared_ptr<TimeSeriesService> timeSeriesService, std::shared_ptr<IFXRepository> fxInfoRepository);
+    FXService(std::shared_ptr<TimeSeriesService> timeSeriesService, std::shared_ptr<IFXRepository> fxInfoRepository,
+              finapp::logging::ILogger* logger = nullptr);
 
-    TimeSeries load(const finance::Currency& baseCurrency, const finance::Currency& quoteCurrency, int64_t fromMs, int64_t endMs,
-                    int64_t frequencyMs);
+    TimeSeries load(const finance::Currency& baseCurrency, const finance::Currency& quoteCurrency, int64_t fromMs,
+                    int64_t endMs, int64_t frequencyMs,
+                    InterpolationStrategy strategy = InterpolationStrategy::Nearest);
 
     // Overload sharing a caller-owned timestamp grid so multiple FX/asset series stay
     // pointer-aligned in downstream operators (PortfolioService::valueSeries).
@@ -33,6 +36,7 @@ class FXService {
  private:
     std::shared_ptr<TimeSeriesService> timeSeriesService_;
     std::shared_ptr<IFXRepository> fxInfoRepository_;
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     // Canonical "<BASE><QUOTE>" id used as the TimeSeriesService seriesId and persisted
     // in FXInfos on first resolution of a new pair.

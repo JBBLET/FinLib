@@ -9,6 +9,7 @@
 
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Cash.hpp"
+#include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
@@ -32,10 +33,12 @@ TimeSeries constantCashSeries(const AssetId& assetId, TimestampPtr timestamps) {
 
 AssetService::AssetService(std::shared_ptr<TimeSeriesService> timeSeriesService,
                            std::unordered_map<AssetType, std::shared_ptr<IAssetRepository>> IAssetRepositoryMap,
-                           std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap)
+                           std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap,
+                           finapp::logging::ILogger* logger)
     : timeSeriesService_(std::move(timeSeriesService)),
       IAssetRepositoryMap_(std::move(IAssetRepositoryMap)),
-      IAssetProvidersMap_(std::move(IAssetProvidersMap)) {}
+      IAssetProvidersMap_(std::move(IAssetProvidersMap)),
+      logger_(finapp::logging::PrefixedLogger::wrap(logger, "AssetService")) {}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -74,6 +77,7 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
     if (repoIt != IAssetRepositoryMap_.end() && repoIt->second->exists(assetId.ticker)) {
         auto asset = repoIt->second->load(assetId.ticker);
         if (asset) {
+            if (logger_) logger_->write(finapp::logging::Level::Debug, "load: '" + assetId.ticker + "' from repository");
             cachedAssets_[assetId] = asset;
             return asset;
         }
@@ -82,6 +86,7 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
     // 3. Provider fallback — persist back into the repository so next call hits step 2.
     auto providerIt = IAssetProvidersMap_.find(assetId.type);
     if (providerIt != IAssetProvidersMap_.end() && providerIt->second->exists(assetId.ticker)) {
+        if (logger_) logger_->write(finapp::logging::Level::Info, "load: '" + assetId.ticker + "' fetching from provider");
         std::shared_ptr<IAsset> fetched = providerIt->second->fetch(assetId.ticker);
         if (fetched) {
             if (repoIt != IAssetRepositoryMap_.end()) {
@@ -98,7 +103,7 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
 }
 
 TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, int64_t startMs, int64_t endMs,
-                                             int64_t frequencyMs) {
+                                             int64_t frequencyMs, InterpolationStrategy strategy) {
     if (assetId.type == AssetType::Cash) {
         return constantCashSeries(assetId, startMs, endMs, frequencyMs);
     }
@@ -106,11 +111,9 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, int64_t sta
     auto asset = load(assetId);
     const std::string seriesId = asset->priceSeriesId();
     if (seriesId.empty()) {
-        // Non-Cash assets with an empty priceSeriesId fall back to a constant-1.0 series
-        // so callers don't have to special-case them.
         return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, startMs, endMs, frequencyMs, 1.0);
     }
-    return timeSeriesService_->get(seriesId, startMs, endMs, frequencyMs);
+    return timeSeriesService_->getResampled(seriesId, startMs, endMs, frequencyMs, strategy);
 }
 
 TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampPtr timestamps) {
