@@ -41,6 +41,8 @@ using finance::TransactionType;
 
 namespace {
 constexpr int64_t kDefaultSpotFrequencyMs = 86'400'000;
+// Look back up to 7 calendar days so weekend/holiday requests return the last trading day.
+constexpr int64_t kSpotLookbackMs = 7LL * 86'400'000LL;
 
 std::string cashKey(Currency c) { return "CASH:" + toString(c); }
 
@@ -65,8 +67,7 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 // Persistence
 // ---------------------------------------------------------------------------
 
-Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency,
-                                      int64_t timestampMs) {
+Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency) {
     if (portfolioRepository_->exists(portfolioId)) {
         throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
     }
