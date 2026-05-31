@@ -7,18 +7,20 @@
 #include <chrono>
 #include <cstdint>
 #include <exception>
-#include <iostream>
 #include <string>
 #include <utility>
 
 #include "converters/ProtoConverters.hpp"
+#include "finapp/common/logger/PrefixedLogger.hpp"
 
-// Helper: print a one-line error to stderr and return the gRPC status.
-// Using a macro so __func__ expands to the correct method name at each call site.
-#define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                       \
-    do {                                                                                      \
-        std::cerr << "[gRPC ERROR] " << __func__ << ": " << (e).what() << "\n" << std::flush; \
-        return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                          \
+// Log the error via the service's logger (if set) and return an INTERNAL gRPC status.
+// Macro so __func__ captures the correct calling method name at each call site.
+#define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                                   \
+    do {                                                                                                  \
+        if (logger_)                                                                                      \
+            logger_->write(finapp::logging::Level::Error,                                                         \
+                           std::string("[gRPC ERROR] ") + __func__ + ": " + (e).what());                 \
+        return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                                     \
     } while (false)
 
 #include "finapp/data/importers/YahooFinanceImporter.hpp"
@@ -28,6 +30,11 @@
 #include "grpcpp/server.h"
 #include "grpcpp/server_context.h"
 #include "portfolio.pb.h"
+
+PortfolioGrpcServiceImpl::PortfolioGrpcServiceImpl(std::shared_ptr<finapp::PortfolioService> portfolioService,
+                                                   finapp::logging::ILogger* logger)
+    : portfolioService_{std::move(portfolioService)},
+      logger_{finapp::logging::PrefixedLogger::wrap(logger, "PortfolioGrpcService")} {}
 
 // ===================================
 // Portfolio Management
@@ -71,7 +78,7 @@ grpc::Status PortfolioGrpcServiceImpl::CreatePortfolio(grpc::ServerContext*,
     try {
         const std::string id = std::to_string(request->timestampms()) + "_" + request->name();
         finance::Currency base = finapp_rpc::converters::fromProto(request->basecurrency());
-        portfolioService_->createNew(id, request->name(), base);
+        portfolioService_->createNew(id, request->name(), base, request->timestampms());
         reply->set_id(id);
         return grpc::Status::OK;
     } catch (const std::exception& e) {
@@ -168,7 +175,7 @@ grpc::Status PortfolioGrpcServiceImpl::RequestAddTransaction(grpc::ServerContext
         reply->set_transactionid(transactionId);
         return grpc::Status::OK;
     } catch (std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 
