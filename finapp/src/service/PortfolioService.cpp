@@ -16,6 +16,8 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/logger/PrefixedLogger.hpp"
+
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -54,10 +56,12 @@ std::string generateTransactionId() {
 }  // namespace
 
 PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfolioRepository,
-                                   std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService)
+                                   std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService,
+                                   finapp::logging::ILogger* logger)
     : portfolioRepository_(std::move(portfolioRepository)),
       assetService_(std::move(assetService)),
-      fxService_(std::move(fxService)) {}
+      fxService_(std::move(fxService)),
+      logger_(finapp::logging::PrefixedLogger::wrap(logger, "PortfolioService")) {}
 
 // ---------------------------------------------------------------------------
 // Persistence
@@ -67,8 +71,11 @@ Portfolio PortfolioService::createNew(const std::string& portfolioId, const std:
     if (portfolioRepository_->exists(portfolioId)) {
         throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
     }
+    if (logger_)
+        logger_->write(finapp::logging::Level::Info,
+                       "createNew: id='" + portfolioId + "' name='" + name + "' base=" + toString(baseCurrency));
     Portfolio portfolio = Portfolio::Builder(portfolioId, name, baseCurrency).build();
-    portfolioRepository_->saveSnapshot(portfolio.snapshot(0));
+    portfolioRepository_->saveSnapshot(portfolio.snapshot(timestampMs - 1));
     return portfolio;
 }
 
@@ -76,10 +83,12 @@ void PortfolioService::deletePortfolio(const std::string& portfolioId) {
     if (!portfolioRepository_->exists(portfolioId)) {
         throw std::runtime_error("PortfolioService::deletePortfolio: portfolio '" + portfolioId + "' does not exist.");
     }
+    if (logger_) logger_->write(finapp::logging::Level::Info, "deletePortfolio: id='" + portfolioId + "'");
     portfolioRepository_->deletePortfolio(portfolioId);
 }
 
 Portfolio PortfolioService::load(const std::string& portfolioId) {
+    if (logger_) logger_->write(finapp::logging::Level::Debug, "load: id='" + portfolioId + "'");
     auto snapshotOpt = portfolioRepository_->loadLatestSnapshot(portfolioId);
     if (!snapshotOpt.has_value()) {
         throw std::runtime_error("PortfolioService::load: no snapshot found for portfolio " + portfolioId);
@@ -111,24 +120,22 @@ double PortfolioService::totalValue(const Portfolio& portfolio, int64_t timestam
     double total = 0.0;
 
     for (const SnapshotPosition& pos : portfolio.positions()) {
+        if (pos.quantity == 0.0) continue;
+
         auto asset = assetService_->load(pos.assetId);
         const Currency denom = asset->denomination();
 
-        TimeSeries priceSeries = assetService_->loadTimeSeriesValue(
-            pos.assetId, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-        if (priceSeries.size() == 0) {
-            throw std::runtime_error("PortfolioService::totalValue: no price available for " + pos.assetId.ticker);
-        }
-        const double price = priceSeries.getValues().back();
+        // getResampled (via AssetService) handles weekends/holidays via Nearest — no manual lookback needed.
+        const double price = assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs,
+                                                                kDefaultSpotFrequencyMs)
+                                 .getValues()
+                                 .back();
 
         double fx = 1.0;
         if (denom != base) {
-            TimeSeries fxSeries =
-                fxService_->load(denom, base, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-            if (fxSeries.size() == 0)
-                throw std::runtime_error("PortfolioService::totalValue: no FX rate available for " + toString(denom) +
-                                         "/" + toString(base));
-            fx = fxSeries.getValues().back();
+            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
+                     .getValues()
+                     .back();
         }
         total += pos.quantity * price * fx;
     }
@@ -138,12 +145,9 @@ double PortfolioService::totalValue(const Portfolio& portfolio, int64_t timestam
             total += amount;
             continue;
         }
-        TimeSeries fxSeries =
-            fxService_->load(currency, base, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-        if (fxSeries.size() == 0)
-            throw std::runtime_error("PortfolioService::totalValue: no FX rate available for " + toString(currency) +
-                                     "/" + toString(base));
-        total += amount * fxSeries.getValues().back();
+        const double fx =
+            fxService_->load(currency, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
+        total += amount * fx;
     }
 
     return total;
@@ -155,22 +159,20 @@ std::unordered_map<std::string, double> PortfolioService::weights(const Portfoli
     double total = 0.0;
 
     for (const SnapshotPosition& pos : portfolio.positions()) {
+        if (pos.quantity == 0.0) continue;
+
         auto asset = assetService_->load(pos.assetId);
         const Currency denom = asset->denomination();
 
-        TimeSeries priceSeries = assetService_->loadTimeSeriesValue(
-            pos.assetId, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-        if (priceSeries.size() == 0)
-            throw std::runtime_error("PortfolioService::weights: no price available for " + pos.assetId.ticker);
-        const double price = priceSeries.getValues().back();
+        const double price = assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs,
+                                                                kDefaultSpotFrequencyMs)
+                                 .getValues()
+                                 .back();
         double fx = 1.0;
         if (denom != base) {
-            TimeSeries fxSeries =
-                fxService_->load(denom, base, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-            if (fxSeries.size() == 0)
-                throw std::runtime_error("PortfolioService::weights: no FX rate available for " + toString(denom) +
-                                         "/" + toString(base));
-            fx = fxSeries.getValues().back();
+            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
+                     .getValues()
+                     .back();
         }
         const double value = pos.quantity * price * fx;
         valueByKey[pos.assetId.ticker] = value;
@@ -180,12 +182,9 @@ std::unordered_map<std::string, double> PortfolioService::weights(const Portfoli
     for (const auto& [currency, amount] : portfolio.cashBalances()) {
         double fx = 1.0;
         if (currency != base) {
-            TimeSeries fxSeries =
-                fxService_->load(currency, base, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-            if (fxSeries.size() == 0)
-                throw std::runtime_error("PortfolioService::weights: no FX rate available for " + toString(currency) +
-                                         "/" + toString(base));
-            fx = fxSeries.getValues().back();
+            fx = fxService_->load(currency, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
+                     .getValues()
+                     .back();
         }
         const double value = amount * fx;
         valueByKey[cashKey(currency)] = value;
@@ -227,19 +226,13 @@ std::vector<Transaction> PortfolioService::rebalance(const Portfolio& portfolio,
         auto asset = assetService_->load(target.assetId);
         const Currency denom = asset->denomination();
 
-        TimeSeries priceSeries = assetService_->loadTimeSeriesValue(
-            target.assetId, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-        if (priceSeries.size() == 0)
-            throw std::runtime_error("PortfolioService::rebalance: no price available for " + target.assetId.ticker);
-        const double price = priceSeries.getValues().back();
+        const double price = assetService_->loadTimeSeriesValue(target.assetId, timestampMs, timestampMs,
+                                                                kDefaultSpotFrequencyMs)
+                                 .getValues()
+                                 .back();
         double fx = 1.0;
         if (denom != base) {
-            TimeSeries fxSeries =
-                fxService_->load(denom, base, timestampMs - kSpotLookbackMs, timestampMs, kDefaultSpotFrequencyMs);
-            if (fxSeries.size() == 0)
-                throw std::runtime_error("PortfolioService::rebalance: no FX rate available for " + toString(denom) +
-                                         "/" + toString(base));
-            fx = fxSeries.getValues().back();
+            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
         }
 
         // Current value in base currency.
@@ -471,6 +464,10 @@ std::vector<Transaction> PortfolioService::listTransactions(const std::string& p
 
 std::string PortfolioService::addTransaction(const std::string& portfolioId, Transaction transaction) {
     transaction.id = generateTransactionId();
+    if (logger_)
+        logger_->write(finapp::logging::Level::Info,
+                       "addTransaction: portfolio='" + portfolioId + "' type=" + toString(transaction.type) +
+                           " ticker=" + transaction.assetTicker + " qty=" + std::to_string(transaction.quantity));
     portfolioRepository_->appendTransactions(portfolioId, {transaction});
     rebuildSnapshotsFrom_(portfolioId, transaction.timestampsMs);
     return transaction.id;
@@ -478,6 +475,9 @@ std::string PortfolioService::addTransaction(const std::string& portfolioId, Tra
 
 std::vector<std::string> PortfolioService::importTransactions(const std::string& portfolioId,
                                                               std::vector<finance::Transaction> transactions) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Info, "importTransactions: portfolio='" + portfolioId + "' count=" +
+                                                 std::to_string(transactions.size()));
     for (auto& t : transactions) t.id = generateTransactionId();
     std::sort(transactions.begin(), transactions.end(), [](const Transaction& a, const Transaction& b) {
         if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
@@ -492,6 +492,9 @@ std::vector<std::string> PortfolioService::importTransactions(const std::string&
 }
 
 void PortfolioService::deleteTransaction(const std::string& portfolioId, const std::string& transactionId) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Info,
+                       "deleteTransaction: portfolio='" + portfolioId + "' txId='" + transactionId + "'");
     // Find the timestamp before deleting so we know where to start the rebuild.
     const auto allTxs = portfolioRepository_->loadTransactions(portfolioId, 0);
     const auto it =
@@ -516,6 +519,10 @@ std::string PortfolioService::updateTransaction(const std::string& portfolioId, 
 // ---------------------------------------------------------------------------
 
 void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, int64_t fromTimestampMs) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "rebuildSnapshotsFrom_: portfolio='" + portfolioId + "' from=" +
+                           std::to_string(fromTimestampMs) + "ms");
     // Find the latest snapshot strictly before fromTimestampMs — this is our replay base.
     auto allSnapshots = portfolioRepository_->loadAllSnapshots(portfolioId);
     std::sort(allSnapshots.begin(), allSnapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {

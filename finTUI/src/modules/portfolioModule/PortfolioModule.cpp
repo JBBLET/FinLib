@@ -252,6 +252,7 @@ void PortfolioModule::submitCreatePortfolio_() {
             CreatePortfolioParams p;
             p.name = createForm_.name;
             p.currency = currencies[createForm_.currencyIdx];
+            p.timestampsMs = createForm_.date.empty() ? 0 : Utils::parseDate(createForm_.date);
             dataSource_->createPortfolio(p);
             loadPortfolioList_();
             statusMsg_ = "Created: " + createForm_.name;

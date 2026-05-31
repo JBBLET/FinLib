@@ -13,6 +13,7 @@
 #include "finapp/finance/portfolio/Transaction.hpp"
 #include "finapp/service/AssetService.hpp"
 #include "finapp/service/FXService.hpp"
+#include "finapp/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 namespace finapp {
@@ -20,12 +21,13 @@ namespace finapp {
 class PortfolioService {
  public:
     PortfolioService(std::shared_ptr<IPortfolioRepository> portfolioRepository,
-                     std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService);
+                     std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService,
+                     finapp::logging::ILogger* logger = nullptr);
 
     // Create and persist a new empty portfolio. Seeds an empty snapshot so load()
     // works immediately. Throws if a portfolio with that id already exists.
     finance::Portfolio createNew(const std::string& portfolioId, const std::string& name,
-                                 finance::Currency baseCurrency);
+                                 finance::Currency baseCurrency, int64_t timestampMs = 0);
 
     // Reconstruct from snapshot + transactions
     finance::Portfolio load(const std::string& portfolioId);
@@ -89,6 +91,7 @@ class PortfolioService {
     std::shared_ptr<IPortfolioRepository> portfolioRepository_;
     std::shared_ptr<AssetService> assetService_;
     std::shared_ptr<FXService> fxService_;
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     void recomputeAndCache_(const finance::Portfolio& portfolio, int64_t fromMs, int64_t toMs, int64_t frequencyMs);
     // Trims all snapshots at or after fromTimestampMs, then replays every transaction in the

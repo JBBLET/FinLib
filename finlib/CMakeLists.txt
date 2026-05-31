@@ -85,7 +85,6 @@ target_include_directories(finlib_models
 
 add_library(finlib_session
     src/session/ModelSession.cpp
-    src/utils/LoggerUtils.cpp
 )
 
 target_link_libraries(finlib_session

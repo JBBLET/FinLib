@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "finapp/finance/common/Currency.hpp"
+#include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
@@ -18,22 +19,24 @@ namespace finapp {
 using namespace finance;
 
 FXService::FXService(std::shared_ptr<TimeSeriesService> timeSeriesService,
-                     std::shared_ptr<IFXRepository> fxInfoRepository)
-    : timeSeriesService_(std::move(timeSeriesService)), fxInfoRepository_(std::move(fxInfoRepository)) {}
+                     std::shared_ptr<IFXRepository> fxInfoRepository, finapp::logging::ILogger* logger)
+    : timeSeriesService_(std::move(timeSeriesService)),
+      fxInfoRepository_(std::move(fxInfoRepository)),
+      logger_(finapp::logging::PrefixedLogger::wrap(logger, "FXService")) {}
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, int64_t fromMs, int64_t endMs,
-                           int64_t frequencyMs) {
+                           int64_t frequencyMs, InterpolationStrategy strategy) {
     if (baseCurrency == quoteCurrency) {
         return common::utils::timeSeries::generateConstantTimeSeries(
             makePairId_(baseCurrency, quoteCurrency), fromMs, endMs, frequencyMs, 1.0);
     }
 
     const std::string seriesId = resolveSeriesId_(baseCurrency, quoteCurrency);
-    return timeSeriesService_->get(seriesId, fromMs, endMs, frequencyMs);
+    return timeSeriesService_->getResampled(seriesId, fromMs, endMs, frequencyMs, strategy);
 }
 
 TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, TimestampPtr timestamps) {
@@ -74,6 +77,10 @@ std::string FXService::resolveSeriesId_(const Currency& base, const Currency& qu
     // future calls take the fast path. The actual price history will be fetched from
     // the provider lazily on the next TimeSeriesService::get call.
     FXInfos info{base, quote, makePairId_(base, quote)};
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "resolveSeriesId_: new pair " + toString(base) + "/" + toString(quote) + " -> " +
+                           info.timeseriesID);
     fxInfoRepository_->save(info);
     return info.timeseriesID;
 }

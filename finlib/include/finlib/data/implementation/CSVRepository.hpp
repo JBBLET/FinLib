@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -19,16 +20,19 @@
 ///   <directory>/<seriesId>/<frequencyMs>.meta     — key=value coverage metadata
 class CSVRepository : public ITimeSeriesRepository {
  public:
-    explicit CSVRepository(std::filesystem::path directory);
+    explicit CSVRepository(std::filesystem::path directory, logging::ILogger* logger = nullptr);
 
     // --- ITimeSeriesLoader ---
     /// Finds the finest available frequency for `id` and loads data in [startMs, endMs].
     TimeSeries load(const std::string& id, int64_t startMs, int64_t endMs) const override;
     LoaderCapabilities capabilities(const std::string& id) const override;
 
-    // --- ITimeSeriesSaver ---
-    void save(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& coverage) override;
-    void merge(const SeriesKey& key, const TimeSeries& newData) override;
+    // --- ITimeSeriesSaver (via doSave/doMerge) ---
+ protected:
+    void doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& coverage) override;
+    void doMerge(const SeriesKey& key, const TimeSeries& newData) override;
+
+ public:
 
     // --- ITimeSeriesRepository ---
     bool exists(const SeriesKey& key) const override;
@@ -39,6 +43,7 @@ class CSVRepository : public ITimeSeriesRepository {
 
  private:
     std::filesystem::path directory_;
+    std::unique_ptr<logging::ILogger> logger_;
 
     std::filesystem::path csvPath_(const SeriesKey& key) const;
     std::filesystem::path metaPath_(const SeriesKey& key) const;

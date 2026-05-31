@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "finapp/service/PortfolioService.hpp"
+#include "finapp/common/logger/ILogger.hpp"
 #include "grpcpp/server.h"
 #include "grpcpp/server_context.h"
 #include "portfolio.grpc.pb.h"
@@ -14,8 +15,9 @@
 
 class PortfolioGrpcServiceImpl final : public finapp_rpc::PortfolioService::Service {
  public:
-    explicit PortfolioGrpcServiceImpl(std::shared_ptr<finapp::PortfolioService> portfolioService)
-        : portfolioService_{std::move(portfolioService)} {}
+    PortfolioGrpcServiceImpl(std::shared_ptr<finapp::PortfolioService> portfolioService,
+                             finapp::logging::ILogger* logger = nullptr);
+
 
     // Portfolio Management
     grpc::Status ListPortfoliosSummary(grpc::ServerContext*, const finapp_rpc::ListPortfoliosSummaryInput* request,
@@ -56,4 +58,5 @@ class PortfolioGrpcServiceImpl final : public finapp_rpc::PortfolioService::Serv
 
  private:
     std::shared_ptr<finapp::PortfolioService> portfolioService_;
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 };

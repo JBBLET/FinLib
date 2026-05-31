@@ -12,13 +12,16 @@
 #include <utility>
 
 #include "converters/ProtoConverters.hpp"
+#include "finapp/common/logger/PrefixedLogger.hpp"
 
-// Helper: print a one-line error to stderr and return the gRPC status.
-// Using a macro so __func__ expands to the correct method name at each call site.
-#define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                       \
-    do {                                                                                      \
-        std::cerr << "[gRPC ERROR] " << __func__ << ": " << (e).what() << "\n" << std::flush; \
-        return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                          \
+// Log the error via the service's logger (if set) and return an INTERNAL gRPC status.
+// Macro so __func__ captures the correct calling method name at each call site.
+#define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                                   \
+    do {                                                                                                  \
+        if (logger_)                                                                                      \
+            logger_->write(finapp::logging::Level::Error,                                                         \
+                           std::string("[gRPC ERROR] ") + __func__ + ": " + (e).what());                 \
+        return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                                     \
     } while (false)
 
 #include "finapp/data/importers/YahooFinanceImporter.hpp"
@@ -28,6 +31,11 @@
 #include "grpcpp/server.h"
 #include "grpcpp/server_context.h"
 #include "portfolio.pb.h"
+
+PortfolioGrpcServiceImpl::PortfolioGrpcServiceImpl(std::shared_ptr<finapp::PortfolioService> portfolioService,
+                                                   finapp::logging::ILogger* logger)
+    : portfolioService_{std::move(portfolioService)},
+      logger_{finapp::logging::PrefixedLogger::wrap(logger, "PortfolioGrpcService")} {}
 
 // ===================================
 // Portfolio Management
@@ -168,7 +176,38 @@ grpc::Status PortfolioGrpcServiceImpl::RequestAddTransaction(grpc::ServerContext
         reply->set_transactionid(transactionId);
         return grpc::Status::OK;
     } catch (std::exception& e) {
-        return grpc::Status{grpc::StatusCode::INTERNAL, e.what()};
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
+    }
+}
+
+grpc::Status PortfolioGrpcServiceImpl::RequestAddTransactionByCsv(
+    grpc::ServerContext*, const finapp_rpc::RequestAddTransactionByCsvInput* request,
+    finapp_rpc::RequestAddTransactionOutput* reply) {
+    try {
+        const int64_t nowMs =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count();
+        auto meta = portfolioService_->loadMetadata(request->portfolioid());
+        finapp::YahooFinanceImporter::Config config{meta.baseCurrency, nullptr};
+        auto transactions = finapp::YahooFinanceImporter::parseFromString(request->csvdata(), config);
+        if (transactions.empty())
+            return grpc::Status{grpc::StatusCode::INVALID_ARGUMENT, "No valid transactions found in CSV data"};
+        portfolioService_->importTransactions(request->portfolioid(), std::move(transactions));
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
+    }
+}
+
+grpc::Status PortfolioGrpcServiceImpl::DeleteTransaction(grpc::ServerContext*,
+                                                         const finapp_rpc::DeleteTransactionInput* request,
+                                                         finapp_rpc::DeleteTransactionOutput* reply) {
+    try {
+        portfolioService_->deleteTransaction(request->portfolioid(), request->transactionid());
+        reply->set_transactionid(request->transactionid());
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
 

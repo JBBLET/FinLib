@@ -21,6 +21,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     std::string id_;
     TimestampPtr timestamps_;
     std::vector<double> values_;
+    bool isSynthetic_ = false;  // true when constructed via resampling(); such series must never be persisted
 
     std::vector<double> partialWalk(const std::vector<int64_t>& targetTimestamps, size_t startIndex, size_t endIndex,
                                     InterpolationStrategy strategy, std::optional<uint32_t> seed) const;
@@ -40,13 +41,14 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
         }
     }
 
-    TimeSeries(const TimeSeries& other)  // Can replace by default
-        : id_(other.id_), timestamps_(other.timestamps_), values_(other.values_) {}
+    TimeSeries(const TimeSeries& other)
+        : id_(other.id_), timestamps_(other.timestamps_), values_(other.values_), isSynthetic_(other.isSynthetic_) {}
 
     friend void swap(TimeSeries& first, TimeSeries& second) noexcept {
         std::swap(first.id_, second.id_);
         std::swap(first.timestamps_, second.timestamps_);
         std::swap(first.values_, second.values_);
+        std::swap(first.isSynthetic_, second.isSynthetic_);
     }
 
     TimeSeries& operator=(TimeSeries other) noexcept {
@@ -55,7 +57,10 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     }
 
     TimeSeries(TimeSeries&& other) noexcept
-        : id_(std::move(other.id_)), timestamps_(std::move(other.timestamps_)), values_(std::move(other.values_)) {}
+        : id_(std::move(other.id_)),
+          timestamps_(std::move(other.timestamps_)),
+          values_(std::move(other.values_)),
+          isSynthetic_(other.isSynthetic_) {}
     ~TimeSeries() = default;
 
     // Accessors
@@ -64,6 +69,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     const std::vector<double>& getValues() const { return values_; }
     const std::vector<int64_t>& getTimestamps() const { return *timestamps_; }
     const std::shared_ptr<const std::vector<int64_t>>& getSharedTimestamps() const { return timestamps_; }
+    bool isSynthetic() const { return isSynthetic_; }
 
     // helper
     void verifyAlignment(const TimeSeries& other) const;

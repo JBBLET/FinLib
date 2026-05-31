@@ -55,6 +55,7 @@ struct TimeSeriesData {
 struct CreatePortfolioParams {
     std::string name;
     std::string currency;
+    int64_t timestampsMs = 0;
 };
 
 struct AddTransactionParams {

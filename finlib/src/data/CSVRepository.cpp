@@ -1,8 +1,10 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include "finlib/data/implementation/CSVRepository.hpp"
+#include "finlib/common/logger/PrefixedLogger.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -18,7 +20,9 @@
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
 
-CSVRepository::CSVRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
+CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* logger)
+    : directory_(std::move(directory)),
+      logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
     std::filesystem::create_directories(directory_);
 }
 
@@ -46,12 +50,16 @@ LoaderCapabilities CSVRepository::capabilities(const std::string& id) const {
 
 // ITimeSeriesSaver Interface
 
-void CSVRepository::save(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) {
+void CSVRepository::doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) {
+    if (logger_)
+        logger_->write(logging::Level::Debug,
+                       "CSV write: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms " +
+                           std::to_string(ts.size()) + " points -> " + csvPath_(key).string());
     writeCsv_(key, ts);
     writeMeta_(cov);
 }
 
-void CSVRepository::merge(const SeriesKey& key, const TimeSeries& newData) {
+void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
     if (newData.size() == 0) return;
 
     // Combine existing data (if any) with new data using a sorted map for dedup
@@ -83,6 +91,12 @@ void CSVRepository::merge(const SeriesKey& key, const TimeSeries& newData) {
     }
 
     TimeSeries merged(key.SeriesId, std::move(mergedTs), std::move(mergedVals));
+
+    if (logger_)
+        logger_->write(logging::Level::Debug,
+                       "CSV merge: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms +" +
+                           std::to_string(newData.size()) + " points -> " + std::to_string(merged.size()) +
+                           " total");
 
     int64_t nowMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
@@ -162,6 +176,14 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
     std::vector<double> values;
     std::string line;
 
+    auto pushIfValid = [&](int64_t ts, const std::string& valStr) {
+        double v = std::stod(valStr);
+        if (!std::isnan(v)) {
+            timestamps.push_back(ts);
+            values.push_back(v);
+        }
+    };
+
     // Read first line — detect header vs data
     if (std::getline(file, line)) {
         if (!line.empty() && !std::isalpha(static_cast<unsigned char>(line[0])) && line[0] != '#') {
@@ -172,8 +194,7 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
             if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
                 int64_t ts = std::stoll(tsStr);
                 if (!applyFilter || (ts >= startMs && ts <= endMs)) {
-                    timestamps.push_back(ts);
-                    values.push_back(std::stod(valStr));
+                    pushIfValid(ts, valStr);
                 }
             }
         }
@@ -187,8 +208,7 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
         if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
             int64_t ts = std::stoll(tsStr);
             if (!applyFilter || (ts >= startMs && ts <= endMs)) {
-                timestamps.push_back(ts);
-                values.push_back(std::stod(valStr));
+                pushIfValid(ts, valStr);
             }
         }
     }
