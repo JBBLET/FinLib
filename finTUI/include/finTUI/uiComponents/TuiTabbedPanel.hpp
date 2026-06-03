@@ -31,6 +31,7 @@ class TuiTabbedPanel : public ftxui::ComponentBase {
     bool Focusable() const override { return true; }
     bool OnEvent(ftxui::Event) override;
     int activeTab() const;
+    void setActiveTab(int idx);
     void setOnTabChanged(std::function<void(int)> fn);
 
  private:

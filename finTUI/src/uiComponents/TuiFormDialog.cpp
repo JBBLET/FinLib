@@ -56,6 +56,7 @@ void TuiFormDialog::reset() {
     for (FieldDef& element : fields_) {
         std::visit([this](auto& field) { reset(field); }, element);
     }
+    if (!inputs_.empty()) inputs_[0]->TakeFocus();
 }
 
 // Helpers
