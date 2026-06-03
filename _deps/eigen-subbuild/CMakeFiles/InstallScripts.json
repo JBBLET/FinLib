@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/jbblet/user/Documents/Projects/FinLib/_deps/eigen-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
