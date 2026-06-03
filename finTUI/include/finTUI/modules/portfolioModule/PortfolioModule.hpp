@@ -7,14 +7,13 @@
 
 #include "finTUI/dataSources/IPortfolioDataSource.hpp"
 #include "finTUI/modules/IModule.hpp"
+#include "finTUI/modules/portfolioModule/ChartPane.hpp"
 #include "finTUI/modules/portfolioModule/Dialogs.hpp"
 #include "finTUI/modules/portfolioModule/PortfolioModuleTypes.hpp"
+#include "finTUI/modules/portfolioModule/TransactionsPane.hpp"
 #include "finTUI/uiComponents/TuiConfirmationDialog.hpp"
-#include "finTUI/uiComponents/TuiFileDialog.hpp"
 #include "finTUI/uiComponents/TuiFormDialog.hpp"
-#include "finTUI/uiComponents/TuiLineChart.hpp"
 #include "finTUI/uiComponents/TuiTabbedPanel.hpp"
-#include "finTUI/uiComponents/TuiTable.hpp"
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/dom/elements.hpp"
 
@@ -39,42 +38,30 @@ class PortfolioModule : public IModule {
     // ── Mode / pane ───────────────────────────────────────────────────────────
     enum class Pane { Left, Right };
     Pane activePane_ = Pane::Left;
-    int modeAsInt_ = 0;
+    int modeAsInt_ = 0;  // 0 = Normal, 1 = CreatePortfolio, 2 = DeletePortfolio
 
     bool showCreatePortfolio_ = false;
     bool showDeletePortfolio_ = false;
-    bool showAddTransaction_ = false;
-    bool showEditTransaction_ = false;
-    bool showDeleteTransaction_ = false;
-    bool showImportTransaction_ = false;
 
     // ── Data ──────────────────────────────────────────────────────────────────
     std::vector<PortfolioListEntry> portfolioList_;
     std::vector<std::string> menuEntries_;
     int selectedPortfolio_ = 0;
     PortfolioSummary currentSummary_;
-    std::vector<TransactionRow> currentTransactions_;
-    TimeSeriesData currentTimeSeries_;
     std::string statusMsg_;
-    bool        statusIsError_ = false;  // true while the last status message is an error
+    bool statusIsError_ = false;
 
-    // ── Forms — declared before dialogs that bind pointers into them ──────────
+    // ── Form — declared before dialog that binds pointers into it ────────────
     CreatePortfolioForm createForm_;
-    AddTransactionForm addTxnForm_;
-    std::string editingTxnId_;
 
-    // ── Dialogs — initialized in MIL via factory prvalues (C++17 GCE) ─────────
+    // ── Dialogs ───────────────────────────────────────────────────────────────
     std::shared_ptr<TuiFormDialog> createDialog_;
-    std::shared_ptr<TuiFormDialog> addTransactionDialog_;
-    std::shared_ptr<TuiFormDialog> editTransactionDialog_;
     std::shared_ptr<TuiConfirmationDialog> deletePortfolioConfirm_;
-    std::shared_ptr<TuiConfirmationDialog> deleteTransactionConfirm_;
-    std::shared_ptr<TuiFileDialog> importDialog_;
 
-    // ── Panels ────────────────────────────────────────────────────────────────
-    TuiLineChart chart_;
-    std::shared_ptr<TuiTable> txnTable_;          // non-movable: on heap
-    std::shared_ptr<TuiTabbedPanel> rightPanel_;  // non-movable: on heap, depends on txnTable_
+    // ── Panes ─────────────────────────────────────────────────────────────────
+    std::unique_ptr<TransactionsPane> txnPane_;
+    std::unique_ptr<ChartPane> chartPane_;
+    std::shared_ptr<TuiTabbedPanel> rightPanel_;
 
     // ── FTXUI components — built in constructor body ──────────────────────────
     ftxui::Component portfolioMenu_;
@@ -83,27 +70,17 @@ class PortfolioModule : public IModule {
 
     // ── Load helpers ──────────────────────────────────────────────────────────
     void enterNormal_();
-    void enterDialog_(int idx, bool& flag);
     void rebuildMenuEntries_();
     void loadPortfolioList_();
     void loadSelectedPortfolio_();
-    void loadTransactions_();
-    void loadTimeSeries_();
 
     // ── Submit / confirm ──────────────────────────────────────────────────────
     void submitCreatePortfolio_();
     void confirmDeletePortfolio_();
-    void submitAddTransaction_();
-    void startEditTransaction_(int idx);
-    void submitEditTransaction_();
-    void confirmDeleteTransaction_();
-    void submitImportTransactions_(const std::string& path);
 
     // ── Render ────────────────────────────────────────────────────────────────
     ftxui::Element buildLeftPanel_() const;
     ftxui::Element buildOverviewPanel_() const;
-    ftxui::Element buildTransactionsPanel_() const;
-    ftxui::Element buildChartPanel_() const;
     ftxui::Element renderRoot_() const;
 };
 

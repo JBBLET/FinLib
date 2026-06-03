@@ -47,6 +47,12 @@ bool TuiTabbedPanel::OnEvent(ftxui::Event e) {
     return ftxui::ComponentBase::OnEvent(e);
 }
 
+void TuiTabbedPanel::setActiveTab(int idx) {
+    if (idx < 0 || idx >= static_cast<int>(tabs_.size())) return;
+    activeTabIndex_ = idx;
+    if (onTabChanged_) onTabChanged_(idx);
+}
+
 void TuiTabbedPanel::setOnTabChanged(std::function<void(int)> fn) { onTabChanged_ = std::move(fn); }
 
 int TuiTabbedPanel::activeTab() const { return activeTabIndex_; }

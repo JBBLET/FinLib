@@ -133,7 +133,7 @@ ftxui::Element TuiTable::renderDataRow_(int idx, bool selected) const {
         cells.push_back(ftxui::text(" " + val) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, c.width));
     }
     auto row = ftxui::hbox(std::move(cells));
-    return selected ? row | ftxui::inverted : row;
+    return selected ? row | ftxui::inverted | ftxui::focus : row;
 }
 
 TuiTableBuilder& TuiTableBuilder::addColumn(ColumnDef col) {
