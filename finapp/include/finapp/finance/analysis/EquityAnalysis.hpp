@@ -5,13 +5,12 @@
 #include <memory>
 #include <utility>
 
-#include "finapp/finance/analysis/EquityAnalysis.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 namespace finance::analysis {
 
-class EquityAnalysis : IAssetAnalysis {
+class EquityAnalysis : public IAssetAnalysis {
     EquityAnalysis(std::shared_ptr<IAsset> asset, int64_t startMs, int64_t endMs, int64_t frequencyMs)
         : IAssetAnalysis{std::move(asset), startMs, endMs, frequencyMs} {};
     ~EquityAnalysis() = default;
