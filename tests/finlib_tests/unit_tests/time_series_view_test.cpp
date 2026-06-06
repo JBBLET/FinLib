@@ -80,3 +80,51 @@ TEST_F(TimeSeriesViewTest, AlignmentMismatchThrows) {
     // is_aligned_with should return false, operator+ should throw
     EXPECT_THROW(view1 + view2, std::runtime_error);
 }
+
+TEST_F(TimeSeriesViewTest, ViewArithmeticSharesTimestampPointer) {
+    // v_curr - v_lag is the shifted-view pattern used for log-return derivation.
+    // The result must share the original series' TimestampPtr — no allocation.
+    auto v_curr = series->slice(1, 3);      // begin_=1, length_=3, lag=0
+    auto v_lag  = series->slice(1, 3).shift(1);  // begin_=1, length_=3, lag=1
+
+    TimeSeries diff = v_curr - v_lag;
+
+    EXPECT_EQ(diff.getSharedTimestamps(), series->getSharedTimestamps());
+    EXPECT_EQ(diff.tsOffset(), 1u);   // begin_=1, source tsOffset_=0 → result tsOffset_=1
+    EXPECT_EQ(diff.size(), 3u);
+    EXPECT_EQ(diff.getTimestamps()[0], 2000);  // timestamps[1]
+    EXPECT_EQ(diff.getTimestamps()[2], 4000);  // timestamps[3]
+}
+
+TEST_F(TimeSeriesViewTest, ApplySharesTimestampPointer) {
+    // apply() on an lvalue should share the parent's TimestampPtr and preserve tsOffset_.
+    auto doubled = series->apply([](double v) { return v * 2.0; });
+
+    EXPECT_EQ(doubled.getSharedTimestamps(), series->getSharedTimestamps());
+    EXPECT_EQ(doubled.tsOffset(), 0u);
+    EXPECT_EQ(doubled.getTimestamps()[0], 1000);
+    EXPECT_EQ(doubled.getValues()[0], 20.0);
+}
+
+TEST_F(TimeSeriesViewTest, OffsetSeriesTimestampsCorrect) {
+    // A derived series with tsOffset > 0 must report only its own slice of timestamps.
+    auto v_curr = series->slice(1, 3);
+    auto v_lag  = series->slice(1, 3).shift(1);
+    TimeSeries diff = v_curr - v_lag;
+
+    // getTimestamps() span must cover exactly [begin_, begin_+length_) of the original vector.
+    ASSERT_EQ(diff.size(), 3u);
+    auto span = diff.getTimestamps();
+    EXPECT_EQ(span[0], 2000);
+    EXPECT_EQ(span[1], 3000);
+    EXPECT_EQ(span[2], 4000);
+}
+
+TEST_F(TimeSeriesViewTest, ScalarArithmeticSharesTimestampPointer) {
+    // Scalar operators must also share the source's TimestampPtr.
+    auto view   = series->slice(1, 3);
+    TimeSeries result = view + 5.0;
+
+    EXPECT_EQ(result.getSharedTimestamps(), series->getSharedTimestamps());
+    EXPECT_EQ(result.tsOffset(), 1u);
+}

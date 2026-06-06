@@ -22,6 +22,9 @@ class TimeSeriesService {
     // Gaps (weekends, holidays) are NOT filled — use getResampled for that.
     TimeSeries get(const std::string& id, int64_t startMs, int64_t endMs, int64_t requestedFrequencyMs);
 
+    // Returns raw data without resampling — supports non-regular time series
+    TimeSeries getRaw(const std::string& id, int64_t startMs, int64_t endMs);
+
     // Overload taking a caller-owned, regularly-spaced timestamp grid. The returned
     // TimeSeries shares the same TimestampPtr, so multiple series fetched on the same
     // grid stay pointer-aligned for downstream operators.
@@ -34,9 +37,6 @@ class TimeSeriesService {
     // for chart or simulation paths.
     TimeSeries getResampled(const std::string& id, int64_t startMs, int64_t endMs, int64_t requestedFrequencyMs,
                             InterpolationStrategy strategy = InterpolationStrategy::Nearest);
-
-    // Returns raw data without resampling — supports non-regular time series
-    TimeSeries getRaw(const std::string& id, int64_t startMs, int64_t endMs);
 
  private:
     std::shared_ptr<CachedTimeSeriesRepository> cache_;

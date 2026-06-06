@@ -78,22 +78,16 @@ class PortfolioTrackingMathTest : public ::testing::Test {
         // Empty snapshot at t=0; all transactions live in [1*kDay, 6*kDay].
         portfolioRepo->saveSnapshot(PortfolioSnapshot{"math_pf", Currency::EUR, 0, "math_pf", {}, {}});
 
-        // Transaction sequence covering all six types.
-        //
-        // Day 1  Deposit   10 000 EUR               → cash = 10 000
-        // Day 2  Buy       100 STCK @ 10, fees 5    → cost  1 005, cash =  8 995,  100 STCK
-        // Day 3  Dividend  0.1 EUR/share             → +10 cash,    cash =  9 005,  100 STCK
-        // Day 4  Sell       50 STCK @ 10, fees 5    → rev    495,   cash =  9 500,   50 STCK
-        // Day 5  Withdrawal 500 EUR                  →               cash =  9 000,   50 STCK
-        // Day 6  Split 2:1  (price → 5 EUR)          →               cash =  9 000,  100 STCK
-        portfolioRepo->appendTransactions("math_pf", {
-            {1 * kDay, TransactionType::Deposit,    AssetType::Cash,   "EUR",  10000.0, 1.0,  0.0, Currency::EUR},
-            {2 * kDay, TransactionType::Buy,        AssetType::Equity, "STCK",   100.0, 10.0, 5.0, Currency::EUR},
-            {3 * kDay, TransactionType::Dividend,   AssetType::Equity, "STCK",     0.0, 0.1,  0.0, Currency::EUR},
-            {4 * kDay, TransactionType::Sell,       AssetType::Equity, "STCK",    50.0, 10.0, 5.0, Currency::EUR},
-            {5 * kDay, TransactionType::Withdrawal, AssetType::Cash,   "EUR",    500.0, 1.0,  0.0, Currency::EUR},
-            {6 * kDay, TransactionType::Split,      AssetType::Equity, "STCK",     2.0, 0.0,  0.0, Currency::EUR},
-        });
+        // Day 1 Deposit 10 000 EUR / Day 2 Buy 100 STCK (fees 5) / Day 3 Dividend 0.1/share
+        // Day 4 Sell 50 STCK (fees 5) / Day 5 Withdrawal 500 / Day 6 Split 2:1
+        // Seed via service so rebuildSnapshotsFrom_ builds the per-transaction snapshot
+        // chain that valueSeries/weightSeries require.
+        service->addTransaction("math_pf", {"", 1 * kDay, TransactionType::Deposit,    AssetType::Cash,   "EUR",  10000.0, 1.0,  0.0, Currency::EUR});
+        service->addTransaction("math_pf", {"", 2 * kDay, TransactionType::Buy,        AssetType::Equity, "STCK",   100.0, 10.0, 5.0, Currency::EUR});
+        service->addTransaction("math_pf", {"", 3 * kDay, TransactionType::Dividend,   AssetType::Equity, "STCK",     0.0, 0.1,  0.0, Currency::EUR});
+        service->addTransaction("math_pf", {"", 4 * kDay, TransactionType::Sell,       AssetType::Equity, "STCK",    50.0, 10.0, 5.0, Currency::EUR});
+        service->addTransaction("math_pf", {"", 5 * kDay, TransactionType::Withdrawal, AssetType::Cash,   "EUR",    500.0, 1.0,  0.0, Currency::EUR});
+        service->addTransaction("math_pf", {"", 6 * kDay, TransactionType::Split,      AssetType::Equity, "STCK",     2.0, 0.0,  0.0, Currency::EUR});
     }
 };
 

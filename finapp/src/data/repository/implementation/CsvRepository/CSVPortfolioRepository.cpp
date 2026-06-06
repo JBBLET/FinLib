@@ -75,7 +75,11 @@ void CSVPortfolioRepository::appendTransactions(const std::string& portfolioID,
 std::vector<Transaction> CSVPortfolioRepository::loadTransactions(const std::string& portfolioId,
                                                                   int64_t afterTimestamps) const {
     auto path = csvTransactionsPath_(portfolioId);
-    if (!std::filesystem::exists(path)) return {};
+    if (!std::filesystem::exists(path)) {
+        if (!exists(portfolioId))
+            throw std::runtime_error("CSVPortfolioRepository::loadTransactions: portfolio '" + portfolioId + "' not found");
+        return {};
+    }
     return parseTransactionsCsvFile_(path, afterTimestamps);
 }
 

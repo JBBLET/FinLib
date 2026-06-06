@@ -102,3 +102,20 @@ TEST_F(FXServiceTest, SharedTimestampOverloadKeepsPointerAlignment) {
     EXPECT_EQ(a.getSharedTimestamps().get(), timestamps.get());
     EXPECT_EQ(b.getSharedTimestamps().get(), timestamps.get());
 }
+
+TEST_F(FXServiceTest, SharedTimestampsOverloadForUnknownPairRegistersAndAlignsPointer) {
+    // No entry in fxRepo — service auto-creates via makePairId_ convention ("USDJPY=X").
+    provider->setSeries("USDJPY=X", makeFlatSeries("USDJPY=X", 0, 6 * kDay, kDay, 155.0));
+    ASSERT_FALSE(fxRepo->exists(Currency::USD, Currency::JPY));
+
+    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
+    TimeSeries result = service->load(Currency::USD, Currency::JPY, timestamps);
+
+    ASSERT_EQ(result.size(), 4);
+    EXPECT_DOUBLE_EQ(result.getValues()[0], 155.0);
+    // Pair must now be registered so subsequent range calls hit the fast path.
+    EXPECT_TRUE(fxRepo->exists(Currency::USD, Currency::JPY));
+    EXPECT_EQ(fxRepo->load(Currency::USD, Currency::JPY).timeseriesID, "USDJPY=X");
+    // Shared-timestamps pointer alignment must hold even on first-time resolution.
+    EXPECT_EQ(result.getSharedTimestamps().get(), timestamps.get());
+}
