@@ -1,52 +1,73 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
+#include "finlib/data/services/TimeSeriesService.hpp"
+
+namespace analysis {
 
 using TimestampMs = int64_t;
 using DerivedTransform = std::function<TimeSeries(const TimeSeries&)>;
 
-namespace analysis {
 class TimeSeriesSession {
  public:
-    TimeSeriesSession();
+    // Constructors
+    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, int64_t startMs,
+                      TimestampMs endMs, TimestampMs frequencyMs, logging::ILogger* logger = nullptr);
 
-    TimeSeriesSession& extendRange(TimestampMs newStartMs, TimestampMs newEndMs);
-    TimeSeriesSession& setFrequency(TimestampMs newFrequencyMs);
-    void ReBuildTimeSeriesSession();
+    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
+                      std::shared_ptr<std::vector<TimestampMs>> timestampsMs, logging::ILogger* logger = nullptr);
 
-    TimeSeriesAnalysis& buildSourceAnalysis();
-    TimeSeriesAnalysis& buildDerivedAnalysis();
+    // Setters Methods
+    void setRange(TimestampMs newStartMs, TimestampMs newEndMs);
+    void setFrequency(TimestampMs newFrequencyMs);
+    void setTransform(DerivedTransform transform);
 
-    TimeSeriesView& sourceView() const;
-    TimeSeriesView& derivedView() const;
+    // View Accessors
+    TimeSeriesView sourceView() const;
+    TimeSeriesView derivedView() const;
 
+    // analysis Accessors
+    const TimeSeriesAnalysis& sourceAnalysis();
+    const TimeSeriesAnalysis& derivedAnalysis();
+
+    // Accessors
     TimestampMs startMs() const { return startMs_; }
     TimestampMs endMs() const { return endMs_; }
-    TimestampMs frequencyMs() const { return frequencyMs_; }
     const std::string& seriesId() const { return seriesId_; }
     size_t size() const;
+    TimestampMs frequencyMs() const;
 
  private:
-    TimeSeries source_;
+    std::shared_ptr<TimeSeriesService> service_;
+    std::shared_ptr<const TimeSeries> source_;
     std::optional<DerivedTransform> transform_;
-    std::optional<TimeSeries> derivedCache_;  // TODO(JBBLET) Currently second full copy of the TimeSeries due to how
-                                              // apply rebuild a TimeSeries by Value each time)
+    mutable std::shared_ptr<const TimeSeries> derivedCache_;
+    std::unique_ptr<logging::ILogger> logger_;
+
     std::string seriesId_;
     TimestampMs startMs_;
     TimestampMs endMs_;
-    TimestampMs frequencyMs_;
+    std::optional<TimestampMs> frequencyMs_;
 
     std::optional<TimeSeriesAnalysis> sourceAnalysis_;
     std::optional<TimeSeriesAnalysis> derivedAnalysis_;
-    void buildDerived_();
+
+    // helpers
+    void buildDerived_() const;
     void invalidateAllCache_();
+    void extendRange_(TimestampMs newStartMs, TimestampMs newEndMs);
+    void reduceRange_(TimestampMs newStartMs, TimestampMs newEndMs);
 };
 }  // namespace analysis

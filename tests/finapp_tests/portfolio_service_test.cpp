@@ -424,7 +424,7 @@ TEST_F(PortfolioServiceTest, AddTransactionReturnsNonEmptyId) {
     portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}});
 
     Transaction tx{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD};
-    std::string id = service->addTransaction("pf1", tx, 2 * kDay);
+    std::string id = service->addTransaction("pf1", tx);
 
     EXPECT_FALSE(id.empty());
 }
@@ -433,7 +433,7 @@ TEST_F(PortfolioServiceTest, AddTransactionPersistsWithGeneratedId) {
     portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}});
 
     Transaction tx{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD};
-    std::string id = service->addTransaction("pf1", tx, 2 * kDay);
+    std::string id = service->addTransaction("pf1", tx);
 
     auto txns = service->listTransactions("pf1", 0);
     ASSERT_EQ(txns.size(), 1);
@@ -445,8 +445,8 @@ TEST_F(PortfolioServiceTest, AddTransactionIdsAreUnique) {
     portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 50000.0}}});
 
     Transaction tx{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 1000.0, 1.0, 0.0, Currency::USD};
-    std::string id1 = service->addTransaction("pf1", tx, 2 * kDay);
-    std::string id2 = service->addTransaction("pf1", tx, 3 * kDay);
+    std::string id1 = service->addTransaction("pf1", tx);
+    std::string id2 = service->addTransaction("pf1", tx);
 
     EXPECT_NE(id1, id2);
 }
@@ -459,8 +459,7 @@ TEST_F(PortfolioServiceTest, DeleteTransactionRemovesIt) {
     portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 10000.0}}});
 
     std::string id = service->addTransaction(
-        "pf1", Transaction{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD},
-        2 * kDay);
+        "pf1", Transaction{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD});
 
     service->deleteTransaction("pf1", id);
 
@@ -480,11 +479,10 @@ TEST_F(PortfolioServiceTest, UpdateTransactionReplacesWithNewId) {
     portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "pf1", {}, {{Currency::USD, 50000.0}}});
 
     std::string oldId = service->addTransaction(
-        "pf1", Transaction{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD},
-        2 * kDay);
+        "pf1", Transaction{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD});
 
     Transaction corrected{"", kDay, TransactionType::Deposit, AssetType::Cash, "USD", 7000.0, 1.0, 0.0, Currency::USD};
-    std::string newId = service->updateTransaction("pf1", oldId, corrected, 3 * kDay);
+    std::string newId = service->updateTransaction("pf1", oldId, corrected);
 
     EXPECT_NE(newId, oldId);
     EXPECT_FALSE(newId.empty());
@@ -493,4 +491,127 @@ TEST_F(PortfolioServiceTest, UpdateTransactionReplacesWithNewId) {
     ASSERT_EQ(txns.size(), 1);
     EXPECT_EQ(txns[0].id, newId);
     EXPECT_NEAR(txns[0].quantity, 7000.0, 1e-9);
+}
+
+// ============================================================
+// createNew
+// ============================================================
+
+TEST_F(PortfolioServiceTest, CreateNewReturnsCorrectMetadata) {
+    Portfolio p = service->createNew("new_pf", "My Fund", Currency::EUR);
+    EXPECT_EQ(p.id(), "new_pf");
+    EXPECT_EQ(p.name(), "My Fund");
+    EXPECT_EQ(p.baseCurrency(), Currency::EUR);
+    EXPECT_TRUE(p.positions().empty());
+}
+
+TEST_F(PortfolioServiceTest, CreateNewPersistsSentinelSnapshot) {
+    service->createNew("new_pf", "My Fund", Currency::EUR, 1 * kDay);
+    auto snap = portfolioRepo->loadLatestSnapshot("new_pf");
+    ASSERT_TRUE(snap.has_value());
+    EXPECT_EQ(snap->timestampMs, 1 * kDay - 1);
+    EXPECT_EQ(snap->baseCurrency, Currency::EUR);
+}
+
+TEST_F(PortfolioServiceTest, CreateNewAllowsSubsequentLoad) {
+    service->createNew("new_pf", "My Fund", Currency::EUR);
+    Portfolio p = service->load("new_pf");
+    EXPECT_EQ(p.id(), "new_pf");
+    EXPECT_EQ(p.name(), "My Fund");
+}
+
+TEST_F(PortfolioServiceTest, CreateNewThrowsWhenAlreadyExists) {
+    service->createNew("new_pf", "My Fund", Currency::EUR);
+    EXPECT_THROW(service->createNew("new_pf", "Duplicate", Currency::USD), std::runtime_error);
+}
+
+// ============================================================
+// importTransactions
+// ============================================================
+
+TEST_F(PortfolioServiceTest, ImportTransactionsAssignsNonEmptyUniqueIds) {
+    service->createNew("imp_pf", "Import Fund", Currency::USD);
+    std::vector<Transaction> txns = {
+        {"", 1 * kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD},
+        {"", 2 * kDay, TransactionType::Deposit, AssetType::Cash, "USD", 3000.0, 1.0, 0.0, Currency::USD},
+    };
+    auto ids = service->importTransactions("imp_pf", txns);
+
+    ASSERT_EQ(ids.size(), 2);
+    EXPECT_FALSE(ids[0].empty());
+    EXPECT_FALSE(ids[1].empty());
+    EXPECT_NE(ids[0], ids[1]);
+}
+
+TEST_F(PortfolioServiceTest, ImportTransactionsPersistsAll) {
+    service->createNew("imp_pf", "Import Fund", Currency::USD);
+    std::vector<Transaction> txns = {
+        {"", 1 * kDay, TransactionType::Deposit, AssetType::Cash, "USD", 5000.0, 1.0, 0.0, Currency::USD},
+        {"", 2 * kDay, TransactionType::Deposit, AssetType::Cash, "USD", 3000.0, 1.0, 0.0, Currency::USD},
+    };
+    service->importTransactions("imp_pf", txns);
+
+    auto persisted = service->listTransactions("imp_pf", 0);
+    ASSERT_EQ(persisted.size(), 2);
+}
+
+TEST_F(PortfolioServiceTest, ImportTransactionsBuildsSnapshotChain) {
+    registerEquity("AAPL", Currency::USD, 100.0);
+    service->createNew("imp_pf", "Import Fund", Currency::USD);
+    std::vector<Transaction> txns = {
+        {"", 1 * kDay, TransactionType::Deposit, AssetType::Cash,   "USD",  1000.0, 1.0,   0.0, Currency::USD},
+        {"", 2 * kDay, TransactionType::Buy,     AssetType::Equity, "AAPL",    5.0, 100.0, 0.0, Currency::USD},
+    };
+    service->importTransactions("imp_pf", txns);
+
+    // At constant price a Deposit then Buy is value-neutral. Values per tick:
+    //   0: sentinel snapshot (empty) → 0
+    //   1: after Deposit 1000       → 1000
+    //   2: after Buy 5×100          → 5×100 + 500 = 1000
+    //   3: (no change)              → 1000
+    TimeSeries series = service->valueSeries("imp_pf", 0, 3 * kDay, kDay);
+    ASSERT_EQ(series.size(), 4);
+    EXPECT_DOUBLE_EQ(series.getValues()[0], 0.0);
+    EXPECT_DOUBLE_EQ(series.getValues()[1], 1000.0);
+    EXPECT_DOUBLE_EQ(series.getValues()[2], 1000.0);
+    EXPECT_DOUBLE_EQ(series.getValues()[3], 1000.0);
+}
+
+// ============================================================
+// deletePortfolio
+// ============================================================
+
+TEST_F(PortfolioServiceTest, DeletePortfolioRemovesFromList) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "del_pf", {}, {}});
+
+    service->deletePortfolio("del_pf");
+
+    auto ids = service->listPortfolioIds();
+    EXPECT_TRUE(std::find(ids.begin(), ids.end(), "del_pf") == ids.end());
+}
+
+TEST_F(PortfolioServiceTest, DeletePortfolioMakesLoadThrow) {
+    portfolioRepo->saveSnapshot({"pf", Currency::USD, 0, "del_pf", {}, {}});
+    service->deletePortfolio("del_pf");
+    EXPECT_THROW(service->load("del_pf"), std::runtime_error);
+}
+
+TEST_F(PortfolioServiceTest, DeletePortfolioThrowsWhenNotFound) {
+    EXPECT_THROW(service->deletePortfolio("nonexistent"), std::runtime_error);
+}
+
+// ============================================================
+// loadMetadata
+// ============================================================
+
+TEST_F(PortfolioServiceTest, LoadMetadataReturnsCorrectFields) {
+    portfolioRepo->saveSnapshot({"My Fund", Currency::EUR, 0, "meta_pf", {}, {}});
+    auto meta = service->loadMetadata("meta_pf");
+    EXPECT_EQ(meta.id, "meta_pf");
+    EXPECT_EQ(meta.name, "My Fund");
+    EXPECT_EQ(meta.baseCurrency, Currency::EUR);
+}
+
+TEST_F(PortfolioServiceTest, LoadMetadataThrowsWhenMissing) {
+    EXPECT_THROW(service->loadMetadata("nonexistent"), std::runtime_error);
 }

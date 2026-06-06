@@ -29,7 +29,8 @@ class TimeSeriesView : public std::enable_shared_from_this<TimeSeriesView> {
     int valueLag_;
 
     bool isAlignedWith(const TimeSeriesView& other) const;
-    std::shared_ptr<std::vector<int64_t>> getCopyTimestampsInView() const;
+    // Construct a TimeSeries from computed values, sharing the source's TimestampPtr at the correct offset.
+    TimeSeries materialise_(const std::string& id, std::vector<double> vals) const;
 
     mutable std::optional<RegularityCheck> cachedRegularityCheck_;
 
