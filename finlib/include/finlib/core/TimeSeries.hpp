@@ -2,10 +2,13 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <execution>
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -20,33 +23,32 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
  private:
     std::string id_;
     TimestampPtr timestamps_;
+    size_t tsOffset_ = 0;
     std::vector<double> values_;
-    bool isSynthetic_ = false;  // true when constructed via resampling(); such series must never be persisted
+    bool isSynthetic_ = false;
 
+    // helper
     std::vector<double> partialWalk(const std::vector<int64_t>& targetTimestamps, size_t startIndex, size_t endIndex,
                                     InterpolationStrategy strategy, std::optional<uint32_t> seed) const;
+    void verifyAlignment_(const TimeSeries& other) const;
 
  public:
-    TimeSeries(std::string id, std::vector<int64_t> ts, std::vector<double> vals)
-        : id_(id), timestamps_(std::make_shared<const std::vector<int64_t>>(std::move(ts))), values_(std::move(vals)) {
-        if (timestamps_->size() != values_.size()) {
-            throw std::invalid_argument("Size mismatch between timestamps and values");
-        }
-    }
-
-    TimeSeries(std::string id, std::shared_ptr<const std::vector<int64_t>> ts, std::vector<double> vals)
-        : id_(id), timestamps_(std::move(ts)), values_(std::move(vals)) {
-        if (timestamps_->size() != values_.size()) {
-            throw std::invalid_argument("Size mismatch between timestamps and values");
-        }
-    }
+    // Constructors
+    TimeSeries(std::string id, std::vector<int64_t> ts, std::vector<double> vals);
+    TimeSeries(std::string id, std::shared_ptr<const std::vector<int64_t>> ts, std::vector<double> vals);
+    TimeSeries(std::string id, TimestampPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals);
 
     TimeSeries(const TimeSeries& other)
-        : id_(other.id_), timestamps_(other.timestamps_), values_(other.values_), isSynthetic_(other.isSynthetic_) {}
+        : id_(other.id_),
+          timestamps_(other.timestamps_),
+          tsOffset_(other.tsOffset_),
+          values_(other.values_),
+          isSynthetic_(other.isSynthetic_) {}
 
     friend void swap(TimeSeries& first, TimeSeries& second) noexcept {
         std::swap(first.id_, second.id_);
         std::swap(first.timestamps_, second.timestamps_);
+        std::swap(first.tsOffset_, second.tsOffset_);
         std::swap(first.values_, second.values_);
         std::swap(first.isSynthetic_, second.isSynthetic_);
     }
@@ -59,6 +61,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimeSeries(TimeSeries&& other) noexcept
         : id_(std::move(other.id_)),
           timestamps_(std::move(other.timestamps_)),
+          tsOffset_(other.tsOffset_),
           values_(std::move(other.values_)),
           isSynthetic_(other.isSynthetic_) {}
     ~TimeSeries() = default;
@@ -67,12 +70,16 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     size_t size() const { return values_.size(); }
     std::string getId() const { return id_; }
     const std::vector<double>& getValues() const { return values_; }
-    const std::vector<int64_t>& getTimestamps() const { return *timestamps_; }
-    const std::shared_ptr<const std::vector<int64_t>>& getSharedTimestamps() const { return timestamps_; }
     bool isSynthetic() const { return isSynthetic_; }
 
-    // helper
-    void verifyAlignment(const TimeSeries& other) const;
+    // TimeStamps Accessors
+    size_t lowerBound(int64_t ts) const;
+    size_t upperBound(int64_t ts) const;
+    size_t tsOffset() const { return tsOffset_; }
+    const std::shared_ptr<const std::vector<int64_t>>& getSharedTimestamps() const { return timestamps_; }
+    std::span<const int64_t> getTimestamps() const {
+        return {timestamps_->data() + tsOffset_, values_.size()};
+    }  // Returns a span over the timestamps that belong to this series [tsOffset_, tsOffset_+size()).
 
     // Operator Overloading
     TimeSeries operator*(const TimeSeries& other) const;
@@ -88,11 +95,8 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 
     // Transformation Method
     TimeSeriesView view() const;
-
     TimeSeriesView slice(size_t start, size_t len) const;
-
     TimeSeriesView sliceIndex(size_t start, size_t end) const;
-
     TimeSeries resampling(const std::vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
                           std::optional<uint32_t> seed = std::nullopt) const;
 
@@ -103,14 +107,14 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 
     template <typename Func>
     TimeSeries apply(Func func) const& {
-        // Create a new Time-series Object
         std::vector<double> new_vals(values_.size());
         if (values_.size() < 20000) {
             std::transform(values_.begin(), values_.end(), new_vals.begin(), func);
         } else {
             std::transform(std::execution::par, values_.begin(), values_.end(), new_vals.begin(), func);
         }
-        return TimeSeries("Transformed " + id_, this->timestamps_, std::move(new_vals));
+        // Share the parent's TimestampPtr and preserve tsOffset_ — zero timestamp allocation.
+        return TimeSeries("Transformed " + id_, timestamps_, tsOffset_, std::move(new_vals));
     }
 
     template <typename Func>

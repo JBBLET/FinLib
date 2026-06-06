@@ -38,7 +38,6 @@ target_include_directories(finlib_analysis
 target_link_libraries(finlib_analysis
     PUBLIC
         finlib_core
-        Eigen3::Eigen
 )
 
 # --------------------
@@ -85,11 +84,13 @@ target_include_directories(finlib_models
 
 add_library(finlib_session
     src/session/ModelSession.cpp
+    src/session/TimeSeriesSession.cpp
 )
 
 target_link_libraries(finlib_session
     PUBLIC
         finlib_models
+        finlib_data
 )
 
 target_include_directories(finlib_session

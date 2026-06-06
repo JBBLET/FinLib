@@ -5,8 +5,11 @@
 #include <cmath>
 #include <functional>
 #include <future>
+#include <iterator>
+#include <memory>
 #include <optional>
 #include <random>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -18,6 +21,9 @@ using std::invalid_argument;
 using std::sqrt;
 using std::vector;
 
+// ---------------------------------------------------------------------------
+// Private Helpers
+// ---------------------------------------------------------------------------
 double calculateNoise(int64_t target, int64_t t1, int64_t t2, double annualVolatility, std::mt19937& gen) {
     std::normal_distribution<double> dist(0.0, 1.0);
 
@@ -78,11 +84,136 @@ vector<double> TimeSeries::partialWalk(const vector<int64_t>& targetTimestamps, 
         } else if (dataIndex >= originalSize - 1) {
             newValues[i] = values_.back();
         } else {
-            newValues[i] = applyStrategy(strategy, currentGen, currentTarget, (*timestamps_)[dataIndex],
-                                         values_[dataIndex], (*timestamps_)[dataIndex + 1], values_[dataIndex + 1]);
+            newValues[i] = applyStrategy(strategy,
+                                         currentGen,
+                                         currentTarget,
+                                         (*timestamps_)[dataIndex],
+                                         values_[dataIndex],
+                                         (*timestamps_)[dataIndex + 1],
+                                         values_[dataIndex + 1]);
         }
     }
     return newValues;
+}
+
+void TimeSeries::verifyAlignment_(const TimeSeries& other) const {
+    // Fast path: same backing vector at the same offset — definitely aligned.
+    if (timestamps_ == other.timestamps_ && tsOffset_ == other.tsOffset_) return;
+    if (this->size() != other.size()) {
+        throw std::invalid_argument("TimeSeries size mismatch.");
+    }
+    // Slow path: compare only the slices each series actually represents.
+    if (!std::equal(getTimestamps().begin(), getTimestamps().end(), other.getTimestamps().begin())) {
+        throw std::invalid_argument("TimeSeries timestamps do not match.");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// constructor
+// ---------------------------------------------------------------------------
+TimeSeries::TimeSeries(std::string id, std::vector<int64_t> ts, std::vector<double> vals)
+    : id_(id), timestamps_(std::make_shared<const std::vector<int64_t>>(std::move(ts))), values_(std::move(vals)) {
+    if (timestamps_->size() != values_.size()) {
+        throw std::invalid_argument("Size mismatch between timestamps and values");
+    }
+}
+
+TimeSeries::TimeSeries(std::string id, std::shared_ptr<const std::vector<int64_t>> ts, std::vector<double> vals)
+    : id_(id), timestamps_(std::move(ts)), values_(std::move(vals)) {
+    if (timestamps_->size() != values_.size()) {
+        throw std::invalid_argument("Size mismatch between timestamps and values");
+    }
+}
+
+TimeSeries::TimeSeries(std::string id, TimestampPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals)
+    : id_(std::move(id)), timestamps_(std::move(sharedTimestamps)), tsOffset_(tsOffset), values_(std::move(vals)) {
+    if (tsOffset_ + values_.size() > timestamps_->size()) {
+        throw std::invalid_argument("TimeSeries: tsOffset + size exceeds timestamp vector length");
+    }
+}
+// Timestamps Accessors
+size_t TimeSeries::lowerBound(int64_t ts) const {
+    auto span = getTimestamps();
+    return std::distance(span.begin(), std::lower_bound(span.begin(), span.end(), ts));
+}
+size_t TimeSeries::upperBound(int64_t ts) const {
+    auto span = getTimestamps();
+    return std::distance(span.begin(), std::upper_bound(span.begin(), span.end(), ts));
+}
+
+// ---------------------------------------------------------------------------
+// Operator Overloading
+// ---------------------------------------------------------------------------
+TimeSeries TimeSeries::operator*(const TimeSeries& other) const {
+    verifyAlignment_(other);
+    vector<double> resultValues;
+    resultValues.resize(values_.size());
+    std::transform(
+        values_.begin(), values_.end(), other.values_.begin(), resultValues.begin(), std::multiplies<double>());
+
+    return TimeSeries(id_ + " * " + other.id_, timestamps_, tsOffset_, std::move(resultValues));
+}
+
+TimeSeries& TimeSeries::operator*=(const TimeSeries& other) {
+    verifyAlignment_(other);
+    for (size_t i = 0; i < values_.size(); ++i) {
+        values_[i] *= other.values_[i];
+    }
+    return *this;
+}
+
+TimeSeries TimeSeries::operator*(double scalar) const {
+    TimeSeries result = *this;
+    result *= scalar;
+    return result;
+}
+TimeSeries& TimeSeries::operator*=(double scalar) {
+    for (double& v : values_) {
+        v *= scalar;
+    }
+    return *this;
+}
+
+TimeSeries TimeSeries::operator+(const TimeSeries& other) const {
+    verifyAlignment_(other);
+    vector<double> resultValues;
+    resultValues.resize(values_.size());
+    std::transform(values_.begin(), values_.end(), other.values_.begin(), resultValues.begin(), std::plus<double>());
+    return TimeSeries(id_ + " + " + other.id_, timestamps_, tsOffset_, std::move(resultValues));
+}
+
+TimeSeries& TimeSeries::operator+=(const TimeSeries& other) {
+    verifyAlignment_(other);
+    for (size_t i = 0; i < values_.size(); ++i) {
+        values_[i] += other.values_[i];
+    }
+    return *this;
+}
+
+TimeSeries TimeSeries::operator+(double scalar) const {
+    TimeSeries result = *this;
+    result += scalar;
+    return result;
+}
+
+TimeSeries& TimeSeries::operator+=(double scalar) {
+    for (double& v : values_) {
+        v += scalar;
+    }
+    return *this;
+}
+
+// ---------------------------------------------------------------------------
+// Transformation Method
+// ---------------------------------------------------------------------------
+TimeSeriesView TimeSeries::view() const { return TimeSeriesView(shared_from_this(), 0, values_.size()); }
+
+TimeSeriesView TimeSeries::slice(size_t start, size_t len) const {
+    return TimeSeriesView(shared_from_this(), start, len);
+}
+
+TimeSeriesView TimeSeries::sliceIndex(size_t start, size_t end) const {
+    return TimeSeriesView(shared_from_this(), start, end - start + 1);
 }
 
 TimeSeries TimeSeries::resampling(const vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
@@ -151,85 +282,4 @@ TimeSeries TimeSeries::resampling(TimestampPtr targetTimestamps, InterpolationSt
     TimeSeries result("Resampled " + id_, std::move(targetTimestamps), std::move(newValues));
     result.isSynthetic_ = true;
     return result;
-}
-
-void TimeSeries::verifyAlignment(const TimeSeries& other) const {
-    if (this->timestamps_ == other.timestamps_) {
-        return;
-    }
-    if (this->size() != other.size()) {
-        throw std::invalid_argument("TimeSeries size mismatch.");
-    }
-    if (!std::equal(timestamps_->begin(), timestamps_->end(), other.timestamps_->begin())) {
-        throw std::invalid_argument("TimeSeries timestamps do not match.");
-    }
-}
-
-TimeSeries TimeSeries::operator*(const TimeSeries& other) const {
-    verifyAlignment(other);
-    vector<double> resultValues;
-    resultValues.resize(values_.size());
-    std::transform(values_.begin(), values_.end(), other.values_.begin(), resultValues.begin(),
-                   std::multiplies<double>());
-
-    return TimeSeries(id_ + " * " + other.id_, this->timestamps_, std::move(resultValues));
-}
-
-TimeSeries& TimeSeries::operator*=(const TimeSeries& other) {
-    verifyAlignment(other);
-    for (size_t i = 0; i < values_.size(); ++i) {
-        values_[i] *= other.values_[i];
-    }
-    return *this;
-}
-
-TimeSeries TimeSeries::operator*(double scalar) const {
-    TimeSeries result = *this;
-    result *= scalar;
-    return result;
-}
-TimeSeries& TimeSeries::operator*=(double scalar) {
-    for (double& v : values_) {
-        v *= scalar;
-    }
-    return *this;
-}
-
-TimeSeries TimeSeries::operator+(const TimeSeries& other) const {
-    verifyAlignment(other);
-    vector<double> resultValues;
-    resultValues.resize(values_.size());
-    std::transform(values_.begin(), values_.end(), other.values_.begin(), resultValues.begin(), std::plus<double>());
-    return TimeSeries(id_ + " + " + other.id_, this->timestamps_, std::move(resultValues));
-}
-
-TimeSeries& TimeSeries::operator+=(const TimeSeries& other) {
-    verifyAlignment(other);
-    for (size_t i = 0; i < values_.size(); ++i) {
-        values_[i] += other.values_[i];
-    }
-    return *this;
-}
-
-TimeSeries TimeSeries::operator+(double scalar) const {
-    TimeSeries result = *this;
-    result += scalar;
-    return result;
-}
-
-TimeSeries& TimeSeries::operator+=(double scalar) {
-    for (double& v : values_) {
-        v += scalar;
-    }
-    return *this;
-}
-
-TimeSeriesView TimeSeries::view() const { return TimeSeriesView(shared_from_this(), 0, values_.size()); }
-
-TimeSeriesView TimeSeries::slice(size_t start, size_t len) const {
-    return TimeSeriesView(shared_from_this(), start, len);
-}
-
-TimeSeriesView TimeSeries::sliceIndex(size_t start, size_t end) const {
-    return TimeSeriesView(shared_from_this(), start, end - start + 1);
 }

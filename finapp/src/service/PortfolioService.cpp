@@ -17,7 +17,6 @@
 #include <vector>
 
 #include "finapp/common/logger/PrefixedLogger.hpp"
-
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -67,7 +66,8 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 // Persistence
 // ---------------------------------------------------------------------------
 
-Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency) {
+Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency,
+                                      int64_t timestampMs) {
     if (portfolioRepository_->exists(portfolioId)) {
         throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
     }
@@ -126,16 +126,14 @@ double PortfolioService::totalValue(const Portfolio& portfolio, int64_t timestam
         const Currency denom = asset->denomination();
 
         // getResampled (via AssetService) handles weekends/holidays via Nearest — no manual lookback needed.
-        const double price = assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs,
-                                                                kDefaultSpotFrequencyMs)
-                                 .getValues()
-                                 .back();
+        const double price =
+            assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
+                .getValues()
+                .back();
 
         double fx = 1.0;
         if (denom != base) {
-            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
-                     .getValues()
-                     .back();
+            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
         }
         total += pos.quantity * price * fx;
     }
@@ -164,15 +162,13 @@ std::unordered_map<std::string, double> PortfolioService::weights(const Portfoli
         auto asset = assetService_->load(pos.assetId);
         const Currency denom = asset->denomination();
 
-        const double price = assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs,
-                                                                kDefaultSpotFrequencyMs)
-                                 .getValues()
-                                 .back();
+        const double price =
+            assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
+                .getValues()
+                .back();
         double fx = 1.0;
         if (denom != base) {
-            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
-                     .getValues()
-                     .back();
+            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
         }
         const double value = pos.quantity * price * fx;
         valueByKey[pos.assetId.ticker] = value;
@@ -182,9 +178,7 @@ std::unordered_map<std::string, double> PortfolioService::weights(const Portfoli
     for (const auto& [currency, amount] : portfolio.cashBalances()) {
         double fx = 1.0;
         if (currency != base) {
-            fx = fxService_->load(currency, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
-                     .getValues()
-                     .back();
+            fx = fxService_->load(currency, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
         }
         const double value = amount * fx;
         valueByKey[cashKey(currency)] = value;
@@ -226,10 +220,10 @@ std::vector<Transaction> PortfolioService::rebalance(const Portfolio& portfolio,
         auto asset = assetService_->load(target.assetId);
         const Currency denom = asset->denomination();
 
-        const double price = assetService_->loadTimeSeriesValue(target.assetId, timestampMs, timestampMs,
-                                                                kDefaultSpotFrequencyMs)
-                                 .getValues()
-                                 .back();
+        const double price =
+            assetService_->loadTimeSeriesValue(target.assetId, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
+                .getValues()
+                .back();
         double fx = 1.0;
         if (denom != base) {
             fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
@@ -476,8 +470,9 @@ std::string PortfolioService::addTransaction(const std::string& portfolioId, Tra
 std::vector<std::string> PortfolioService::importTransactions(const std::string& portfolioId,
                                                               std::vector<finance::Transaction> transactions) {
     if (logger_)
-        logger_->write(finapp::logging::Level::Info, "importTransactions: portfolio='" + portfolioId + "' count=" +
-                                                 std::to_string(transactions.size()));
+        logger_->write(
+            finapp::logging::Level::Info,
+            "importTransactions: portfolio='" + portfolioId + "' count=" + std::to_string(transactions.size()));
     for (auto& t : transactions) t.id = generateTransactionId();
     std::sort(transactions.begin(), transactions.end(), [](const Transaction& a, const Transaction& b) {
         if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
@@ -520,9 +515,9 @@ std::string PortfolioService::updateTransaction(const std::string& portfolioId, 
 
 void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, int64_t fromTimestampMs) {
     if (logger_)
-        logger_->write(finapp::logging::Level::Debug,
-                       "rebuildSnapshotsFrom_: portfolio='" + portfolioId + "' from=" +
-                           std::to_string(fromTimestampMs) + "ms");
+        logger_->write(
+            finapp::logging::Level::Debug,
+            "rebuildSnapshotsFrom_: portfolio='" + portfolioId + "' from=" + std::to_string(fromTimestampMs) + "ms");
     // Find the latest snapshot strictly before fromTimestampMs — this is our replay base.
     auto allSnapshots = portfolioRepository_->loadAllSnapshots(portfolioId);
     std::sort(allSnapshots.begin(), allSnapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {

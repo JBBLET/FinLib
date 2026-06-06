@@ -55,14 +55,13 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
             if (gaps.empty()) {
                 if (logger_)
                     logger_->write(logging::Level::Debug,
-                                   "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
-                                       "ms: cache hit");
+                                   "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) + "ms: cache hit");
                 return cache_->load(requestedKey, startMs, endMs);
             }
             if (logger_)
                 logger_->write(logging::Level::Debug,
-                               "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) + "ms: partial cache, filling " +
-                                   std::to_string(gaps.size()) + " gap(s)");
+                               "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
+                                   "ms: partial cache, filling " + std::to_string(gaps.size()) + " gap(s)");
             fetchAndMergeGaps_(requestedKey, gaps);
             return cache_->load(requestedKey, startMs, endMs);
         }
@@ -117,8 +116,8 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
     // No existing data at all — full fetch
     if (logger_)
         logger_->write(logging::Level::Info,
-                       "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
-                           "ms: provider full fetch [" + std::to_string(startMs) + ", " + std::to_string(endMs) + "]");
+                       "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) + "ms: provider full fetch [" +
+                           std::to_string(startMs) + ", " + std::to_string(endMs) + "]");
     TimeSeries fetched = stripNaN(provider_->load(id, startMs, endMs));
     if (fetched.size() == 0) {
         throw std::runtime_error("TimeSeriesService::get: no data returned by provider for series '" + id +
