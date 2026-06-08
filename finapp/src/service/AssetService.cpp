@@ -7,9 +7,9 @@
 #include <string>
 #include <utility>
 
+#include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Cash.hpp"
-#include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
@@ -77,7 +77,8 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
     if (repoIt != IAssetRepositoryMap_.end() && repoIt->second->exists(assetId.ticker)) {
         auto asset = repoIt->second->load(assetId.ticker);
         if (asset) {
-            if (logger_) logger_->write(finapp::logging::Level::Debug, "load: '" + assetId.ticker + "' from repository");
+            if (logger_)
+                logger_->write(finapp::logging::Level::Debug, "load: '" + assetId.ticker + "' from repository");
             cachedAssets_[assetId] = asset;
             return asset;
         }
@@ -86,7 +87,8 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
     // 3. Provider fallback — persist back into the repository so next call hits step 2.
     auto providerIt = IAssetProvidersMap_.find(assetId.type);
     if (providerIt != IAssetProvidersMap_.end() && providerIt->second->exists(assetId.ticker)) {
-        if (logger_) logger_->write(finapp::logging::Level::Info, "load: '" + assetId.ticker + "' fetching from provider");
+        if (logger_)
+            logger_->write(finapp::logging::Level::Info, "load: '" + assetId.ticker + "' fetching from provider");
         std::shared_ptr<IAsset> fetched = providerIt->second->fetch(assetId.ticker);
         if (fetched) {
             if (repoIt != IAssetRepositoryMap_.end()) {

@@ -5,17 +5,19 @@
 #include <memory>
 #include <unordered_map>
 
+#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/providers/interfaces/IAssetProviders.hpp"
 #include "finapp/data/repository/interface/IAssetRepository.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/AssetId.hpp"
-#include "finapp/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
 
 namespace finapp {
 
 class AssetService {
+    friend class IAssetAnalysisService;
+
  public:
     AssetService(std::shared_ptr<TimeSeriesService> timeSeriesService,
                  std::unordered_map<finance::AssetType, std::shared_ptr<IAssetRepository>> IAssetRepositoryMap,
