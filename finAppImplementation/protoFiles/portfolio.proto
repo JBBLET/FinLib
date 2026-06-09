@@ -1,174 +1,175 @@
 syntax = "proto3";
+import "root.proto";
 
-// finapp_rpc avoids a naming collision with the C++ finapp::PortfolioService class.
 package finapp_rpc;
-
-
-enum Currency {
-  USD = 0;
-  EUR = 1;
-  JPY = 2;
-  KRW = 3;
-  CAD = 4;
-  GBP = 5;
-}
-
-enum TransactionType {
-  BUY = 0;
-  SELL = 1;
-  DEPOSIT = 2;
-  WITHDRAWAL = 3;
-  DIVIDEND = 4;
-  SPLIT = 5;
-}
-
-enum AssetType {
-  EQUITY = 0;
-  ETF = 1;
-  BOND = 2;
-  CASH = 3;
-  CRYPTO = 4;
-}
 
 // =================== Service ===================
 
 service PortfolioService {
+  // --- Portfolio CRUD ---
   rpc ListPortfoliosSummary(ListPortfoliosSummaryInput) returns (ListPortfoliosSummaryOutput);
+  rpc GetPortfoliosByIds(GetPortfoliosByIdsInput)       returns (GetPortfoliosByIdsOutput);
+  rpc CreatePortfolio(CreatePortfolioInput)             returns (CreatePortfolioOutput);
+  rpc DeletePortfolioById(DeletePortfolioByIdInput)     returns (DeletePortfolioByIdOutput);
 
-  rpc GetPortfoliosByIds(GetPortfoliosByIdsInput) returns (GetPortfoliosByIdsOutput);
+  // --- NAV time series (no analysis, just raw value history) ---
   rpc GetPortfolioTimeSeriesById(GetPortfolioTimeSeriesByIdInput) returns (GetPortfolioTimeSeriesByIdOutput);
-  rpc GetPortfolioAnalysisById(GetPortfolioAnalysisByIdInput) returns (GetPortfolioAnalysisByIdOutput);
 
-  rpc CreatePortfolio(CreatePortfolioInput) returns (CreatePortfolioOutput);
-  rpc DeletePortfolioById(DeletePortfolioByIdInput) returns (DeletePortfolioByIdOutput);
+  // --- Stateless analysis: compute for a range and return, nothing held on server ---
+  rpc ComputePortfolioAnalysis(ComputePortfolioAnalysisInput) returns (ComputePortfolioAnalysisOutput);
 
+  // --- Stateful analysis session: server holds PortfolioAnalysis between calls ---
+  rpc OpenPortfolioAnalysisSession(OpenPortfolioAnalysisSessionInput)           returns (OpenPortfolioAnalysisSessionOutput);
+  rpc UpdatePortfolioAnalysisSessionRange(UpdateSessionRangeInput)              returns (UpdatePortfolioAnalysisSessionOutput);
+  rpc ClosePortfolioAnalysisSession(CloseSessionInput)                          returns (CloseSessionOutput);
+
+  // --- Transaction management ---
   rpc ListPortfolioTransactionsByPortfolioId(ListPortfolioTransactionsByPortfolioIdInput) returns (ListPortfolioTransactionsByPortfolioIdOutput);
-  rpc RequestAddTransaction(RequestAddTransactionInput) returns (RequestAddTransactionOutput);
+  rpc RequestAddTransaction(RequestAddTransactionInput)     returns (RequestAddTransactionOutput);
   rpc RequestAddTransactionByCsv(RequestAddTransactionByCsvInput) returns (RequestAddTransactionOutput);
-  rpc DeleteTransaction(DeleteTransactionInput) returns (DeleteTransactionOutput);
+  rpc DeleteTransaction(DeleteTransactionInput)             returns (DeleteTransactionOutput);
 }
 
-// =================== Type definitions ===================
+// =================== Portfolio types ===================
 
 message CashBalance {
   Currency currency = 1;
-  double amount = 2;
+  double   amount   = 2;
 }
 
 message Position {
-  string ticker = 1;
+  string ticker   = 1;
   double quantity = 2;
-  double value = 3;
-  double weight = 4;
+  double value    = 3;
+  double weight   = 4;
 }
 
 message PortfolioIdentification {
-  string id = 1;
+  string id   = 1;
   string name = 2;
 }
 
 message Portfolio {
   PortfolioIdentification portfolioIdentification = 1;
-  Currency baseCurrency = 2;
-  double totalValue = 3;
-  repeated CashBalance cashBalances = 4;
-  repeated Position positions = 5;
-}
-
-message PortfolioTimeSeries {
-  repeated int64 timestampsMs = 1;
-  repeated double closeValues = 2; }
-
-message PortfolioAnalysis {
-  // TODO(JBBLET) implement once analysis is added to FinApp
-  string emptyReturn = 1;
+  Currency                baseCurrency            = 2;
+  double                  totalValue              = 3;
+  repeated CashBalance    cashBalances            = 4;
+  repeated Position       positions               = 5;
 }
 
 message Transaction {
-  string id = 1;
-  int64 timestampsMs = 2;
-  TransactionType type = 3;
-  AssetType assetType = 4;
-  string assetTicker = 5;
-  double quantity = 6;
-  double pricePerUnit = 7;
-  double fees = 8;
-  Currency settlementCurrency = 9;
+  string          id                 = 1;
+  int64           timestampsMs       = 2;
+  TransactionType type               = 3;
+  AssetType       assetType          = 4;
+  string          assetTicker        = 5;
+  double          quantity           = 6;
+  double          pricePerUnit       = 7;
+  double          fees               = 8;
+  Currency        settlementCurrency = 9;
 }
 
-// =================== RPC messages ===================
+// =================== Analysis types ===================
+
+message CorrelationRow {
+  repeated double values = 1;
+}
+
+message PortfolioAnalysisResult {
+  string                    portfolio_id           = 1;
+  NavMode                   nav_mode               = 2;
+  TimeSeries                nav_series             = 3;
+  AnalysisStats             nav_stats              = 4;
+  repeated AssetAnalysisResult position_analyses   = 5;
+  // Ticker ordering used as both row and column labels for the matrices below.
+  repeated string           tickers                = 6;
+  // Computed on price series (source).
+  repeated CorrelationRow   price_correlation      = 7;
+  // Computed on the "return" derived series — more meaningful for portfolio risk.
+  repeated CorrelationRow   return_correlation     = 8;
+  repeated CorrelationRow   covariance             = 9;
+}
+
+// =================== RPC messages — CRUD ===================
 
 message ListPortfoliosSummaryInput {}
-
 message ListPortfoliosSummaryOutput {
   repeated PortfolioIdentification listPortfoliosIdentification = 1;
 }
 
 message GetPortfoliosByIdsInput {
-  repeated string id = 1;
-  int64 timestampMs = 2;
+  repeated string id          = 1;
+  int64           timestampMs = 2;
 }
-
 message GetPortfoliosByIdsOutput {
   repeated Portfolio listPortfolios = 1;
 }
 
-message GetPortfolioTimeSeriesByIdInput {
-  string id = 1;
-  int64 startMs = 2;
-  int64 endMs = 3;
-  int64 deltaTMs = 4;
-}
-
-message GetPortfolioTimeSeriesByIdOutput {
-  Portfolio portfolio = 1;
-  PortfolioTimeSeries timeSeries = 2;
-}
-
-message GetPortfolioAnalysisByIdInput {
-  string id = 1;
-}
-
-message GetPortfolioAnalysisByIdOutput {
-  Portfolio portfolio = 1;
-  PortfolioAnalysis analysis = 2;
-}
-
 message CreatePortfolioInput {
-  string name = 1;
-  Currency baseCurrency = 2;
-  int64 timestampMs = 3;  // used for portfolio ID generation only; not stored in the snapshot TODO(instead of creating the )
+  string   name           = 1;
+  Currency baseCurrency   = 2;
+  int64    timestampMs    = 3;
+}
+message CreatePortfolioOutput { string id = 1; }
+
+message DeletePortfolioByIdInput  { string id = 1; }
+message DeletePortfolioByIdOutput { string id = 1; }
+
+// =================== RPC messages — time series ===================
+
+message GetPortfolioTimeSeriesByIdInput {
+  string id       = 1;
+  int64  startMs  = 2;
+  int64  endMs    = 3;
+  int64  deltaTMs = 4;
+}
+message GetPortfolioTimeSeriesByIdOutput {
+  Portfolio  portfolio   = 1;
+  TimeSeries time_series = 2;
 }
 
-message CreatePortfolioOutput {
-  string id = 1;
+// =================== RPC messages — analysis ===================
+
+message ComputePortfolioAnalysisInput {
+  string portfolio_id  = 1;
+  int64  start_ms      = 2;
+  int64  end_ms        = 3;
+  int64  frequency_ms  = 4;
+}
+message ComputePortfolioAnalysisOutput {
+  PortfolioAnalysisResult result = 1;
 }
 
-message DeletePortfolioByIdInput {
-  string id = 1;
+message OpenPortfolioAnalysisSessionInput {
+  string portfolio_id  = 1;
+  int64  start_ms      = 2;
+  int64  end_ms        = 3;
+  int64  frequency_ms  = 4;
+}
+message OpenPortfolioAnalysisSessionOutput {
+  SessionHandle           handle = 1;
+  PortfolioAnalysisResult result = 2;
 }
 
-message DeletePortfolioByIdOutput {
-  string id = 1;
+message UpdatePortfolioAnalysisSessionOutput {
+  PortfolioAnalysisResult result = 1;
 }
+
+// =================== RPC messages — transactions ===================
 
 message ListPortfolioTransactionsByPortfolioIdInput {
-  string portfolioId = 1;
-  int64 afterTimestampMs = 2;
+  string portfolioId       = 1;
+  int64  afterTimestampMs  = 2;
 }
-
 message ListPortfolioTransactionsByPortfolioIdOutput {
   repeated Transaction transactionList = 1;
 }
 
 message RequestAddTransactionInput {
-  string portfolioId = 1;
+  string      portfolioId = 1;
   Transaction transaction = 2;
 }
-
-message RequestAddTransactionOutput {
-  string transactionId = 1;
-}
+message RequestAddTransactionOutput { string transactionId = 1; }
 
 message RequestAddTransactionByCsvInput {
   string portfolioId = 1;
@@ -179,7 +180,4 @@ message DeleteTransactionInput {
   string portfolioId   = 1;
   string transactionId = 2;
 }
-
-message DeleteTransactionOutput {
-  string transactionId = 1;
-}
+message DeleteTransactionOutput { string transactionId = 1; }

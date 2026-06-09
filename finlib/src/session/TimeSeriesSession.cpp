@@ -34,6 +34,14 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
     source_ = std::make_shared<const TimeSeries>(service_->get(seriesId_, timestampsMs));
 }
 
+TimeSeriesSession::TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed)
+    : service_{nullptr}, source_{std::move(precomputed)}, seriesId_{source_->getId()} {
+    const auto ts = source_->getTimestamps();
+    if (ts.empty()) throw std::invalid_argument("Cannot create TimeSeriesSession from empty TimeSeries");
+    startMs_ = ts.front();
+    endMs_ = ts.back();
+}
+
 // ---------------------------------------------------------------------------
 // Setters
 // ---------------------------------------------------------------------------
@@ -47,6 +55,7 @@ void TimeSeriesSession::setRange(TimestampMs newStartMs, TimestampMs newEndMs) {
 }
 
 void TimeSeriesSession::setFrequency(TimestampMs newFrequencyMs) {
+    if (!service_) throw std::logic_error("Cannot change frequency on a computed TimeSeriesSession");
     frequencyMs_ = newFrequencyMs;
     source_ = std::make_shared<const TimeSeries>(service_->get(seriesId_, startMs_, endMs_, newFrequencyMs));
     invalidateAllCache_();
@@ -105,6 +114,7 @@ TimestampMs TimeSeriesSession::frequencyMs() const {
 // Private helpers
 // ---------------------------------------------------------------------------
 void TimeSeriesSession::extendRange_(TimestampMs newStartMs, TimestampMs newEndMs) {
+    if (!service_) return;  // computed series — source is fixed, window only
     if (frequencyMs_.has_value()) {
         source_ =
             std::make_shared<const TimeSeries>(service_->get(seriesId_, newStartMs, newEndMs, frequencyMs_.value()));

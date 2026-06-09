@@ -7,15 +7,21 @@
 #include <chrono>
 #include <cstdint>
 #include <exception>
-#include <iostream>
 #include <string>
 #include <utility>
 
 #include "converters/ProtoConverters.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/data/importers/YahooFinanceImporter.hpp"
+#include "finapp/finance/analysis/PortfolioAnalysis.hpp"
+#include "finapp/finance/portfolio/Portfolio.hpp"
+#include "finapp/finance/portfolio/Transaction.hpp"
+#include "finlib/core/TimeSeries.hpp"
+#include "grpcpp/server.h"
+#include "grpcpp/server_context.h"
+#include "portfolio.pb.h"
 
 // Log the error via the service's logger (if set) and return an INTERNAL gRPC status.
-// Macro so __func__ captures the correct calling method name at each call site.
 #define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                  \
     do {                                                                                 \
         if (logger_)                                                                     \
@@ -24,24 +30,105 @@
         return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                     \
     } while (false)
 
-#include "finapp/data/importers/YahooFinanceImporter.hpp"
-#include "finapp/finance/portfolio/Portfolio.hpp"
-#include "finapp/finance/portfolio/Transaction.hpp"
-#include "finlib/core/TimeSeries.hpp"
-#include "grpcpp/server.h"
-#include "grpcpp/server_context.h"
-#include "portfolio.pb.h"
+// ===================================
+// Static serialisation helpers
+// ===================================
 
-PortfolioGrpcServiceImpl::PortfolioGrpcServiceImpl(std::shared_ptr<finapp::PortfolioService> portfolioService,
-                                                   finapp::logging::ILogger* logger)
+static void fillTimeSeries(finapp_rpc::TimeSeries* proto, const TimeSeriesView& view) {
+    for (size_t i = 0; i < view.size(); ++i) {
+        proto->add_timestamps_ms(view.timestamp(i));
+        proto->add_values(view[i]);
+    }
+}
+
+static void fillAnalysisStats(finapp_rpc::AnalysisStats* proto, const ::analysis::TimeSeriesAnalysis& stats) {
+    proto->set_mean(stats.mean());
+    proto->set_std_dev(stats.standardDeviation());
+    proto->set_variance(stats.variance());
+    proto->set_skewness(stats.skewness());
+    proto->set_kurtosis(stats.kurtosis());
+}
+
+static void fillAssetAnalysis(finapp_rpc::AssetAnalysisResult* proto, finance::analysis::IAssetAnalysis& aa) {
+    auto* assetId = proto->mutable_asset_id();
+    assetId->set_ticker(aa.asset()->ticker());
+    assetId->set_type(finapp_rpc::converters::toProto(aa.asset()->type()));
+
+    fillTimeSeries(proto->mutable_price_series(), aa.session().sourceView());
+    fillAnalysisStats(proto->mutable_price_stats(), aa.priceAnalysis());
+
+    // "return" series — only available when the asset registered that transform (e.g. Equity).
+    try {
+        auto* ns = proto->add_derived_series();
+        ns->set_name("return");
+        fillTimeSeries(ns->mutable_series(), aa.session().derivedView("return"));
+
+        auto* nstats = proto->add_derived_stats();
+        nstats->set_name("return");
+        fillAnalysisStats(nstats->mutable_stats(), aa.derivedAnalysis("return"));
+    } catch (const std::exception&) {
+        // Transform not registered — remove the empty entries we just added.
+        proto->mutable_derived_series()->RemoveLast();
+        proto->mutable_derived_stats()->RemoveLast();
+    }
+}
+
+static void fillPortfolioAnalysis(finapp_rpc::PortfolioAnalysisResult* proto, const std::string& portfolioId,
+                                  finance::analysis::PortfolioAnalysis& pa) {
+    proto->set_portfolio_id(portfolioId);
+    proto->set_nav_mode(pa.navMode() == finance::analysis::NavMode::TargetWeighted ? finapp_rpc::TARGET_WEIGHTED
+                                                                                   : finapp_rpc::QUANTITY_BASED);
+
+    fillTimeSeries(proto->mutable_nav_series(), pa.navSeries());
+    fillAnalysisStats(proto->mutable_nav_stats(), pa.navAnalysis());
+
+    for (const auto& ticker : pa.tickers()) {
+        proto->add_tickers(ticker);
+        fillAssetAnalysis(proto->add_position_analyses(), *pa.assetAnalysis(ticker));
+    }
+
+    try {
+        for (const auto& row : pa.correlationMatrix("")) {
+            auto* r = proto->add_price_correlation();
+            for (double v : row) r->add_values(v);
+        }
+    } catch (const std::exception&) {
+    }
+
+    try {
+        for (const auto& row : pa.correlationMatrix("return")) {
+            auto* r = proto->add_return_correlation();
+            for (double v : row) r->add_values(v);
+        }
+    } catch (const std::exception&) {
+    }
+
+    try {
+        for (const auto& row : pa.covarianceMatrix("return")) {
+            auto* r = proto->add_covariance();
+            for (double v : row) r->add_values(v);
+        }
+    } catch (const std::exception&) {
+    }
+}
+
+// ===================================
+// Constructor
+// ===================================
+
+PortfolioGrpcServiceImpl::PortfolioGrpcServiceImpl(
+    std::shared_ptr<finapp::PortfolioService> portfolioService,
+    std::shared_ptr<finapp::PortfolioAnalysisService> portfolioAnalysisService, finapp::logging::ILogger* logger)
     : portfolioService_{std::move(portfolioService)},
+      portfolioAnalysisService_{std::move(portfolioAnalysisService)},
       logger_{finapp::logging::PrefixedLogger::wrap(logger, "PortfolioGrpcService")} {}
 
 // ===================================
-// Portfolio Management
+// Portfolio CRUD
 // ===================================
+
 grpc::Status PortfolioGrpcServiceImpl::ListPortfoliosSummary(grpc::ServerContext*,
-                                                             const finapp_rpc::ListPortfoliosSummaryInput* request,
+                                                             const finapp_rpc::ListPortfoliosSummaryInput*,
                                                              finapp_rpc::ListPortfoliosSummaryOutput* reply) {
     try {
         for (const auto& id : portfolioService_->listPortfolioIds()) {
@@ -99,9 +186,11 @@ grpc::Status PortfolioGrpcServiceImpl::DeletePortfolioById(grpc::ServerContext*,
         GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
+
 // ===================================
-// Portfolio Tracking
+// NAV time series
 // ===================================
+
 grpc::Status PortfolioGrpcServiceImpl::GetPortfolioTimeSeriesById(
     grpc::ServerContext*, const finapp_rpc::GetPortfolioTimeSeriesByIdInput* request,
     finapp_rpc::GetPortfolioTimeSeriesByIdOutput* reply) {
@@ -110,16 +199,16 @@ grpc::Status PortfolioGrpcServiceImpl::GetPortfolioTimeSeriesById(
         const int64_t startMs = request->startms();
         const int64_t endMs = request->endms();
         const int64_t deltaMs = request->deltatms() > 0 ? request->deltatms() : 86'400'000;
-        finance::Portfolio portfolio = portfolioService_->load(id);
 
+        finance::Portfolio portfolio = portfolioService_->load(id);
         const double total = portfolioService_->totalValue(portfolio, endMs);
         const auto wts = portfolioService_->weights(portfolio, endMs);
         *reply->mutable_portfolio() = finapp_rpc::converters::toProto(portfolio, total, wts);
 
         const TimeSeries vs = portfolioService_->valueSeries(id, startMs, endMs, deltaMs);
-        auto* ts = reply->mutable_timeseries();
-        for (int64_t t : vs.getTimestamps()) ts->add_timestampsms(t);
-        for (double v : vs.getValues()) ts->add_closevalues(v);
+        auto* ts = reply->mutable_time_series();
+        for (int64_t t : vs.getTimestamps()) ts->add_timestamps_ms(t);
+        for (double v : vs.getValues()) ts->add_values(v);
 
         return grpc::Status::OK;
     } catch (const std::exception& e) {
@@ -128,28 +217,85 @@ grpc::Status PortfolioGrpcServiceImpl::GetPortfolioTimeSeriesById(
 }
 
 // ===================================
-// Portfolio analysis
+// Stateless analysis
 // ===================================
-grpc::Status PortfolioGrpcServiceImpl::GetPortfolioAnalysisById(
-    grpc::ServerContext*, const finapp_rpc::GetPortfolioAnalysisByIdInput* request,
-    finapp_rpc::GetPortfolioAnalysisByIdOutput* reply) {
+
+grpc::Status PortfolioGrpcServiceImpl::ComputePortfolioAnalysis(
+    grpc::ServerContext*, const finapp_rpc::ComputePortfolioAnalysisInput* request,
+    finapp_rpc::ComputePortfolioAnalysisOutput* reply) {
     try {
-        const int64_t nowMs =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count();
-        finance::Portfolio portfolio = portfolioService_->load(request->id());
-        const double total = portfolioService_->totalValue(portfolio, nowMs);
-        const auto weights = portfolioService_->weights(portfolio, nowMs);
-        *reply->mutable_portfolio() = finapp_rpc::converters::toProto(portfolio, total, weights);
-        reply->mutable_analysis()->set_emptyreturn("Analysis not yet implemented");
+        const finance::Portfolio portfolio = portfolioService_->load(request->portfolio_id());
+        auto pa = portfolioAnalysisService_->createPortfolioAnalysis(
+            portfolio, request->start_ms(), request->end_ms(), request->frequency_ms());
+        fillPortfolioAnalysis(reply->mutable_result(), portfolio.id(), *pa);
         return grpc::Status::OK;
     } catch (const std::exception& e) {
         GRPC_LOG_AND_RETURN_INTERNAL(e);
     }
 }
+
+// ===================================
+// Stateful analysis session
+// ===================================
+
+grpc::Status PortfolioGrpcServiceImpl::OpenPortfolioAnalysisSession(
+    grpc::ServerContext*, const finapp_rpc::OpenPortfolioAnalysisSessionInput* request,
+    finapp_rpc::OpenPortfolioAnalysisSessionOutput* reply) {
+    try {
+        const std::string portfolioId = request->portfolio_id();
+        const finance::Portfolio portfolio = portfolioService_->load(portfolioId);
+        auto pa = portfolioAnalysisService_->createPortfolioAnalysis(
+            portfolio, request->start_ms(), request->end_ms(), request->frequency_ms());
+
+        const auto nowUs =
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count();
+        const std::string handle = "pa_" + std::to_string(nowUs);
+        sessions_[handle] = SessionEntry{portfolioId, pa};
+
+        reply->mutable_handle()->set_id(handle);
+        fillPortfolioAnalysis(reply->mutable_result(), portfolioId, *pa);
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
+    }
+}
+
+grpc::Status PortfolioGrpcServiceImpl::UpdatePortfolioAnalysisSessionRange(
+    grpc::ServerContext*, const finapp_rpc::UpdateSessionRangeInput* request,
+    finapp_rpc::UpdatePortfolioAnalysisSessionOutput* reply) {
+    try {
+        const std::string handle = request->handle().id();
+        auto it = sessions_.find(handle);
+        if (it == sessions_.end())
+            return grpc::Status{grpc::StatusCode::NOT_FOUND, "Unknown session handle: " + handle};
+
+        auto& entry = it->second;
+        entry.analysis->setRange(request->start_ms(), request->end_ms());
+        fillPortfolioAnalysis(reply->mutable_result(), entry.portfolioId, *entry.analysis);
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
+    }
+}
+
+grpc::Status PortfolioGrpcServiceImpl::ClosePortfolioAnalysisSession(grpc::ServerContext*,
+                                                                     const finapp_rpc::CloseSessionInput* request,
+                                                                     finapp_rpc::CloseSessionOutput*) {
+    try {
+        const std::string handle = request->handle().id();
+        if (sessions_.erase(handle) == 0)
+            return grpc::Status{grpc::StatusCode::NOT_FOUND, "Unknown session handle: " + handle};
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        GRPC_LOG_AND_RETURN_INTERNAL(e);
+    }
+}
+
 // ===================================
 // Transaction Management
 // ===================================
+
 grpc::Status PortfolioGrpcServiceImpl::ListPortfolioTransactionsByPortfolioId(
     grpc::ServerContext*, const finapp_rpc::ListPortfolioTransactionsByPortfolioIdInput* request,
     finapp_rpc::ListPortfolioTransactionsByPortfolioIdOutput* reply) {
@@ -168,9 +314,6 @@ grpc::Status PortfolioGrpcServiceImpl::RequestAddTransaction(grpc::ServerContext
                                                              const finapp_rpc::RequestAddTransactionInput* request,
                                                              finapp_rpc::RequestAddTransactionOutput* reply) {
     try {
-        const int64_t nowMs =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count();
         finance::Transaction transaction = finapp_rpc::converters::fromProto(request->transaction());
         const std::string transactionId = portfolioService_->addTransaction(request->portfolioid(), transaction);
         reply->set_transactionid(transactionId);
@@ -182,11 +325,8 @@ grpc::Status PortfolioGrpcServiceImpl::RequestAddTransaction(grpc::ServerContext
 
 grpc::Status PortfolioGrpcServiceImpl::RequestAddTransactionByCsv(
     grpc::ServerContext*, const finapp_rpc::RequestAddTransactionByCsvInput* request,
-    finapp_rpc::RequestAddTransactionOutput* reply) {
+    finapp_rpc::RequestAddTransactionOutput*) {
     try {
-        const int64_t nowMs =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count();
         auto meta = portfolioService_->loadMetadata(request->portfolioid());
         finapp::YahooFinanceImporter::Config config{meta.baseCurrency, nullptr};
         auto transactions = finapp::YahooFinanceImporter::parseFromString(request->csvdata(), config);

@@ -32,6 +32,7 @@ class IAssetAnalysis {
 
     // Direct session access — allows callers to register additional named transforms
     ::analysis::TimeSeriesSession& session() { return *session_; }
+    std::shared_ptr<::analysis::TimeSeriesSession> sessionPtr() const { return session_; }
 
     std::shared_ptr<IAsset> asset() const { return asset_; }
 

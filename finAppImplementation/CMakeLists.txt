@@ -1,5 +1,17 @@
+# Shared types — message-only (no gRPC stubs).
+# Both portfolio and asset service protos import this.
+add_proto_messages(root_proto
+    PROTO "${CMAKE_CURRENT_SOURCE_DIR}/protoFiles/root.proto"
+)
+
 add_grpc_service(portfolio_service_proto
     PROTO "${CMAKE_CURRENT_SOURCE_DIR}/protoFiles/portfolio.proto"
+    DEPENDS root_proto
+)
+
+add_grpc_service(asset_service_proto
+    PROTO "${CMAKE_CURRENT_SOURCE_DIR}/protoFiles/asset.proto"
+    DEPENDS root_proto
 )
 
 # Header-only converter library — bridges finance:: C++ types and finapp_rpc:: proto types.

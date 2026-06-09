@@ -193,9 +193,9 @@ TimeSeriesData GrpcPortfolioDataSource::getTimeSeries(const std::string& portfol
     if (!status.ok()) throw std::runtime_error("GetTimeSeries: " + status.error_message());
 
     TimeSeriesData result;
-    const auto& ts = reply.timeseries();
-    for (int64_t t : ts.timestampsms()) result.timestamps.push_back(t);
-    for (double v : ts.closevalues()) result.values.push_back(v);
+    const auto& ts = reply.time_series();
+    for (int64_t t : ts.timestamps_ms()) result.timestamps.push_back(t);
+    for (double v : ts.values()) result.values.push_back(v);
     return result;
 }
 

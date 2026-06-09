@@ -30,6 +30,9 @@ class TimeSeriesSession {
     TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
                       std::shared_ptr<std::vector<TimestampMs>> timestampsMs);
 
+    // Computed series — source is pre-built, no backing service (range cannot be extended)
+    explicit TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed);
+
     // Range / frequency setters
     void setRange(TimestampMs newStartMs, TimestampMs newEndMs);
     void setFrequency(TimestampMs newFrequencyMs);

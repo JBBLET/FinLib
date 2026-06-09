@@ -15,8 +15,12 @@
 
 namespace finapp {
 
+class AssetAnalysisService;
+class PortfolioAnalysisService;
+
 class AssetService {
-    friend class IAssetAnalysisService;
+    friend class AssetAnalysisService;
+    friend class PortfolioAnalysisService;
 
  public:
     AssetService(std::shared_ptr<TimeSeriesService> timeSeriesService,

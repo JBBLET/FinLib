@@ -27,8 +27,11 @@ add_library(finapp_service
     src/service/FXService.cpp
     src/service/AssetService.cpp
     src/service/PortfolioService.cpp
-    src/service/AnalysisService.cpp
+    src/service/analysisService/AssetAnalysisService.cpp
+    src/service/analysisService/PortfolioAnalysisService.cpp
+    src/service/analysisService/EquityAnalysisService.cpp
     src/finance/analysis/EquityAnalysis.cpp
+    src/finance/analysis/PortfolioAnalysis.cpp
 )
 
 target_include_directories(finapp_service

@@ -4,10 +4,13 @@
 #include <grpcpp/support/status.h>
 
 #include <memory>
+#include <string>
+#include <unordered_map>
 #include <utility>
 
-#include "finapp/service/PortfolioService.hpp"
 #include "finapp/common/logger/ILogger.hpp"
+#include "finapp/service/PortfolioService.hpp"
+#include "finapp/service/analysisService/PortfolioAnalysisService.hpp"
 #include "grpcpp/server.h"
 #include "grpcpp/server_context.h"
 #include "portfolio.grpc.pb.h"
@@ -16,47 +19,56 @@
 class PortfolioGrpcServiceImpl final : public finapp_rpc::PortfolioService::Service {
  public:
     PortfolioGrpcServiceImpl(std::shared_ptr<finapp::PortfolioService> portfolioService,
+                             std::shared_ptr<finapp::PortfolioAnalysisService> portfolioAnalysisService,
                              finapp::logging::ILogger* logger = nullptr);
 
+    // --- Portfolio CRUD ---
+    grpc::Status ListPortfoliosSummary(grpc::ServerContext*, const finapp_rpc::ListPortfoliosSummaryInput*,
+                                       finapp_rpc::ListPortfoliosSummaryOutput*) override;
+    grpc::Status GetPortfoliosByIds(grpc::ServerContext*, const finapp_rpc::GetPortfoliosByIdsInput*,
+                                    finapp_rpc::GetPortfoliosByIdsOutput*) override;
+    grpc::Status CreatePortfolio(grpc::ServerContext*, const finapp_rpc::CreatePortfolioInput*,
+                                 finapp_rpc::CreatePortfolioOutput*) override;
+    grpc::Status DeletePortfolioById(grpc::ServerContext*, const finapp_rpc::DeletePortfolioByIdInput*,
+                                     finapp_rpc::DeletePortfolioByIdOutput*) override;
 
-    // Portfolio Management
-    grpc::Status ListPortfoliosSummary(grpc::ServerContext*, const finapp_rpc::ListPortfoliosSummaryInput* request,
-                                       finapp_rpc::ListPortfoliosSummaryOutput* reply) override;
-    grpc::Status GetPortfoliosByIds(grpc::ServerContext*, const finapp_rpc::GetPortfoliosByIdsInput* request,
-                                    finapp_rpc::GetPortfoliosByIdsOutput* reply) override;
+    // --- NAV time series ---
+    grpc::Status GetPortfolioTimeSeriesById(grpc::ServerContext*, const finapp_rpc::GetPortfolioTimeSeriesByIdInput*,
+                                            finapp_rpc::GetPortfolioTimeSeriesByIdOutput*) override;
 
-    grpc::Status CreatePortfolio(grpc::ServerContext*, const finapp_rpc::CreatePortfolioInput* request,
-                                 finapp_rpc::CreatePortfolioOutput* reply) override;
+    // --- Stateless analysis ---
+    grpc::Status ComputePortfolioAnalysis(grpc::ServerContext*, const finapp_rpc::ComputePortfolioAnalysisInput*,
+                                          finapp_rpc::ComputePortfolioAnalysisOutput*) override;
 
-    grpc::Status DeletePortfolioById(grpc::ServerContext*, const finapp_rpc::DeletePortfolioByIdInput* request,
-                                     finapp_rpc::DeletePortfolioByIdOutput* reply) override;
+    // --- Stateful analysis session ---
+    grpc::Status OpenPortfolioAnalysisSession(grpc::ServerContext*,
+                                              const finapp_rpc::OpenPortfolioAnalysisSessionInput*,
+                                              finapp_rpc::OpenPortfolioAnalysisSessionOutput*) override;
+    grpc::Status UpdatePortfolioAnalysisSessionRange(grpc::ServerContext*, const finapp_rpc::UpdateSessionRangeInput*,
+                                                     finapp_rpc::UpdatePortfolioAnalysisSessionOutput*) override;
+    grpc::Status ClosePortfolioAnalysisSession(grpc::ServerContext*, const finapp_rpc::CloseSessionInput*,
+                                               finapp_rpc::CloseSessionOutput*) override;
 
-    // Portfolio Tracking
-    grpc::Status GetPortfolioTimeSeriesById(grpc::ServerContext*,
-                                            const finapp_rpc::GetPortfolioTimeSeriesByIdInput* request,
-                                            finapp_rpc::GetPortfolioTimeSeriesByIdOutput* reply) override;
-
-    // Portfolio analysis
-    grpc::Status GetPortfolioAnalysisById(grpc::ServerContext*,
-                                          const finapp_rpc::GetPortfolioAnalysisByIdInput* request,
-                                          finapp_rpc::GetPortfolioAnalysisByIdOutput* reply) override;
-
-    // Transaction Management
+    // --- Transaction management ---
     grpc::Status ListPortfolioTransactionsByPortfolioId(
-        grpc::ServerContext*, const finapp_rpc::ListPortfolioTransactionsByPortfolioIdInput* request,
-        finapp_rpc::ListPortfolioTransactionsByPortfolioIdOutput* reply) override;
-
-    grpc::Status RequestAddTransaction(grpc::ServerContext*, const finapp_rpc::RequestAddTransactionInput* request,
-                                       finapp_rpc::RequestAddTransactionOutput* reply) override;
-
-    grpc::Status RequestAddTransactionByCsv(grpc::ServerContext*,
-                                            const finapp_rpc::RequestAddTransactionByCsvInput* request,
-                                            finapp_rpc::RequestAddTransactionOutput* reply) override;
-
-    grpc::Status DeleteTransaction(grpc::ServerContext*, const finapp_rpc::DeleteTransactionInput* request,
-                                   finapp_rpc::DeleteTransactionOutput* reply) override;
+        grpc::ServerContext*, const finapp_rpc::ListPortfolioTransactionsByPortfolioIdInput*,
+        finapp_rpc::ListPortfolioTransactionsByPortfolioIdOutput*) override;
+    grpc::Status RequestAddTransaction(grpc::ServerContext*, const finapp_rpc::RequestAddTransactionInput*,
+                                       finapp_rpc::RequestAddTransactionOutput*) override;
+    grpc::Status RequestAddTransactionByCsv(grpc::ServerContext*, const finapp_rpc::RequestAddTransactionByCsvInput*,
+                                            finapp_rpc::RequestAddTransactionOutput*) override;
+    grpc::Status DeleteTransaction(grpc::ServerContext*, const finapp_rpc::DeleteTransactionInput*,
+                                   finapp_rpc::DeleteTransactionOutput*) override;
 
  private:
     std::shared_ptr<finapp::PortfolioService> portfolioService_;
+    std::shared_ptr<finapp::PortfolioAnalysisService> portfolioAnalysisService_;
     std::unique_ptr<finapp::logging::ILogger> logger_;
+
+    struct SessionEntry {
+        std::string portfolioId;
+        std::shared_ptr<finance::analysis::PortfolioAnalysis> analysis;
+    };
+    // Open analysis sessions keyed by opaque handle string.
+    std::unordered_map<std::string, SessionEntry> sessions_;
 };

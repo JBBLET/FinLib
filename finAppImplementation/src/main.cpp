@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/logger/ConsoleLogger.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YFinanceEquityProvider.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YFinanceProvider.hpp"
 #include "finapp/data/repository/implementation/CsvRepository/CSVCashRepository.hpp"
@@ -19,7 +20,10 @@
 #include "finapp/service/AssetService.hpp"
 #include "finapp/service/FXService.hpp"
 #include "finapp/service/PortfolioService.hpp"
-#include "finapp/common/logger/ConsoleLogger.hpp"
+#include "finapp/service/analysisService/AssetAnalysisService.hpp"
+#include "finapp/service/analysisService/AssetsAnalysis/EquityAnalysisService.hpp"
+#include "finapp/service/analysisService/IAssetAnalysisService.hpp"
+#include "finapp/service/analysisService/PortfolioAnalysisService.hpp"
 #include "finlib/common/logger/ConsoleLogger.hpp"
 #include "finlib/data/implementation/CSVRepository.hpp"
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"
@@ -30,8 +34,8 @@
 namespace fs = std::filesystem;
 
 int main() {
-    auto logger = std::make_shared<finapp::logging::ConsoleLogger>();   // finapp + gRPC layer
-    auto finlibLogger = std::make_shared<logging::ConsoleLogger>();      // finlib data stack
+    auto logger = std::make_shared<finapp::logging::ConsoleLogger>();  // finapp + gRPC layer
+    auto finlibLogger = std::make_shared<logging::ConsoleLogger>();    // finlib data stack
 
     // Paths
     const fs::path dataDir = "/tmp/finapp_test_data";
@@ -68,9 +72,16 @@ int main() {
     auto portfolioRepo = std::make_shared<finapp::CSVPortfolioRepository>(dataDir / "portfolios");
     auto portfolioSvc = std::make_shared<finapp::PortfolioService>(portfolioRepo, assetSvc, fxSvc, logger.get());
 
+    // Analysis services
+    std::unordered_map<finance::AssetType, std::shared_ptr<finapp::IAssetAnalysisService>> analysisSvcMap{
+        {finance::AssetType::Equity, std::make_shared<finapp::EquityAnalysisService>(assetSvc)},
+    };
+    auto assetAnalysisSvc = std::make_shared<finapp::AssetAnalysisService>(assetSvc, std::move(analysisSvcMap));
+    auto portfolioAnalysisSvc = std::make_shared<finapp::PortfolioAnalysisService>(assetAnalysisSvc);
+
     // gRPC server
     const std::string address = "0.0.0.0:50051";
-    PortfolioGrpcServiceImpl handler{portfolioSvc, logger.get()};
+    PortfolioGrpcServiceImpl handler{portfolioSvc, portfolioAnalysisSvc, logger.get()};
 
     std::vector<std::unique_ptr<grpc::experimental::ServerInterceptorFactoryInterface>> interceptors;
     interceptors.push_back(std::make_unique<LoggingInterceptorFactory>(logger.get()));
