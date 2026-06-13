@@ -2,13 +2,14 @@
 #pragma once
 
 #include <algorithm>
-#include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -18,9 +19,8 @@
 // reports coverage exactly over what was saved. Does not fetch on load misses.
 class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
  public:
-    TimeSeries load(const std::string& id, int64_t startMs, int64_t endMs) const override {
-        auto it = std::find_if(data_.begin(), data_.end(),
-                               [&](const auto& kv) { return kv.first.SeriesId == id; });
+    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs) const override {
+        auto it = std::find_if(data_.begin(), data_.end(), [&](const auto& kv) { return kv.first.SeriesId == id; });
         if (it == data_.end()) {
             throw std::runtime_error("InMemoryTimeSeriesRepository: no data for id " + id);
         }
@@ -40,8 +40,8 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
         return it->second;
     }
 
-    std::vector<int64_t> availableFrequencies(const std::string& id) const override {
-        std::vector<int64_t> out;
+    std::vector<Timestamp> availableFrequencies(const std::string& id) const override {
+        std::vector<Timestamp> out;
         for (const auto& [key, _] : data_) {
             if (key.SeriesId == id) out.push_back(key.frequencyInMs);
         }
@@ -56,7 +56,7 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
         return it->second;
     }
 
-    TimeSeries load(const SeriesKey& key, int64_t startMs, int64_t endMs) const override {
+    TimeSeries load(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const override {
         return filter_(load(key), startMs, endMs);
     }
 
@@ -78,10 +78,10 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
     std::unordered_map<SeriesKey, TimeSeries> data_;
     std::unordered_map<SeriesKey, CoverageInfo> coverage_;
 
-    static TimeSeries filter_(const TimeSeries& ts, int64_t startMs, int64_t endMs) {
+    static TimeSeries filter_(const TimeSeries& ts, Timestamp startMs, Timestamp endMs) {
         const auto& timestamps = ts.getTimestamps();
         const auto& values = ts.getValues();
-        std::vector<int64_t> ots;
+        Timestamps ots;
         std::vector<double> ovs;
         for (size_t i = 0; i < timestamps.size(); ++i) {
             if (timestamps[i] >= startMs && timestamps[i] <= endMs) {

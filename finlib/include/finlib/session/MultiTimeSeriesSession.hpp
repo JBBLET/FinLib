@@ -10,13 +10,14 @@
 #include <vector>
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
 
 namespace analysis {
 
-// TODO: Add AlignmentPolicy (Intersection / Union) support for sessions that do not share a
+// TODO(JBBLET) Add AlignmentPolicy (Intersection / Union) support for sessions that do not share a
 //       timestamp grid. Currently assumes all sessions were constructed with the same shared
 //       TimestampPtr or the same (startMs, endMs, frequencyMs) so their views are already aligned.
 
@@ -32,8 +33,8 @@ class MultiTimeSeriesSession {
     void addSession(std::string name, std::shared_ptr<TimeSeriesSession> session);
 
     // Propagates to all sub-sessions and invalidates cross-series caches.
-    void setRange(int64_t startMs, int64_t endMs);
-    void setFrequency(int64_t freqMs);
+    void setRange(Timestamp startMs, Timestamp endMs);
+    void setFrequency(Timestamp freqMs);
 
     // Per-series — delegates to the named sub-session
     TimeSeriesView seriesView(const std::string& name) const;

@@ -14,29 +14,29 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 class TimeSeriesView;
 
 enum class InterpolationStrategy { Linear, Stochastic, Nearest };
-using TimestampPtr = std::shared_ptr<const std::vector<int64_t>>;
 
 class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
  private:
     std::string id_;
-    TimestampPtr timestamps_;
+    TimestampsPtr timestamps_;
     size_t tsOffset_ = 0;
     std::vector<double> values_;
     bool isSynthetic_ = false;
 
     // helper
-    std::vector<double> partialWalk(const std::vector<int64_t>& targetTimestamps, size_t startIndex, size_t endIndex,
+    std::vector<double> partialWalk(const Timestamps& targetTimestamps, size_t startIndex, size_t endIndex,
                                     InterpolationStrategy strategy, std::optional<uint32_t> seed) const;
     void verifyAlignment_(const TimeSeries& other) const;
 
  public:
-    // Constructors
-    TimeSeries(std::string id, std::vector<int64_t> ts, std::vector<double> vals);
-    TimeSeries(std::string id, std::shared_ptr<const std::vector<int64_t>> ts, std::vector<double> vals);
-    TimeSeries(std::string id, TimestampPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals);
+    // Constructor
+    TimeSeries(std::string id, Timestamps ts, std::vector<double> vals);
+    TimeSeries(std::string id, TimestampsPtr ts, std::vector<double> vals);
+    TimeSeries(std::string id, TimestampsPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals);
 
     TimeSeries(const TimeSeries& other)
         : id_(other.id_),
@@ -73,11 +73,11 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     bool isSynthetic() const { return isSynthetic_; }
 
     // TimeStamps Accessors
-    size_t lowerBound(int64_t ts) const;
-    size_t upperBound(int64_t ts) const;
+    size_t lowerBound(Timestamp ts) const;
+    size_t upperBound(Timestamp ts) const;
     size_t tsOffset() const { return tsOffset_; }
-    const std::shared_ptr<const std::vector<int64_t>>& getSharedTimestamps() const { return timestamps_; }
-    std::span<const int64_t> getTimestamps() const {
+    const TimestampsPtr& getSharedTimestamps() const { return timestamps_; }
+    std::span<const Timestamp> getTimestamps() const {
         return {timestamps_->data() + tsOffset_, values_.size()};
     }  // Returns a span over the timestamps that belong to this series [tsOffset_, tsOffset_+size()).
 
@@ -97,12 +97,12 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimeSeriesView view() const;
     TimeSeriesView slice(size_t start, size_t len) const;
     TimeSeriesView sliceIndex(size_t start, size_t end) const;
-    TimeSeries resampling(const std::vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
+    TimeSeries resampling(const Timestamps& targetTimestamps, InterpolationStrategy strategy,
                           std::optional<uint32_t> seed = std::nullopt) const;
 
     // Overload that shares the caller-owned timestamp vector — avoids an extra allocation
     // and lets downstream operators short-circuit alignment checks via pointer equality.
-    TimeSeries resampling(TimestampPtr targetTimestamps, InterpolationStrategy strategy,
+    TimeSeries resampling(TimestampsPtr targetTimestamps, InterpolationStrategy strategy,
                           std::optional<uint32_t> seed = std::nullopt) const;
 
     template <typename Func>

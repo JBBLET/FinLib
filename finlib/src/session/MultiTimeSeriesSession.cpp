@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -27,12 +28,12 @@ void MultiTimeSeriesSession::addSession(std::string name, std::shared_ptr<TimeSe
 // ---------------------------------------------------------------------------
 // Range / frequency
 // ---------------------------------------------------------------------------
-void MultiTimeSeriesSession::setRange(int64_t startMs, int64_t endMs) {
+void MultiTimeSeriesSession::setRange(Timestamp startMs, Timestamp endMs) {
     for (auto& [name, session] : sessions_) session->setRange(startMs, endMs);
     invalidateCross_();
 }
 
-void MultiTimeSeriesSession::setFrequency(int64_t freqMs) {
+void MultiTimeSeriesSession::setFrequency(Timestamp freqMs) {
     for (auto& [name, session] : sessions_) session->setFrequency(freqMs);
     invalidateCross_();
 }
@@ -164,7 +165,7 @@ std::vector<std::string> MultiTimeSeriesSession::sessionNames() const {
 // Private helpers
 // ---------------------------------------------------------------------------
 std::unordered_map<std::string, TimeSeries> MultiTimeSeriesSession::buildAligned_() const {
-    // TODO: Add AlignmentPolicy (Intersection / Union) support for sessions on different grids.
+    // TODO(JBBLET): Add AlignmentPolicy (Intersection / Union) support for sessions on different grids.
     // For now assumes all sessions share the same timestamp grid.
     std::unordered_map<std::string, TimeSeries> result;
     result.reserve(sessions_.size());

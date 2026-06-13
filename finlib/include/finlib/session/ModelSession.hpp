@@ -1,7 +1,7 @@
 // Copyright 2026 JBBLET
 #pragma once
+
 #include <cstddef>
-#include <cstdint>
 #include <deque>
 #include <memory>
 #include <optional>
@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/models/interfaces/IRegressionModel.hpp"
@@ -24,13 +25,13 @@ class ModelSession {
 
     // Prediction
     struct PredictionEntry {
-        int64_t timestamp;
+        Timestamp timestamp;
         double predictedValue;
         std::optional<double> actualValue;
     };
 
     std::deque<PredictionEntry> predictionContainer_;
-    std::vector<std::pair<int64_t, double>> writeBuffer_;
+    std::vector<std::pair<Timestamp, double>> writeBuffer_;
     size_t writeBufferCapacity_ = 100;
 
     // Running Error Tracking
@@ -39,13 +40,13 @@ class ModelSession {
     double runningSumAbsoluteError_ = 0.0;
     size_t observationCount_ = 0;
 
-    int64_t lastActualTimeStamp_;
-    int64_t deltaT_;
+    Timestamp lastActualTimeStamp_;
+    Timestamp deltaT_;
     double deltaTTolerance_;
 
  public:
     ModelSession(AppContext& context, std::shared_ptr<models::IRegressionModel> model, const TimeSeriesView& view,
-                 size_t errorTrackingWindowSize, int64_t deltaT, double deltaTTolerance)
+                 size_t errorTrackingWindowSize, Timestamp deltaT, double deltaTTolerance)
         : context_(context),
           model_(std::move(model)),
           errorTrackingWindowSize_(errorTrackingWindowSize),
@@ -65,7 +66,7 @@ class ModelSession {
     ModelSession& operator=(ModelSession&&) = delete;
 
     std::vector<PredictionEntry> forecast(size_t steps);
-    void observe(double value, int64_t timestamp);
+    void observe(double value, Timestamp timestamp);
     double rollingMSE(size_t lastN) const;
     double rollingMAE(size_t lastN) const;
     bool shouldRefit(double mseTreshold) const;

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 class TimeSeries;
@@ -17,7 +18,7 @@ struct RegularityCheck {
     bool isRegular;
     int64_t medianDeltaT;
     double standardDeviationDeltaT;
-    RegularityCheck(double tolerance, bool r, int64_t m, double sd)
+    RegularityCheck(double tolerance, bool r, Timestamp m, double sd)
         : cachedTolerance(tolerance), isRegular(r), medianDeltaT(m), standardDeviationDeltaT(sd) {}
 };
 

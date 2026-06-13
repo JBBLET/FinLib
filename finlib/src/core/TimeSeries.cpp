@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
 using std::future;
@@ -24,20 +25,20 @@ using std::vector;
 // ---------------------------------------------------------------------------
 // Private Helpers
 // ---------------------------------------------------------------------------
-double calculateNoise(int64_t target, int64_t t1, int64_t t2, double annualVolatility, std::mt19937& gen) {
+double calculateNoise(Timestamp target, Timestamp t1, Timestamp t2, double annualVolatility, std::mt19937& gen) {
     std::normal_distribution<double> dist(0.0, 1.0);
 
     // scale the volatility with the distance to a known point
     double bridgeVarianceSeconds = (static_cast<double>(target - t1) * (t2 - target)) / (t2 - t1);
 
-    // TODO PRECOMPUTRE THE annual_vol/sqrt(31560000.0) this is the same for all
+    // TODO(JBBLET) PRECOMPUTRE THE annual_vol/sqrt(31560000.0) this is the same for all
     // the points
     double volatilityScale = annualVolatility * sqrt(bridgeVarianceSeconds / 31536000.0);
     return dist(gen) * volatilityScale;
 }
 
-double applyStrategy(InterpolationStrategy strategy, std::mt19937& gen, int64_t target, int64_t t1, double v1,
-                     int64_t t2, double v2, double annualVolatility = 1.0) {
+double applyStrategy(InterpolationStrategy strategy, std::mt19937& gen, Timestamp target, Timestamp t1, double v1,
+                     Timestamp t2, double v2, double annualVolatility = 1.0) {
     double fraction = static_cast<double>(target - t1) / (t2 - t1);
     double linearVal = v1 + fraction * (v2 - v1);
 
@@ -54,7 +55,7 @@ double applyStrategy(InterpolationStrategy strategy, std::mt19937& gen, int64_t 
     return v1;
 }
 
-vector<double> TimeSeries::partialWalk(const vector<int64_t>& targetTimestamps, size_t startIndex, size_t endIndex,
+vector<double> TimeSeries::partialWalk(const Timestamps& targetTimestamps, size_t startIndex, size_t endIndex,
                                        InterpolationStrategy strategy, std::optional<uint32_t> seed) const {
     static thread_local std::mt19937 globalGen(std::random_device{}());
     std::mt19937 localGen;
@@ -111,32 +112,32 @@ void TimeSeries::verifyAlignment_(const TimeSeries& other) const {
 // ---------------------------------------------------------------------------
 // constructor
 // ---------------------------------------------------------------------------
-TimeSeries::TimeSeries(std::string id, std::vector<int64_t> ts, std::vector<double> vals)
-    : id_(id), timestamps_(std::make_shared<const std::vector<int64_t>>(std::move(ts))), values_(std::move(vals)) {
+TimeSeries::TimeSeries(std::string id, Timestamps ts, std::vector<double> vals)
+    : id_(id), timestamps_(std::make_shared<const Timestamps>(std::move(ts))), values_(std::move(vals)) {
     if (timestamps_->size() != values_.size()) {
         throw std::invalid_argument("Size mismatch between timestamps and values");
     }
 }
 
-TimeSeries::TimeSeries(std::string id, std::shared_ptr<const std::vector<int64_t>> ts, std::vector<double> vals)
+TimeSeries::TimeSeries(std::string id, TimestampsPtr ts, std::vector<double> vals)
     : id_(id), timestamps_(std::move(ts)), values_(std::move(vals)) {
     if (timestamps_->size() != values_.size()) {
         throw std::invalid_argument("Size mismatch between timestamps and values");
     }
 }
 
-TimeSeries::TimeSeries(std::string id, TimestampPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals)
+TimeSeries::TimeSeries(std::string id, TimestampsPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals)
     : id_(std::move(id)), timestamps_(std::move(sharedTimestamps)), tsOffset_(tsOffset), values_(std::move(vals)) {
     if (tsOffset_ + values_.size() > timestamps_->size()) {
         throw std::invalid_argument("TimeSeries: tsOffset + size exceeds timestamp vector length");
     }
 }
 // Timestamps Accessors
-size_t TimeSeries::lowerBound(int64_t ts) const {
+size_t TimeSeries::lowerBound(Timestamp ts) const {
     auto span = getTimestamps();
     return std::distance(span.begin(), std::lower_bound(span.begin(), span.end(), ts));
 }
-size_t TimeSeries::upperBound(int64_t ts) const {
+size_t TimeSeries::upperBound(Timestamp ts) const {
     auto span = getTimestamps();
     return std::distance(span.begin(), std::upper_bound(span.begin(), span.end(), ts));
 }
@@ -216,7 +217,7 @@ TimeSeriesView TimeSeries::sliceIndex(size_t start, size_t end) const {
     return TimeSeriesView(shared_from_this(), start, end - start + 1);
 }
 
-TimeSeries TimeSeries::resampling(const vector<int64_t>& targetTimestamps, InterpolationStrategy strategy,
+TimeSeries TimeSeries::resampling(const Timestamps& targetTimestamps, InterpolationStrategy strategy,
                                   std::optional<uint32_t> seed) const {
     const size_t PARALLEL_THRESHOLD = 20000;
     if (!std::is_sorted(targetTimestamps.begin(), targetTimestamps.end())) {
@@ -248,7 +249,7 @@ TimeSeries TimeSeries::resampling(const vector<int64_t>& targetTimestamps, Inter
     return result;
 }
 
-TimeSeries TimeSeries::resampling(TimestampPtr targetTimestamps, InterpolationStrategy strategy,
+TimeSeries TimeSeries::resampling(TimestampsPtr targetTimestamps, InterpolationStrategy strategy,
                                   std::optional<uint32_t> seed) const {
     if (!targetTimestamps) {
         throw invalid_argument("targetTimestamps pointer is null.");

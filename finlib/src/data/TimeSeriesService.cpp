@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
@@ -44,7 +45,8 @@ TimeSeriesService::TimeSeriesService(std::shared_ptr<CachedTimeSeriesRepository>
 
 // Public API
 
-TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_t endMs, int64_t requestedFrequencyMs) {
+TimeSeries TimeSeriesService::get(const std::string& id, Timestamp startMs, Timestamp endMs,
+                                  Timestamp requestedFrequencyMs) {
     SeriesKey requestedKey{id, requestedFrequencyMs};
 
     // --- Step 1: exact key exists and covers the full range? ---
@@ -76,8 +78,8 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
                                "ms: local resample from freq=" + std::to_string(localKey->frequencyInMs) + "ms");
         TimeSeries finerData = cache_->load(*localKey, startMs, endMs);
         if (localKey->frequencyInMs < requestedFrequencyMs) {
-            std::vector<int64_t> targetTimestamps;
-            for (int64_t t = startMs; t <= endMs; t += requestedFrequencyMs) {
+            Timestamps targetTimestamps;
+            for (Timestamp t = startMs; t <= endMs; t += requestedFrequencyMs) {
                 targetTimestamps.push_back(t);
             }
             return finerData.resampling(targetTimestamps, InterpolationStrategy::Nearest);
@@ -124,7 +126,7 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
                                  "' (ticker may be delisted or unavailable)");
     }
 
-    int64_t nowMs =
+    Timestamp nowMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
             .count();
 
@@ -134,8 +136,8 @@ TimeSeries TimeSeriesService::get(const std::string& id, int64_t startMs, int64_
     return fetched;
 }
 
-TimeSeries TimeSeriesService::getResampled(const std::string& id, int64_t startMs, int64_t endMs,
-                                           int64_t requestedFrequencyMs, InterpolationStrategy strategy) {
+TimeSeries TimeSeriesService::getResampled(const std::string& id, Timestamp startMs, Timestamp endMs,
+                                           Timestamp requestedFrequencyMs, InterpolationStrategy strategy) {
     // ensureAndResolveKey_ runs the same coverage/gap/fetch logic as get(), then returns
     // the best available SeriesKey (exact match or a finer-frequency one).
     auto ensureAndResolveKey = [&]() -> SeriesKey {
@@ -189,13 +191,13 @@ TimeSeries TimeSeriesService::getResampled(const std::string& id, int64_t startM
     // Load full NaN-free series and resample to a regular grid with the requested strategy.
     // This fills weekends, holidays, and any tail beyond the last published data point.
     TimeSeries full = cache_->load(resolvedKey);
-    std::vector<int64_t> grid;
-    for (int64_t t = startMs; t <= endMs; t += requestedFrequencyMs) grid.push_back(t);
+    Timestamps grid;
+    for (Timestamp t = startMs; t <= endMs; t += requestedFrequencyMs) grid.push_back(t);
     if (grid.empty()) grid.push_back(startMs);
     return full.resampling(grid, strategy);
 }
 
-TimeSeries TimeSeriesService::get(const std::string& id, TimestampPtr timestamps) {
+TimeSeries TimeSeriesService::get(const std::string& id, TimestampsPtr timestamps) {
     if (!timestamps || timestamps->empty()) {
         throw std::invalid_argument("TimeSeriesService::get: timestamps must be non-empty.");
     }
@@ -204,12 +206,12 @@ TimeSeries TimeSeriesService::get(const std::string& id, TimestampPtr timestamps
         throw std::invalid_argument("TimeSeriesService::get: timestamps must be sorted.");
     }
 
-    int64_t startMs = ts.front();
-    int64_t endMs = ts.back();
+    Timestamp startMs = ts.front();
+    Timestamp endMs = ts.back();
 
     // Infer frequency from the grid and require regular spacing. If this ever needs
     // to support irregular grids, use getRaw and resample at the call site instead.
-    int64_t frequencyMs = ts.size() >= 2 ? ts[1] - ts[0] : endMs - startMs;
+    Timestamp frequencyMs = ts.size() >= 2 ? ts[1] - ts[0] : endMs - startMs;
     if (frequencyMs <= 0) {
         throw std::invalid_argument("TimeSeriesService::get: frequency derived from timestamps must be positive.");
     }
@@ -225,7 +227,7 @@ TimeSeries TimeSeriesService::get(const std::string& id, TimestampPtr timestamps
     return raw.resampling(std::move(timestamps), InterpolationStrategy::Nearest);
 }
 
-TimeSeries TimeSeriesService::getRaw(const std::string& id, int64_t startMs, int64_t endMs) {
+TimeSeries TimeSeriesService::getRaw(const std::string& id, Timestamp startMs, Timestamp endMs) {
     // Try to find any local key that covers the range
     auto localKey = findLocalCoveringKey_(id, startMs, endMs, INT64_MAX);
     if (localKey) {
@@ -269,13 +271,13 @@ TimeSeries TimeSeriesService::getRaw(const std::string& id, int64_t startMs, int
 // Private helpers
 // ---------------------------------------------------------------------------
 
-std::optional<SeriesKey> TimeSeriesService::findLocalCoveringKey_(const std::string& id, int64_t startMs, int64_t endMs,
-                                                                  int64_t maxFrequencyMs) const {
+std::optional<SeriesKey> TimeSeriesService::findLocalCoveringKey_(const std::string& id, Timestamp startMs,
+                                                                  Timestamp endMs, Timestamp maxFrequencyMs) const {
     auto frequencies = cache_->availableFrequencies(id);
     // Sort ascending (finest / smallest ms value first)
     std::sort(frequencies.begin(), frequencies.end());
 
-    for (int64_t freq : frequencies) {
+    for (Timestamp freq : frequencies) {
         // Skip frequencies coarser than what we can derive from
         if (freq > maxFrequencyMs) continue;
 

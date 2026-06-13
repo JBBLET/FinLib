@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "finlib/common/FinlibTypes.hpp"
+
 namespace common::utils::time {
 
 int64_t parseIso8601ToMs(const std::string& input) {
@@ -56,7 +58,7 @@ int64_t parseIso8601ToMs(const std::string& input) {
     return tp.time_since_epoch().count();
 }
 
-std::string msToStringISO8601(int64_t ms) {
+std::string msToStringISO8601(Timestamp ms) {
     using std::chrono::duration_cast;
     using std::chrono::floor;
     using std::chrono::milliseconds;
@@ -71,7 +73,7 @@ std::string msToStringISO8601(int64_t ms) {
     return std::format("{:%Y-%m-%dT%H:%M:%S}.{:03}Z", secTp, msPart);
 }
 
-std::string msToStringDate(int64_t ms) {
+std::string msToStringDate(Timestamp ms) {
     std::chrono::sys_time<std::chrono::milliseconds> tp{std::chrono::milliseconds{ms}};
 
     auto days = floor<std::chrono::days>(tp);

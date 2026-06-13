@@ -1,12 +1,14 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
-#include <cstdint>
+
 #include <string>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
+
 struct LoaderCapabilities {
-    int64_t earliestAvailableMS;
-    int64_t finestFrequencyMs;
+    Timestamp earliestAvailableMS;
+    Timestamp finestFrequencyMs;
 };
 
 class ITimeSeriesLoader {
@@ -18,6 +20,6 @@ class ITimeSeriesLoader {
     ITimeSeriesLoader(ITimeSeriesLoader&&) = default;
     ITimeSeriesLoader& operator=(ITimeSeriesLoader&&) = default;
 
-    virtual TimeSeries load(const std::string& id, int64_t startTimestampMs, int64_t endTimestampMs) const = 0;
+    virtual TimeSeries load(const std::string& id, Timestamp startTimestampMs, Timestamp endTimestampMs) const = 0;
     virtual LoaderCapabilities capabilities(const std::string& id) const = 0;
 };

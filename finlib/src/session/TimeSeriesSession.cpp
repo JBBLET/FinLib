@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 namespace analysis {
@@ -17,7 +18,7 @@ namespace analysis {
 // Constructors
 // ---------------------------------------------------------------------------
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
-                                     TimestampMs startMs, TimestampMs endMs, TimestampMs frequencyMs)
+                                     Timestamp startMs, Timestamp endMs, Timestamp frequencyMs)
     : service_{std::move(service)},
       seriesId_{std::move(seriesId)},
       startMs_{startMs},
@@ -27,7 +28,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
 }
 
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
-                                     std::shared_ptr<std::vector<TimestampMs>> timestampsMs)
+                                     std::shared_ptr<Timestamps> timestampsMs)
     : service_{std::move(service)}, seriesId_{std::move(seriesId)} {
     startMs_ = timestampsMs->front();
     endMs_ = timestampsMs->back();
@@ -45,7 +46,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<const TimeSeries> precomput
 // ---------------------------------------------------------------------------
 // Setters
 // ---------------------------------------------------------------------------
-void TimeSeriesSession::setRange(TimestampMs newStartMs, TimestampMs newEndMs) {
+void TimeSeriesSession::setRange(Timestamp newStartMs, Timestamp newEndMs) {
     if (newStartMs == startMs_ && newEndMs == endMs_) return;
     if (newStartMs < startMs_ || newEndMs > endMs_)
         extendRange_(std::min(newStartMs, startMs_), std::max(newEndMs, endMs_));
@@ -54,7 +55,7 @@ void TimeSeriesSession::setRange(TimestampMs newStartMs, TimestampMs newEndMs) {
     invalidateAllCache_();
 }
 
-void TimeSeriesSession::setFrequency(TimestampMs newFrequencyMs) {
+void TimeSeriesSession::setFrequency(Timestamp newFrequencyMs) {
     if (!service_) throw std::logic_error("Cannot change frequency on a computed TimeSeriesSession");
     frequencyMs_ = newFrequencyMs;
     source_ = std::make_shared<const TimeSeries>(service_->get(seriesId_, startMs_, endMs_, newFrequencyMs));
@@ -105,7 +106,7 @@ const TimeSeriesAnalysis& TimeSeriesSession::derivedAnalysis(const std::string& 
 // ---------------------------------------------------------------------------
 size_t TimeSeriesSession::size() const { return source_->upperBound(endMs_) - source_->lowerBound(startMs_); }
 
-TimestampMs TimeSeriesSession::frequencyMs() const {
+Timestamp TimeSeriesSession::frequencyMs() const {
     if (frequencyMs_.has_value()) return frequencyMs_.value();
     throw std::logic_error("Session is not on a regular TimeSeries");
 }
@@ -113,7 +114,7 @@ TimestampMs TimeSeriesSession::frequencyMs() const {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
-void TimeSeriesSession::extendRange_(TimestampMs newStartMs, TimestampMs newEndMs) {
+void TimeSeriesSession::extendRange_(Timestamp newStartMs, Timestamp newEndMs) {
     if (!service_) return;  // computed series — source is fixed, window only
     if (frequencyMs_.has_value()) {
         source_ =

@@ -5,9 +5,11 @@
 #include <functional>
 #include <string>
 
+#include "finlib/common/FinlibTypes.hpp"
+
 struct SeriesKey {
     std::string SeriesId;
-    int64_t frequencyInMs;
+    Timestamp frequencyInMs;
     bool operator==(const SeriesKey&) const = default;
 };
 template <>

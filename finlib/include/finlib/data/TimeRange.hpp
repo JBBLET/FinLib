@@ -4,11 +4,12 @@
 #include <cstdint>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 
 struct TimeRange {
-    int64_t startTimeStampMs;
-    int64_t endTimeStampMs;
+    Timestamp startTimeStampMs;
+    Timestamp endTimeStampMs;
 };
 
 inline std::vector<TimeRange> computeGaps(const CoverageInfo& coverage, const TimeRange& requested) {

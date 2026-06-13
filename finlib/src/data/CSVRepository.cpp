@@ -1,6 +1,5 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include "finlib/data/implementation/CSVRepository.hpp"
-#include "finlib/common/logger/PrefixedLogger.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -16,18 +15,19 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
 
 CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* logger)
-    : directory_(std::move(directory)),
-      logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
+    : directory_(std::move(directory)), logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
     std::filesystem::create_directories(directory_);
 }
 
 // ITimeSeriesLoader Interface
-TimeSeries CSVRepository::load(const std::string& id, int64_t startMs, int64_t endMs) const {
+TimeSeries CSVRepository::load(const std::string& id, Timestamp startMs, Timestamp endMs) const {
     auto freqs = availableFrequencies(id);
     if (freqs.empty()) {
         throw std::runtime_error("No data found for series: " + id);
@@ -41,10 +41,10 @@ LoaderCapabilities CSVRepository::capabilities(const std::string& id) const {
     if (freqs.empty()) {
         throw std::runtime_error("No data found for series: " + id);
     }
-    int64_t finestFreq = *std::min_element(freqs.begin(), freqs.end());
+    Timestamp finestFreq = *std::min_element(freqs.begin(), freqs.end());
     SeriesKey key{id, finestFreq};
     auto cov = coverage(key);
-    int64_t earliest = cov ? cov->coveredFromMs : 0;
+    Timestamp earliest = cov ? cov->coveredFromMs : 0;
     return LoaderCapabilities{earliest, finestFreq};
 }
 
@@ -63,7 +63,7 @@ void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
     if (newData.size() == 0) return;
 
     // Combine existing data (if any) with new data using a sorted map for dedup
-    std::map<int64_t, double> combined;
+    std::map<Timestamp, double> combined;
 
     if (exists(key)) {
         auto existing = readCsv_(key);
@@ -81,7 +81,7 @@ void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
     }
 
     // Build merged TimeSeries
-    std::vector<int64_t> mergedTs;
+    Timestamps mergedTs;
     std::vector<double> mergedVals;
     mergedTs.reserve(combined.size());
     mergedVals.reserve(combined.size());
@@ -95,10 +95,9 @@ void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
     if (logger_)
         logger_->write(logging::Level::Debug,
                        "CSV merge: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms +" +
-                           std::to_string(newData.size()) + " points -> " + std::to_string(merged.size()) +
-                           " total");
+                           std::to_string(newData.size()) + " points -> " + std::to_string(merged.size()) + " total");
 
-    int64_t nowMs =
+    Timestamp nowMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
             .count();
 
@@ -117,8 +116,8 @@ std::optional<CoverageInfo> CSVRepository::coverage(const SeriesKey& key) const 
     return readMeta_(key);
 }
 
-std::vector<int64_t> CSVRepository::availableFrequencies(const std::string& id) const {
-    std::vector<int64_t> freqs;
+Timestamps CSVRepository::availableFrequencies(const std::string& id) const {
+    std::vector<Timestamp> freqs;
     auto seriesDir = directory_ / id;
     if (!std::filesystem::exists(seriesDir) || !std::filesystem::is_directory(seriesDir)) {
         return freqs;
@@ -164,19 +163,19 @@ std::filesystem::path CSVRepository::metaPath_(const SeriesKey& key) const {
     return directory_ / key.SeriesId / (std::to_string(key.frequencyInMs) + ".meta");
 }
 
-TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId, int64_t startMs,
-                                        int64_t endMs) {
+TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId,
+                                        Timestamp startMs, Timestamp endMs) {
     std::ifstream file(path);
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open CSV file: " + path.string());
     }
 
     bool applyFilter = (startMs <= endMs);
-    std::vector<int64_t> timestamps;
+    Timestamps timestamps;
     std::vector<double> values;
     std::string line;
 
-    auto pushIfValid = [&](int64_t ts, const std::string& valStr) {
+    auto pushIfValid = [&](Timestamp ts, const std::string& valStr) {
         double v = std::stod(valStr);
         if (!std::isnan(v)) {
             timestamps.push_back(ts);
@@ -192,7 +191,7 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
             std::string tsStr;
             std::string valStr;
             if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
-                int64_t ts = std::stoll(tsStr);
+                Timestamp ts = std::stoll(tsStr);
                 if (!applyFilter || (ts >= startMs && ts <= endMs)) {
                     pushIfValid(ts, valStr);
                 }
@@ -206,7 +205,7 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
         std::string tsStr;
         std::string valStr;
         if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
-            int64_t ts = std::stoll(tsStr);
+            Timestamp ts = std::stoll(tsStr);
             if (!applyFilter || (ts >= startMs && ts <= endMs)) {
                 pushIfValid(ts, valStr);
             }
@@ -225,7 +224,7 @@ TimeSeries CSVRepository::readCsv_(const SeriesKey& key) const {
     return parseCsvFile_(path, key.SeriesId, 1, 0);
 }
 
-TimeSeries CSVRepository::readCsvFiltered_(const SeriesKey& key, int64_t startMs, int64_t endMs) const {
+TimeSeries CSVRepository::readCsvFiltered_(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const {
     auto path = csvPath_(key);
     if (!std::filesystem::exists(path)) {
         throw std::runtime_error("CSV file not found: " + path.string());

@@ -1,12 +1,13 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
@@ -24,7 +25,7 @@ class CSVRepository : public ITimeSeriesRepository {
 
     // --- ITimeSeriesLoader ---
     /// Finds the finest available frequency for `id` and loads data in [startMs, endMs].
-    TimeSeries load(const std::string& id, int64_t startMs, int64_t endMs) const override;
+    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs) const override;
     LoaderCapabilities capabilities(const std::string& id) const override;
 
     // --- ITimeSeriesSaver (via doSave/doMerge) ---
@@ -33,13 +34,12 @@ class CSVRepository : public ITimeSeriesRepository {
     void doMerge(const SeriesKey& key, const TimeSeries& newData) override;
 
  public:
-
     // --- ITimeSeriesRepository ---
     bool exists(const SeriesKey& key) const override;
     std::optional<CoverageInfo> coverage(const SeriesKey& key) const override;
-    std::vector<int64_t> availableFrequencies(const std::string& id) const override;
+    std::vector<Timestamp> availableFrequencies(const std::string& id) const override;
     TimeSeries load(const SeriesKey& key) const override;
-    TimeSeries load(const SeriesKey& key, int64_t startMs, int64_t endMs) const override;
+    TimeSeries load(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const override;
 
  private:
     std::filesystem::path directory_;
@@ -53,7 +53,7 @@ class CSVRepository : public ITimeSeriesRepository {
     TimeSeries readCsv_(const SeriesKey& key) const;
 
     /// Reads rows from the CSV file, keeping only those in [startMs, endMs].
-    TimeSeries readCsvFiltered_(const SeriesKey& key, int64_t startMs, int64_t endMs) const;
+    TimeSeries readCsvFiltered_(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const;
 
     void writeCsv_(const SeriesKey& key, const TimeSeries& ts) const;
 
@@ -61,6 +61,6 @@ class CSVRepository : public ITimeSeriesRepository {
     void writeMeta_(const CoverageInfo& cov) const;
 
     /// Shared CSV parsing logic. If startMs > endMs, no filtering is applied.
-    static TimeSeries parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId,
-                                    int64_t startMs, int64_t endMs);
+    static TimeSeries parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId, Timestamp startMs,
+                                    Timestamp endMs);
 };
