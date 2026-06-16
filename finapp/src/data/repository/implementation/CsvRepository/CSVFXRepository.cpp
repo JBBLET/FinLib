@@ -11,10 +11,9 @@
 #include <vector>
 
 #include "finapp/finance/common/Currency.hpp"
-
+using finance::Currency;
+using finance::currencyFromString;
 namespace finapp {
-
-using namespace finance;
 
 CSVFXRepository::CSVFXRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
     std::filesystem::create_directories(directory_);
@@ -38,9 +37,8 @@ std::vector<FXInfos> CSVFXRepository::readAll_() const {
         if (line.empty()) continue;
         std::istringstream iss(line);
         std::string baseStr, quoteStr, seriesId;
-        if (std::getline(iss, baseStr, ',') && std::getline(iss, quoteStr, ',') && std::getline(iss, seriesId)) {
-            entries.push_back(
-                FXInfos{currencyFromString(baseStr), currencyFromString(quoteStr), seriesId});
+        if (std::getline(iss, baseStr, ';') && std::getline(iss, quoteStr, ';') && std::getline(iss, seriesId)) {
+            entries.push_back(FXInfos{currencyFromString(baseStr), currencyFromString(quoteStr), seriesId});
         }
     }
     return entries;
@@ -54,9 +52,9 @@ void CSVFXRepository::writeAll_(const std::vector<FXInfos>& entries) const {
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open FX CSV file for writing: " + path.string());
     }
-    file << "baseCurrency,quoteCurrency,timeseriesID\n";
+    file << "baseCurrency;quoteCurrency;timeseriesID\n";
     for (const auto& entry : entries) {
-        file << toString(entry.baseCurrency) + "," + toString(entry.quoteCurrency) + "," + entry.timeseriesID + "\n";
+        file << toString(entry.baseCurrency) + ";" + toString(entry.quoteCurrency) + ";" + entry.timeseriesID + "\n";
     }
 }
 

@@ -8,6 +8,7 @@
 #include "finTUI/dataSources/IPortfolioDataSource.hpp"
 #include "finTUI/modules/portfolioModule/PortfolioModuleTypes.hpp"
 #include "finTUI/uiComponents/TuiLineChart.hpp"
+#include "finTUI/uiComponents/TuiRangeSelector.hpp"
 #include "ftxui/component/component.hpp"
 #include "ftxui/dom/elements.hpp"
 
@@ -34,6 +35,7 @@ class ChartPane {
     TimeSeriesData timeSeries_;
     TuiLineChart chart_;
 
+    std::shared_ptr<TuiRangeSelector> rangeSelector_;
     ftxui::Component component_;
 
     void loadTimeSeries_();

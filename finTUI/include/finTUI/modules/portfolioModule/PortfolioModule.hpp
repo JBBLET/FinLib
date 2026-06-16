@@ -5,10 +5,12 @@
 #include <string>
 #include <vector>
 
+#include "finTUI/dataSources/IPortfolioAnalysisDataSource.hpp"
 #include "finTUI/dataSources/IPortfolioDataSource.hpp"
 #include "finTUI/modules/IModule.hpp"
 #include "finTUI/modules/portfolioModule/ChartPane.hpp"
 #include "finTUI/modules/portfolioModule/Dialogs.hpp"
+#include "finTUI/modules/portfolioModule/OverviewPane.hpp"
 #include "finTUI/modules/portfolioModule/PortfolioModuleTypes.hpp"
 #include "finTUI/modules/portfolioModule/TransactionsPane.hpp"
 #include "finTUI/uiComponents/TuiConfirmationDialog.hpp"
@@ -21,7 +23,9 @@ namespace finui {
 
 class PortfolioModule : public IModule {
  public:
-    PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSource, ftxui::ScreenInteractive& screen);
+    PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSource,
+                    std::shared_ptr<IPortfolioAnalysisDataSource> analysisDataSource,
+                    ftxui::ScreenInteractive& screen);
     PortfolioModule(const PortfolioModule&) = delete;
     PortfolioModule(PortfolioModule&&) = delete;
     PortfolioModule& operator=(const PortfolioModule&) = delete;
@@ -33,6 +37,7 @@ class PortfolioModule : public IModule {
  private:
     // ── External ──────────────────────────────────────────────────────────────
     std::shared_ptr<IPortfolioDataSource> dataSource_;
+    std::shared_ptr<IPortfolioAnalysisDataSource> analysisDataSource_;
     ftxui::ScreenInteractive& screen_;
 
     // ── Mode / pane ───────────────────────────────────────────────────────────
@@ -59,6 +64,7 @@ class PortfolioModule : public IModule {
     std::shared_ptr<TuiConfirmationDialog> deletePortfolioConfirm_;
 
     // ── Panes ─────────────────────────────────────────────────────────────────
+    std::unique_ptr<OverviewPane> overviewPane_;
     std::unique_ptr<TransactionsPane> txnPane_;
     std::unique_ptr<ChartPane> chartPane_;
     std::shared_ptr<TuiTabbedPanel> rightPanel_;
@@ -80,7 +86,6 @@ class PortfolioModule : public IModule {
 
     // ── Render ────────────────────────────────────────────────────────────────
     ftxui::Element buildLeftPanel_() const;
-    ftxui::Element buildOverviewPanel_() const;
     ftxui::Element renderRoot_() const;
 };
 

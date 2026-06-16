@@ -5,6 +5,7 @@ add_library(finTUI_uiComponents STATIC
     src/uiComponents/TuiTable.cpp
     src/uiComponents/TuiLineChart.cpp
     src/uiComponents/TuiFileDialog.cpp
+    src/uiComponents/TuiRangeSelector.cpp
     src/finTuiUtils/FinTuiUtils.cpp
     src/finTuiUtils/DateUtils.cpp
     src/finTuiUtils/FormatUtils.cpp
@@ -24,6 +25,7 @@ add_library(finTUI_portfolioModule STATIC
     src/modules/portfolioModule/Dialogs.cpp
     src/modules/portfolioModule/TransactionsPane.cpp
     src/modules/portfolioModule/ChartPane.cpp
+    src/modules/portfolioModule/OverviewPane.cpp
     src/finTuiUtils/CurrencyUtils.cpp
 )
 target_link_libraries(finTUI_portfolioModule
@@ -33,6 +35,8 @@ target_link_libraries(finTUI_portfolioModule
 
 add_library(finTUI_grpcDataSources STATIC
     src/dataSources/GrpcPortfolioDataSource.cpp
+    src/dataSources/GrpcPortfolioAnalysisDataSource.cpp
+    src/dataSources/GrpcPortfolioSessionDataSource.cpp
 )
 target_link_libraries(finTUI_grpcDataSources
     PUBLIC finTUI_portfolioModule

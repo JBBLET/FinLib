@@ -13,6 +13,9 @@
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
+#include "finlib/common/FinlibTypes.hpp"
+
+using Timestamp = int64_t;
 
 namespace finance {
 
@@ -64,7 +67,7 @@ class Portfolio {
     std::unordered_map<Currency, double> cashBalances_;
     std::vector<AssetId> universe_;
     std::vector<TargetAllocation> targetAllocations_;
-    int64_t lastTransactionMs_ = 0;
+    Timestamp lastTransactionMs_ = 0;
 
     std::unordered_map<std::string, size_t> positionsIndex_;
 

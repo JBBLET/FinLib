@@ -28,7 +28,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
 }
 
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
-                                     std::shared_ptr<Timestamps> timestampsMs)
+                                     TimestampsPtr timestampsMs)
     : service_{std::move(service)}, seriesId_{std::move(seriesId)} {
     startMs_ = timestampsMs->front();
     endMs_ = timestampsMs->back();

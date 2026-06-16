@@ -13,7 +13,7 @@ namespace finance::analysis {
 
 class IAssetAnalysis {
  public:
-    IAssetAnalysis(std::shared_ptr<IAsset> asset, std::shared_ptr<::analysis::TimeSeriesSession> session)
+    IAssetAnalysis(std::shared_ptr<const IAsset> asset, std::shared_ptr<::analysis::TimeSeriesSession> session)
         : asset_{std::move(asset)}, session_{std::move(session)} {}
 
     virtual ~IAssetAnalysis() = default;
@@ -34,10 +34,10 @@ class IAssetAnalysis {
     ::analysis::TimeSeriesSession& session() { return *session_; }
     std::shared_ptr<::analysis::TimeSeriesSession> sessionPtr() const { return session_; }
 
-    std::shared_ptr<IAsset> asset() const { return asset_; }
+    std::shared_ptr<const IAsset> asset() const { return asset_; }
 
  protected:
-    std::shared_ptr<IAsset> asset_;
+    std::shared_ptr<const IAsset> asset_;
     std::shared_ptr<::analysis::TimeSeriesSession> session_;
 };
 

@@ -30,7 +30,7 @@ enum class NavMode { TargetWeighted, QuantityBased };
 
 class PortfolioAnalysis {
  public:
-    PortfolioAnalysis(const finance::Portfolio& portfolio, std::shared_ptr<::analysis::MultiTimeSeriesSession> session,
+    PortfolioAnalysis(const finance::Portfolio& portfolio, std::unique_ptr<::analysis::MultiTimeSeriesSession> session,
                       std::vector<std::shared_ptr<IAssetAnalysis>> assetAnalyses,
                       std::unordered_map<std::string, double> navWeights, NavMode navMode);
 
@@ -61,14 +61,14 @@ class PortfolioAnalysis {
     NavMode navMode() const { return navMode_; }
 
  private:
-    std::shared_ptr<::analysis::MultiTimeSeriesSession> session_;
+    std::unique_ptr<::analysis::MultiTimeSeriesSession> session_;
     std::vector<std::shared_ptr<IAssetAnalysis>> assetAnalyses_;
     std::unordered_map<std::string, std::shared_ptr<IAssetAnalysis>> index_;
     std::vector<std::string> tickers_;
     NavMode navMode_;
 
     // Set by setNavTimeSeries() — takes precedence over the cross-transform.
-    std::shared_ptr<const TimeSeries> precomputedNav_;
+    std::unique_ptr<::analysis::TimeSeriesSession> navSession_;
     std::optional<::analysis::TimeSeriesAnalysis> precomputedNavAnalysis_;
 };
 

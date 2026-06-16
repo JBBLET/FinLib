@@ -2,7 +2,7 @@
 #include "finapp/service/analysisService/PortfolioAnalysisService.hpp"
 
 #include <memory>
-#include <numeric>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -82,7 +82,7 @@ PortfolioAnalysisService::resolveNavWeights_(const finance::Portfolio& portfolio
 
 std::shared_ptr<finance::analysis::PortfolioAnalysis> PortfolioAnalysisService::assemble_(
     const finance::Portfolio& portfolio, std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> analyses) {
-    auto multiSession = std::make_shared<::analysis::MultiTimeSeriesSession>();
+    auto multiSession = std::make_unique<::analysis::MultiTimeSeriesSession>();
     for (const auto& a : analyses) multiSession->addSession(a->asset()->ticker(), a->sessionPtr());
 
     auto [navMode, navWeights] = resolveNavWeights_(portfolio);

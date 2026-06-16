@@ -36,6 +36,14 @@ ftxui::Element TuiTabbedPanel::OnRender() {
     return ftxui::window(ftxui::hbox(tabBars), ChildAt(0)->Render() | ftxui::flex_grow);
 }
 
+ftxui::Component TuiTabbedPanel::ActiveChild() {
+    // The default ComponentBase::ActiveChild() only returns a child if it is
+    // Focusable(), but tabs whose content is a plain Renderer (e.g. Overview,
+    // Chart) report Focusable() == false. That would break the Focused() chain
+    // for the whole panel and silently swallow events meant for the active tab.
+    return ChildAt(0);
+}
+
 bool TuiTabbedPanel::OnEvent(ftxui::Event e) {
     for (int i = 0; i < static_cast<int>(tabs_.size()); ++i) {
         if (tabs_[i].shortcutKey && e == ftxui::Event::Character(tabs_[i].shortcutKey)) {
@@ -44,7 +52,17 @@ bool TuiTabbedPanel::OnEvent(ftxui::Event e) {
             return true;
         }
     }
-    return ftxui::ComponentBase::OnEvent(e);
+    // Forward straight to the active tab's content, bypassing the inner
+    // Container::Tab's own OnEvent(). That dispatch is gated behind
+    // ContainerBase::Focused(), which requires the *content's* Focusable() to
+    // be true -- but tabs like Overview/Chart are plain Renderers with no
+    // focusable widget, so that gate is always closed for them and events
+    // (arrow keys, 'i', etc.) never reach the pane. See the identical
+    // workaround/explanation in AppShell.cpp.
+    if (activeTabIndex_ >= 0 && activeTabIndex_ < static_cast<int>(tabs_.size())) {
+        return tabs_[activeTabIndex_].content->OnEvent(e);
+    }
+    return false;
 }
 
 void TuiTabbedPanel::setActiveTab(int idx) {

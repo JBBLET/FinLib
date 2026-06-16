@@ -21,10 +21,10 @@ class TimeSeriesService {
 
     // Returns raw cache/provider data at native trading-day timestamps.
     // Gaps are NOT filled — use getResampled for that.
-    TimeSeries get(const std::string& id, int64_t startMs, int64_t endMs, int64_t requestedFrequencyMs);
+    TimeSeries get(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp requestedFrequencyMs);
 
     // Returns raw data without resampling — supports non-regular time series
-    TimeSeries getRaw(const std::string& id, int64_t startMs, int64_t endMs);
+    TimeSeries getRaw(const std::string& id, Timestamp startMs, Timestamp endMs);
 
     // Overload taking a caller-owned, regularly-spaced timestamp grid. The returned
     // TimeSeries shares the same TimestampPtr, so multiple series fetched on the same
@@ -34,16 +34,19 @@ class TimeSeriesService {
     // Like get(), but always returns a regularly-spaced series covering [startMs, endMs]
     // at requestedFrequencyMs intervals.  Missing points are filled via the chosen InterpolationStrategy (default:
     // Nearest).
-    TimeSeries getResampled(const std::string& id, int64_t startMs, int64_t endMs, int64_t requestedFrequencyMs,
+    TimeSeries getResampled(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp requestedFrequencyMs,
                             InterpolationStrategy strategy = InterpolationStrategy::Nearest);
+
+    // Fetch a single point at ts
+    double getSinglePoint(const std::string& id, Timestamp ts);
 
  private:
     std::shared_ptr<CachedTimeSeriesRepository> cache_;
     std::shared_ptr<ITimeSeriesLoader> provider_;
     std::unique_ptr<logging::ILogger> logger_;
 
-    std::optional<SeriesKey> findLocalCoveringKey_(const std::string& id, int64_t startMs, int64_t endMs,
-                                                   int64_t maxFrequencyMs) const;
+    std::optional<SeriesKey> findLocalCoveringKey_(const std::string& id, Timestamp startMs, Timestamp endMs,
+                                                   Timestamp maxFrequencyMs) const;
 
     void fetchAndMergeGaps_(const SeriesKey& key, const std::vector<TimeRange>& gaps);
 };

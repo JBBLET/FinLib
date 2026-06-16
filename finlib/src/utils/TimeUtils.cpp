@@ -9,7 +9,7 @@
 
 namespace common::utils::time {
 
-int64_t parseIso8601ToMs(const std::string& input) {
+Timestamp parseIso8601ToMs(const std::string& input) {
     // Only accept YYYY-MM-DDTHH:MM:SS[.mmm](Z | ±HH:MM) format
     using std::stoi;
 

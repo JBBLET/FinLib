@@ -13,7 +13,8 @@ class PythonRuntime {
         static pybind11::scoped_interpreter interpreter = [] {
             PyConfig config;
             PyConfig_InitPythonConfig(&config);
-            PyConfig_SetString(&config, &config.executable, L"/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python");
+            PyConfig_SetString(
+                &config, &config.executable, L"/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python");
             return pybind11::scoped_interpreter{&config};
         }();
         static bool pathInit = [] {

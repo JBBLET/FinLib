@@ -22,10 +22,10 @@ TimestampsPtr makeRegularTimestamps(Timestamp beginMs, Timestamp endMs, Timestam
     Timestamps timestamps;
     const size_t expected = static_cast<size_t>((endMs - beginMs) / frequencyMs) + 1;
     timestamps.reserve(expected);
-    for (int64_t t = beginMs; t <= endMs; t += frequencyMs) {
+    for (Timestamp t = beginMs; t <= endMs; t += frequencyMs) {
         timestamps.push_back(t);
     }
-    return std::make_shared<const std::vector<int64_t>>(std::move(timestamps));
+    return std::make_shared<const Timestamps>(std::move(timestamps));
 }
 
 TimeSeries generateConstantTimeSeries(const std::string& id, Timestamp beginMs, Timestamp endMs, Timestamp frequencyMs,

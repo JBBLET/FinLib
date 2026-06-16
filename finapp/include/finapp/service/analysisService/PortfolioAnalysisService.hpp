@@ -1,13 +1,16 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 
-#include <cstdint>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 #include "finapp/service/analysisService/AssetAnalysisService.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/session/MultiTimeSeriesSession.hpp"
 
 namespace finance {
@@ -26,21 +29,22 @@ class PortfolioAnalysisService {
     //   - QuantityBased otherwise (snapshot positions).
     // For proper historical NAV from transaction replay, call
     // PortfolioAnalysis::setNavTimeSeries() with the result of PortfolioService::getNavTimeSeries().
-    std::shared_ptr<finance::analysis::PortfolioAnalysis> createPortfolioAnalysis(
-        const finance::Portfolio& portfolio, int64_t startMs, int64_t endMs, int64_t frequencyMs);
+    std::shared_ptr<finance::analysis::PortfolioAnalysis> createPortfolioAnalysis(const finance::Portfolio& portfolio,
+                                                                                  Timestamp startMs, Timestamp endMs,
+                                                                                  Timestamp frequencyMs);
 
     std::shared_ptr<finance::analysis::PortfolioAnalysis> createPortfolioAnalysis(
-        const finance::Portfolio& portfolio, std::shared_ptr<std::vector<int64_t>> timestamps);
+        const finance::Portfolio& portfolio, std::shared_ptr<Timestamps> timestamps);
 
  private:
     std::shared_ptr<AssetAnalysisService> assetAnalysisService_;
 
     // Returns one IAssetAnalysis per position. Internal step used by createPortfolioAnalysis.
     std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> buildAssetAnalyses_(
-        const finance::Portfolio& portfolio, int64_t startMs, int64_t endMs, int64_t frequencyMs);
+        const finance::Portfolio& portfolio, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs);
 
     std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> buildAssetAnalyses_(
-        const finance::Portfolio& portfolio, std::shared_ptr<std::vector<int64_t>> timestamps);
+        const finance::Portfolio& portfolio, std::shared_ptr<Timestamps> timestamps);
 
     // Selects NavMode and builds the weight map from the portfolio.
     static std::pair<finance::analysis::NavMode, std::unordered_map<std::string, double>> resolveNavWeights_(
@@ -48,8 +52,7 @@ class PortfolioAnalysisService {
 
     // Wires analyses into a MultiTimeSeriesSession and constructs PortfolioAnalysis.
     static std::shared_ptr<finance::analysis::PortfolioAnalysis> assemble_(
-        const finance::Portfolio& portfolio,
-        std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> analyses);
+        const finance::Portfolio& portfolio, std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> analyses);
 };
 
 }  // namespace finapp

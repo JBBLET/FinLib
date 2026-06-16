@@ -75,6 +75,11 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     // TimeStamps Accessors
     size_t lowerBound(Timestamp ts) const;
     size_t upperBound(Timestamp ts) const;
+    // Returns the value at exactly ts, or nullopt if no such timestamp exists.
+    std::optional<double> exactValue(Timestamp ts) const;
+    // Returns the value at the latest timestamp <= ts (look-back only, no look-ahead).
+    // Throws if the series is empty or ts is before the first point.
+    double latestValue(Timestamp ts) const;
     size_t tsOffset() const { return tsOffset_; }
     const TimestampsPtr& getSharedTimestamps() const { return timestamps_; }
     std::span<const Timestamp> getTimestamps() const {

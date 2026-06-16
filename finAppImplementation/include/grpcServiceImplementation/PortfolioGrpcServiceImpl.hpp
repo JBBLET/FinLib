@@ -9,6 +9,8 @@
 #include <utility>
 
 #include "finapp/common/logger/ILogger.hpp"
+#include "finapp/finance/analysis/IAssetAnalysis.hpp"
+#include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/service/PortfolioService.hpp"
 #include "finapp/service/analysisService/PortfolioAnalysisService.hpp"
 #include "grpcpp/server.h"
@@ -46,8 +48,18 @@ class PortfolioGrpcServiceImpl final : public finapp_rpc::PortfolioService::Serv
                                               finapp_rpc::OpenPortfolioAnalysisSessionOutput*) override;
     grpc::Status UpdatePortfolioAnalysisSessionRange(grpc::ServerContext*, const finapp_rpc::UpdateSessionRangeInput*,
                                                      finapp_rpc::UpdatePortfolioAnalysisSessionOutput*) override;
+    grpc::Status UpdatePortfolioAnalysisSessionTimestamp(grpc::ServerContext*,
+                                                         const finapp_rpc::UpdatePortfolioSessionTimestampInput*,
+                                                         finapp_rpc::UpdatePortfolioSessionTimestampOutput*) override;
     grpc::Status ClosePortfolioAnalysisSession(grpc::ServerContext*, const finapp_rpc::CloseSessionInput*,
                                                finapp_rpc::CloseSessionOutput*) override;
+
+    // --- Asset session extracted from portfolio session ---
+    grpc::Status ExtractAssetAnalysisFromPortfolioSession(
+        grpc::ServerContext*, const finapp_rpc::ExtractAssetFromPortfolioSessionInput*,
+        finapp_rpc::ExtractAssetFromPortfolioSessionOutput*) override;
+    grpc::Status CloseAssetSession(grpc::ServerContext*, const finapp_rpc::CloseSessionInput*,
+                                   finapp_rpc::CloseSessionOutput*) override;
 
     // --- Transaction management ---
     grpc::Status ListPortfolioTransactionsByPortfolioId(
@@ -67,8 +79,15 @@ class PortfolioGrpcServiceImpl final : public finapp_rpc::PortfolioService::Serv
 
     struct SessionEntry {
         std::string portfolioId;
+        finance::Portfolio portfolio;
         std::shared_ptr<finance::analysis::PortfolioAnalysis> analysis;
     };
-    // Open analysis sessions keyed by opaque handle string.
     std::unordered_map<std::string, SessionEntry> sessions_;
+
+    struct AssetSessionEntry {
+        std::shared_ptr<finance::analysis::IAssetAnalysis> analysis;
+    };
+    std::unordered_map<std::string, AssetSessionEntry> assetSessions_;
+
+    static std::string makeHandle_(const char* prefix);
 };

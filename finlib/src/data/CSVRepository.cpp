@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -32,7 +31,7 @@ TimeSeries CSVRepository::load(const std::string& id, Timestamp startMs, Timesta
     if (freqs.empty()) {
         throw std::runtime_error("No data found for series: " + id);
     }
-    int64_t finestFreq = *std::min_element(freqs.begin(), freqs.end());
+    Timestamp finestFreq = *std::min_element(freqs.begin(), freqs.end());
     return load(SeriesKey{id, finestFreq}, startMs, endMs);
 }
 
@@ -146,7 +145,7 @@ TimeSeries CSVRepository::load(const SeriesKey& key) const {
     return ts;
 }
 
-TimeSeries CSVRepository::load(const SeriesKey& key, int64_t startMs, int64_t endMs) const {
+TimeSeries CSVRepository::load(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const {
     auto ts = readCsvFiltered_(key, startMs, endMs);
     if (ts.size() == 0) {
         throw std::runtime_error("No data found in range for series: " + key.SeriesId);
@@ -190,7 +189,7 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
             std::istringstream iss(line);
             std::string tsStr;
             std::string valStr;
-            if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
+            if (std::getline(iss, tsStr, ';') && std::getline(iss, valStr, ';')) {
                 Timestamp ts = std::stoll(tsStr);
                 if (!applyFilter || (ts >= startMs && ts <= endMs)) {
                     pushIfValid(ts, valStr);
@@ -204,7 +203,7 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
         std::istringstream iss(line);
         std::string tsStr;
         std::string valStr;
-        if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
+        if (std::getline(iss, tsStr, ';') && std::getline(iss, valStr, ';')) {
             Timestamp ts = std::stoll(tsStr);
             if (!applyFilter || (ts >= startMs && ts <= endMs)) {
                 pushIfValid(ts, valStr);
@@ -245,7 +244,7 @@ void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const 
     const auto& timestamps = ts.getTimestamps();
     const auto& values = ts.getValues();
     for (size_t i = 0; i < ts.size(); ++i) {
-        file << timestamps[i] << "," << values[i] << "\n";
+        file << timestamps[i] << ";" << values[i] << "\n";
     }
 }
 

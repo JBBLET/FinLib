@@ -12,6 +12,7 @@
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
+#include "finlib/session/TimeSeriesSession.hpp"
 
 namespace finance::analysis {
 
@@ -19,7 +20,7 @@ namespace finance::analysis {
 // Construction
 // ---------------------------------------------------------------------------
 PortfolioAnalysis::PortfolioAnalysis(const finance::Portfolio& portfolio,
-                                     std::shared_ptr<::analysis::MultiTimeSeriesSession> session,
+                                     std::unique_ptr<::analysis::MultiTimeSeriesSession> session,
                                      std::vector<std::shared_ptr<IAssetAnalysis>> assetAnalyses,
                                      std::unordered_map<std::string, double> navWeights, NavMode navMode)
     : session_{std::move(session)}, assetAnalyses_{std::move(assetAnalyses)}, navMode_{navMode} {
@@ -81,18 +82,20 @@ PortfolioAnalysis::PortfolioAnalysis(const finance::Portfolio& portfolio,
 void PortfolioAnalysis::setRange(int64_t startMs, int64_t endMs) {
     precomputedNavAnalysis_.reset();
     session_->setRange(startMs, endMs);
+    if (navSession_) navSession_->setRange(startMs, endMs);
 }
 
 void PortfolioAnalysis::setFrequency(int64_t freqMs) {
     precomputedNavAnalysis_.reset();
     session_->setFrequency(freqMs);
+    if (navSession_) navSession_->setFrequency(freqMs);
 }
 
 // ---------------------------------------------------------------------------
 // Precomputed NAV override
 // ---------------------------------------------------------------------------
 void PortfolioAnalysis::setNavTimeSeries(std::shared_ptr<const TimeSeries> nav) {
-    precomputedNav_ = std::move(nav);
+    navSession_ = std::make_unique<::analysis::TimeSeriesSession>(std::move(nav));
     precomputedNavAnalysis_.reset();
 }
 
@@ -100,12 +103,12 @@ void PortfolioAnalysis::setNavTimeSeries(std::shared_ptr<const TimeSeries> nav) 
 // Portfolio-level analytics
 // ---------------------------------------------------------------------------
 TimeSeriesView PortfolioAnalysis::navSeries() {
-    if (precomputedNav_) return TimeSeriesView(precomputedNav_, 0, precomputedNav_->size());
+    if (navSession_) return navSession_->sourceView();
     return session_->crossView("nav");
 }
 
 const ::analysis::TimeSeriesAnalysis& PortfolioAnalysis::navAnalysis() {
-    if (precomputedNav_) {
+    if (navSession_) {
         if (!precomputedNavAnalysis_.has_value()) precomputedNavAnalysis_ = ::analysis::TimeSeriesAnalysis(navSeries());
         return precomputedNavAnalysis_.value();
     }

@@ -122,30 +122,6 @@ TEST_F(PortfolioTrackingMathTest, ValueSeriesExactPerTick) {
 }
 
 // ============================================================
-// weightSeries — spot-check at tick 4 and verify sum == 1
-// ============================================================
-
-// At tick 4 (after Sell 50, before Withdrawal):
-//   STCK:    50 × 10 = 500   → w = 0.05
-//   CASH:EUR:          9 500  → w = 0.95
-TEST_F(PortfolioTrackingMathTest, WeightSeriesExactAtTick4) {
-    auto weights = service->weightSeries("math_pf", 0, 8 * kDay, kDay);
-
-    ASSERT_TRUE(weights.contains("STCK"));
-    ASSERT_TRUE(weights.contains("CASH:EUR"));
-
-    EXPECT_NEAR(weights.at("STCK").getValues()[4],     0.05, 1e-9);
-    EXPECT_NEAR(weights.at("CASH:EUR").getValues()[4], 0.95, 1e-9);
-
-    // Weights must sum to 1 at every tick that has nonzero portfolio value.
-    for (size_t i = 1; i < 9; ++i) {
-        double sum = 0.0;
-        for (const auto& [_, ts] : weights) sum += ts.getValues()[i];
-        EXPECT_NEAR(sum, 1.0, 1e-9) << "weights don't sum to 1 at tick " << i;
-    }
-}
-
-// ============================================================
 // Split preserves portfolio value
 // ============================================================
 

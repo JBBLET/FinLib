@@ -147,5 +147,5 @@ TEST_F(AssetServiceTest, LoadTimeSeriesValueSharedTimestampsForCash) {
 }
 
 TEST_F(AssetServiceTest, LoadTimeSeriesValueSharedTimestampsThrowsOnNull) {
-    EXPECT_THROW(service->loadTimeSeriesValue(AssetId{AssetType::Cash, "USD"}, TimestampPtr{}), std::invalid_argument);
+    EXPECT_THROW(service->loadTimeSeriesValue(AssetId{AssetType::Cash, "USD"}, TimestampsPtr{}), std::invalid_argument);
 }

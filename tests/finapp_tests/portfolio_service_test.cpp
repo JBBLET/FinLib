@@ -133,7 +133,7 @@ TEST_F(PortfolioServiceTest, SavePersistsSnapshot) {
 }
 
 // ============================================================
-// totalValue
+// computeOverviewAtTs — totalValue
 // ============================================================
 
 TEST_F(PortfolioServiceTest, TotalValueSumsPositionsAndCash) {
@@ -145,9 +145,8 @@ TEST_F(PortfolioServiceTest, TotalValueSumsPositionsAndCash) {
                             {SnapshotPosition{AssetId{AssetType::Equity, "AAPL"}, 10.0}},
                             {{Currency::USD, 500.0}}};
     portfolioRepo->saveSnapshot(snap);
-    Portfolio p = service->load("pf1");
 
-    double total = service->totalValue(p, 2 * kDay);
+    double total = service->computeOverviewAtTs("pf1", 2 * kDay).totalValue;
     EXPECT_DOUBLE_EQ(total, 10.0 * 200.0 + 500.0);
 }
 
@@ -163,9 +162,8 @@ TEST_F(PortfolioServiceTest, TotalValueAppliesFXForNonBaseCash) {
                             {SnapshotPosition{AssetId{AssetType::Equity, "AAPL"}, 1.0}},
                             {{Currency::USD, 100.0}, {Currency::EUR, 100.0}}};
     portfolioRepo->saveSnapshot(snap);
-    Portfolio p = service->load("pf1");
 
-    double total = service->totalValue(p, 2 * kDay);
+    double total = service->computeOverviewAtTs("pf1", 2 * kDay).totalValue;
     // 1 * 100 + 100 USD + 100 EUR * 1.10 = 310
     EXPECT_DOUBLE_EQ(total, 310.0);
 }
@@ -182,15 +180,14 @@ TEST_F(PortfolioServiceTest, TotalValueAppliesFXForNonBasePosition) {
                             {SnapshotPosition{AssetId{AssetType::Equity, "VOD"}, 4.0}},
                             {{Currency::USD, 0.0}}};
     portfolioRepo->saveSnapshot(snap);
-    Portfolio p = service->load("pf1");
 
-    double total = service->totalValue(p, 2 * kDay);
+    double total = service->computeOverviewAtTs("pf1", 2 * kDay).totalValue;
     // 4 * 50 GBP * 1.25 = 250 USD
     EXPECT_DOUBLE_EQ(total, 250.0);
 }
 
 // ============================================================
-// weights
+// computeOverviewAtTs — weights
 // ============================================================
 
 TEST_F(PortfolioServiceTest, WeightsSumToOne) {
@@ -204,9 +201,8 @@ TEST_F(PortfolioServiceTest, WeightsSumToOne) {
                              SnapshotPosition{AssetId{AssetType::Equity, "MSFT"}, 5.0}},
                             {{Currency::USD, 500.0}}};
     portfolioRepo->saveSnapshot(snap);
-    Portfolio p = service->load("pf1");
 
-    auto weights = service->weights(p, 2 * kDay);
+    auto weights = service->computeOverviewAtTs("pf1", 2 * kDay).weights;
     double sum = 0.0;
     for (const auto& [_, w] : weights) sum += w;
     EXPECT_NEAR(sum, 1.0, 1e-9);
@@ -219,64 +215,9 @@ TEST_F(PortfolioServiceTest, WeightsSumToOne) {
 TEST_F(PortfolioServiceTest, WeightsHandlesEmptyPortfolio) {
     PortfolioSnapshot snap{"pf", Currency::USD, 0, "pf1", {}, {}};
     portfolioRepo->saveSnapshot(snap);
-    Portfolio p = service->load("pf1");
 
-    auto weights = service->weights(p, 2 * kDay);
+    auto weights = service->computeOverviewAtTs("pf1", 2 * kDay).weights;
     EXPECT_TRUE(weights.empty());
-}
-
-// ============================================================
-// rebalance
-// ============================================================
-
-TEST_F(PortfolioServiceTest, RebalanceEmptyTargetsReturnsEmpty) {
-    registerEquity("AAPL", Currency::USD, 100.0);
-    PortfolioSnapshot snap{"pf",
-                            Currency::USD,
-                            0,
-                            "pf1",
-                            {SnapshotPosition{AssetId{AssetType::Equity, "AAPL"}, 5.0}},
-                            {{Currency::USD, 500.0}}};
-    portfolioRepo->saveSnapshot(snap);
-    Portfolio p = service->load("pf1");
-
-    auto txs = service->rebalance(p, 2 * kDay);
-    EXPECT_TRUE(txs.empty());
-}
-
-TEST_F(PortfolioServiceTest, RebalanceProducesBuyAndSellDeltas) {
-    registerEquity("AAPL", Currency::USD, 100.0);
-    registerEquity("MSFT", Currency::USD, 100.0);
-
-    // Total 1000. Currently 100% AAPL. Target 50/50 → sell 5 AAPL, buy 5 MSFT.
-    PortfolioSnapshot snap{"pf",
-                            Currency::USD,
-                            0,
-                            "pf1",
-                            {SnapshotPosition{AssetId{AssetType::Equity, "AAPL"}, 10.0}},
-                            {{Currency::USD, 0.0}}};
-    portfolioRepo->saveSnapshot(snap);
-    Portfolio p = service->load("pf1");
-    p.setTargetAllocations({{AssetId{AssetType::Equity, "AAPL"}, 0.5}, {AssetId{AssetType::Equity, "MSFT"}, 0.5}});
-
-    auto txs = service->rebalance(p, 2 * kDay);
-    ASSERT_EQ(txs.size(), 2);
-
-    bool sawSell = false, sawBuy = false;
-    for (const auto& tx : txs) {
-        if (tx.assetTicker == "AAPL") {
-            EXPECT_EQ(tx.type, TransactionType::Sell);
-            EXPECT_DOUBLE_EQ(tx.quantity, 5.0);
-            sawSell = true;
-        }
-        if (tx.assetTicker == "MSFT") {
-            EXPECT_EQ(tx.type, TransactionType::Buy);
-            EXPECT_DOUBLE_EQ(tx.quantity, 5.0);
-            sawBuy = true;
-        }
-    }
-    EXPECT_TRUE(sawSell);
-    EXPECT_TRUE(sawBuy);
 }
 
 // ============================================================
@@ -329,54 +270,6 @@ TEST_F(PortfolioServiceTest, ValueSeriesSharedTimestampsKeepsPointerAlignment) {
     TimeSeries series = service->valueSeries("pf1", timestamps);
     ASSERT_EQ(series.size(), 4);
     EXPECT_EQ(series.getSharedTimestamps().get(), timestamps.get());
-}
-
-// ============================================================
-// weightSeries
-// ============================================================
-
-TEST_F(PortfolioServiceTest, WeightSeriesNormalizesToOne) {
-    registerEquity("AAPL", Currency::USD, 100.0);
-    registerEquity("MSFT", Currency::USD, 100.0);
-    PortfolioSnapshot snap{"pf",
-                            Currency::USD,
-                            0,
-                            "pf1",
-                            {SnapshotPosition{AssetId{AssetType::Equity, "AAPL"}, 5.0},
-                             SnapshotPosition{AssetId{AssetType::Equity, "MSFT"}, 5.0}},
-                            {{Currency::USD, 0.0}}};
-    portfolioRepo->saveSnapshot(snap);
-
-    auto weights = service->weightSeries("pf1", 0, 3 * kDay, kDay);
-    ASSERT_EQ(weights.size(), 3);  // AAPL + MSFT + CASH:USD (zero-valued)
-    ASSERT_TRUE(weights.contains("AAPL"));
-    ASSERT_TRUE(weights.contains("MSFT"));
-
-    for (size_t i = 0; i < weights.at("AAPL").size(); ++i) {
-        double sum = weights.at("AAPL").getValues()[i] + weights.at("MSFT").getValues()[i] +
-                     weights.at("CASH:USD").getValues()[i];
-        EXPECT_NEAR(sum, 1.0, 1e-9);
-        EXPECT_NEAR(weights.at("AAPL").getValues()[i], 0.5, 1e-9);
-        EXPECT_NEAR(weights.at("MSFT").getValues()[i], 0.5, 1e-9);
-    }
-}
-
-TEST_F(PortfolioServiceTest, WeightSeriesSharedTimestampsKeepsPointerAlignment) {
-    registerEquity("AAPL", Currency::USD, 100.0);
-    PortfolioSnapshot snap{"pf",
-                            Currency::USD,
-                            0,
-                            "pf1",
-                            {SnapshotPosition{AssetId{AssetType::Equity, "AAPL"}, 2.0}},
-                            {{Currency::USD, 50.0}}};
-    portfolioRepo->saveSnapshot(snap);
-
-    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
-    auto weights = service->weightSeries("pf1", timestamps);
-    ASSERT_FALSE(weights.empty());
-    for (const auto& [_, ts] : weights) {
-        EXPECT_EQ(ts.getSharedTimestamps().get(), timestamps.get());
-    }
 }
 
 TEST_F(PortfolioServiceTest, ValueSeriesEmptyTimestampsThrows) {

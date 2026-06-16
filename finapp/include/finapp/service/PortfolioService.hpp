@@ -2,18 +2,19 @@
 
 #pragma once
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
+#include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
 #include "finapp/service/AssetService.hpp"
 #include "finapp/service/FXService.hpp"
-#include "finapp/common/logger/ILogger.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 namespace finapp {
@@ -27,7 +28,7 @@ class PortfolioService {
     // Create and persist a new empty portfolio. Seeds an empty snapshot so load()
     // works immediately. Throws if a portfolio with that id already exists.
     finance::Portfolio createNew(const std::string& portfolioId, const std::string& name,
-                                 finance::Currency baseCurrency, int64_t timestampMs = 0);
+                                 finance::Currency baseCurrency, Timestamp timestampMs = 0);
 
     // Reconstruct from snapshot + transactions
     finance::Portfolio load(const std::string& portfolioId);
@@ -38,7 +39,7 @@ class PortfolioService {
     void deletePortfolio(const std::string& portfolioId);
 
     // Persist snapshot + append new transactions
-    void save(const finance::Portfolio& portfolio, int64_t timestampMs);
+    void save(const finance::Portfolio& portfolio, Timestamp timestampMs);
 
     struct PortfolioMetadata {
         std::string id;
@@ -52,7 +53,7 @@ class PortfolioService {
 
     // Listing
     std::vector<std::string> listPortfolioIds();
-    std::vector<finance::Transaction> listTransactions(const std::string& portfolioId, int64_t afterTimestampMs = 0);
+    std::vector<finance::Transaction> listTransactions(const std::string& portfolioId, Timestamp afterTimestampMs = 0);
 
     // Assigns a generated id, applies the transaction, appends it to the log, and saves a snapshot.
     // Returns the generated id — the only information the caller didn't already have.
@@ -73,19 +74,14 @@ class PortfolioService {
     std::string updateTransaction(const std::string& portfolioId, const std::string& transactionId,
                                   finance::Transaction corrected);
 
-    // Market-data-dependent computations (fetches prices/FX internally)
-    double totalValue(const finance::Portfolio& portfolio, int64_t timestampMs);
-    std::unordered_map<std::string, double> weights(const finance::Portfolio& portfolio, int64_t timestampMs);
-    std::vector<finance::Transaction> rebalance(const finance::Portfolio& portfolio, int64_t timestampMs);
+    // Compute the Overview at a specific Timestamp in a single Passage.
+    finance::PortfolioOverviewAtTs computeOverviewAtTs(const std::string& portfolioId, Timestamp ts);
 
     // Derived TimeSeries over a range
-    TimeSeries valueSeries(const std::string& portfolioId, int64_t startMs, int64_t endMs, int64_t frequencyMs);
-    std::unordered_map<std::string, TimeSeries> weightSeries(const std::string& portfolioId, int64_t startMs,
-                                                             int64_t endMs, int64_t frequencyMs);
+    TimeSeries valueSeries(const std::string& portfolioId, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs);
 
-    // Shared-timestamp overloads — asset/FX series stay pointer-aligned on the caller's grid.
-    TimeSeries valueSeries(const std::string& portfolioId, TimestampPtr timestamps);
-    std::unordered_map<std::string, TimeSeries> weightSeries(const std::string& portfolioId, TimestampPtr timestamps);
+    // Shared-timestamp overload — asset/FX series stay pointer-aligned on the caller's grid.
+    TimeSeries valueSeries(const std::string& portfolioId, TimestampsPtr timestamps);
 
  private:
     std::shared_ptr<IPortfolioRepository> portfolioRepository_;
@@ -93,10 +89,14 @@ class PortfolioService {
     std::shared_ptr<FXService> fxService_;
     std::unique_ptr<finapp::logging::ILogger> logger_;
 
-    void recomputeAndCache_(const finance::Portfolio& portfolio, int64_t fromMs, int64_t toMs, int64_t frequencyMs);
+    void recomputeAndCache_(const finance::Portfolio& portfolio, Timestamp fromMs, Timestamp toMs,
+                            Timestamp frequencyMs);
     // Trims all snapshots at or after fromTimestampMs, then replays every transaction in the
     // log that follows the last surviving snapshot, saving a fresh snapshot after each one.
     // Call after any mutation (add / delete) to keep the snapshot chain correct.
-    void rebuildSnapshotsFrom_(const std::string& portfolioId, int64_t fromTimestampMs);
+    void rebuildSnapshotsFrom_(const std::string& portfolioId, Timestamp fromTimestampMs);
+
+    finance::PortfolioOverviewAtTs computePortfolioSnapshotAtSpecificTs_(const finance::PortfolioSnapshot& snapshot,
+                                                                         Timestamp ts);
 };
 }  // namespace finapp

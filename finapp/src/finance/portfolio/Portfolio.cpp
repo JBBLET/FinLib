@@ -3,7 +3,6 @@
 #include "finapp/finance/portfolio/Portfolio.hpp"
 
 #include <algorithm>
-#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -109,7 +108,7 @@ void Portfolio::restoreFromSnapshot(const PortfolioSnapshot& snapshot) {
     positionsIndex_ = std::move(getPositionsIndexFromPosition(positions_));
 }
 
-PortfolioSnapshot Portfolio::snapshot(int64_t timestampsMs) const {
+PortfolioSnapshot Portfolio::snapshot(Timestamp timestampsMs) const {
     return PortfolioSnapshot{name_, baseCurrency_, timestampsMs, id_, positions_, cashBalances_};
 }
 

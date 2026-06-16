@@ -16,9 +16,12 @@
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
 
-namespace finapp {
+using finance::Cash;
+using finance::Currency;
+using finance::currencyFromString;
+using finance::IAsset;
 
-using namespace finance;
+namespace finapp {
 
 CSVCashRepository::CSVCashRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
     std::filesystem::create_directories(directory_ / assetTypeToString(assetType_));
@@ -45,11 +48,10 @@ void CSVCashRepository::writeCsv_(const std::shared_ptr<const Cash>& asset) cons
         throw std::runtime_error("Cannot open CSV file for writing: " + path.string());
     }
     file << "ticker,denomination\n";
-    file << asset->ticker() + "," + toString(asset->denomination()) + "\n";
+    file << asset->ticker() + ";" + toString(asset->denomination()) + "\n";
 }
 
-std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::path& path,
-                                                       const std::string& ticker) {
+std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& ticker) {
     std::ifstream file(path);
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open CSV file: " + path.string());
@@ -60,7 +62,7 @@ std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::pa
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         std::istringstream iss(line);
-        if (std::getline(iss, tickerString, ',') && std::getline(iss, denomString)) {
+        if (std::getline(iss, tickerString, ';') && std::getline(iss, denomString)) {
             Currency denomination = currencyFromString(denomString);
             return std::make_shared<Cash>(Cash(denomination));
         }
@@ -76,9 +78,7 @@ void CSVCashRepository::save(const std::shared_ptr<const IAsset>& asset) {
     writeCsv_(cash);
 }
 
-std::shared_ptr<const IAsset> CSVCashRepository::load(const std::string& ticker) const {
-    return readCsv_(ticker);
-}
+std::shared_ptr<const IAsset> CSVCashRepository::load(const std::string& ticker) const { return readCsv_(ticker); }
 
 bool CSVCashRepository::exists(const std::string& ticker) const { return std::filesystem::exists(csvPath_(ticker)); }
 

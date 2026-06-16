@@ -9,8 +9,11 @@
 #include <vector>
 
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
+#include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
+
+using Timestamp = int64_t;
 namespace finapp {
 
 class CSVPortfolioRepository : public IPortfolioRepository {
@@ -19,6 +22,8 @@ class CSVPortfolioRepository : public IPortfolioRepository {
     void saveSnapshot(const finance::PortfolioSnapshot& snapshot) override;
     std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolio) const override;
     std::vector<finance::PortfolioSnapshot> loadAllSnapshots(const std::string& portfolioId) const override;
+    std::optional<finance::PortfolioSnapshot> loadClosestSnapshot(const std::string& portfolioId,
+                                                                  const Timestamp& ts) const override;
     void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                               const std::vector<finance::PortfolioSnapshot>& newSnapshots) override;
     void appendTransactions(const std::string& portfolioId,
@@ -59,6 +64,6 @@ class CSVPortfolioRepository : public IPortfolioRepository {
     std::vector<finance::SnapshotPosition> parsePositionsSnapshotFile_(const std::filesystem::path& path) const;
     std::unordered_map<finance::Currency, double> parseCashBalanceFile_(const std::filesystem::path& path) const;
     std::vector<finance::Transaction> parseTransactionsCsvFile_(const std::filesystem::path& path,
-                                                                int64_t afterTimestamps) const;
+                                                                Timestamp afterTimestamps) const;
 };
 }  // namespace finapp

@@ -25,8 +25,7 @@ class TimeSeriesSession {
                       Timestamp endMs, Timestamp frequencyMs);
 
     // Irregular / custom timestamp grid constructor
-    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
-                      std::shared_ptr<Timestamps> timestampsMs);
+    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, TimestampsPtr timestampsMs);
 
     // Computed series — source is pre-built, no backing service (range cannot be extended)
     explicit TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed);

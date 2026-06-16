@@ -16,7 +16,6 @@
 #include "finapp/data/repository/implementation/CsvRepository/CSVFXRepository.hpp"
 #include "finapp/data/repository/implementation/CsvRepository/CSVPortfolioRepository.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
-#include "finapp/finance/common/Currency.hpp"
 #include "finapp/service/AssetService.hpp"
 #include "finapp/service/FXService.hpp"
 #include "finapp/service/PortfolioService.hpp"

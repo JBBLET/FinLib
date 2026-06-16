@@ -15,7 +15,8 @@ namespace finance::analysis {
 
 class EquityAnalysis : public IAssetAnalysis {
  public:
-    EquityAnalysis(std::shared_ptr<finance::Equity> equity, std::shared_ptr<::analysis::TimeSeriesSession> session,
+    EquityAnalysis(std::shared_ptr<const finance::Equity> equity,
+                   std::shared_ptr<::analysis::TimeSeriesSession> session,
                    std::shared_ptr<finapp::AssetService> assetService);
 
     ~EquityAnalysis() = default;

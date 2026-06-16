@@ -141,6 +141,20 @@ size_t TimeSeries::upperBound(Timestamp ts) const {
     auto span = getTimestamps();
     return std::distance(span.begin(), std::upper_bound(span.begin(), span.end(), ts));
 }
+std::optional<double> TimeSeries::exactValue(Timestamp ts) const {
+    size_t idx = lowerBound(ts);
+    auto span = getTimestamps();
+    if (idx < values_.size() && span[idx] == ts) return values_[idx];
+    return std::nullopt;
+}
+double TimeSeries::latestValue(Timestamp ts) const {
+    if (values_.empty()) throw std::runtime_error("TimeSeries::latestValue: empty series '" + id_ + "'");
+    size_t idx = lowerBound(ts);
+    if (idx == 0) throw std::runtime_error("TimeSeries::latestValue: ts before start of series '" + id_ + "'");
+    auto span = getTimestamps();
+    if (idx < values_.size() && span[idx] == ts) return values_[idx];
+    return values_[idx - 1];
+}
 
 // ---------------------------------------------------------------------------
 // Operator Overloading

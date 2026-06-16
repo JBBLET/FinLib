@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -50,6 +51,28 @@ struct PortfolioListEntry {
 struct TimeSeriesData {
     std::vector<int64_t> timestamps;
     std::vector<double> values;
+};
+
+struct AnalysisStatsData {
+    double mean = 0, stdDev = 0, variance = 0, skewness = 0, kurtosis = 0;
+};
+
+struct AssetAnalysisData {
+    std::string ticker;
+    TimeSeriesData priceSeries;
+    AnalysisStatsData priceStats;
+    std::optional<TimeSeriesData> returnSeries;
+    std::optional<AnalysisStatsData> returnStats;
+};
+
+struct PortfolioAnalysisData {
+    std::string portfolioId;
+    TimeSeriesData navSeries;
+    AnalysisStatsData navStats;
+    std::vector<AssetAnalysisData> positions;
+    std::vector<std::vector<double>> priceCorrelation;
+    std::vector<std::vector<double>> returnCorrelation;
+    std::vector<std::vector<double>> covariance;
 };
 
 struct CreatePortfolioParams {

@@ -23,6 +23,8 @@ class IPortfolioRepository {
     virtual void saveSnapshot(const finance::PortfolioSnapshot& snapshot) = 0;
     virtual std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolioId) const = 0;
     virtual std::vector<finance::PortfolioSnapshot> loadAllSnapshots(const std::string& portfolioId) const = 0;
+    virtual std::optional<finance::PortfolioSnapshot> loadClosestSnapshot(const std::string& portfolioId,
+                                                                          const Timestamp& ts) const = 0;
     virtual void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                                       const std::vector<finance::PortfolioSnapshot>& newSnapshots) = 0;
 

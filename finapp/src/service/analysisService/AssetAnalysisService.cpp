@@ -3,9 +3,11 @@
 
 #include <memory>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 #include "finapp/service/AssetService.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 
 namespace finapp {
 
@@ -15,23 +17,30 @@ AssetAnalysisService::AssetAnalysisService(
     : assetService_{std::move(assetService)}, services_{std::move(services)} {}
 
 std::shared_ptr<finance::analysis::IAssetAnalysis> AssetAnalysisService::createAnalysis(
-    const finance::AssetId& id, int64_t startMs, int64_t endMs, int64_t frequencyMs) {
+    const finance::AssetId& id, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs) {
     auto asset = assetService_->load(id);
-    auto tss = assetService_->timeSeriesService_;  // friend access
+    auto session = assetService_->createSession(id, startMs, endMs, frequencyMs);
     auto it = services_.find(id.type);
-    if (it == services_.end())
-        throw std::runtime_error("No analysis service registered for asset type");
-    return it->second->createAnalysis(asset, tss, startMs, endMs, frequencyMs);
+    if (it == services_.end()) throw std::runtime_error("No analysis service for asset type");
+    return it->second->createAnalysisFromSession(asset, std::move(session));
 }
 
 std::shared_ptr<finance::analysis::IAssetAnalysis> AssetAnalysisService::createAnalysis(
-    const finance::AssetId& id, std::shared_ptr<std::vector<int64_t>> timestamps) {
+    const finance::AssetId& id, TimestampsPtr timestamps) {
     auto asset = assetService_->load(id);
-    auto tss = assetService_->timeSeriesService_;  // friend access
+    auto session = assetService_->createSession(id, timestamps);
     auto it = services_.find(id.type);
-    if (it == services_.end())
-        throw std::runtime_error("No analysis service registered for asset type");
-    return it->second->createAnalysis(asset, tss, std::move(timestamps));
+    if (it == services_.end()) throw std::runtime_error("No analysis service for asset type");
+    return it->second->createAnalysisFromSession(asset, std::move(session));
+}
+
+std::shared_ptr<finance::analysis::IAssetAnalysis> AssetAnalysisService::createAnalysisFromSession(
+    const finance::AssetId& assetId,  //
+    std::shared_ptr<::analysis::TimeSeriesSession> session) {
+    auto asset = assetService_->load(assetId);
+    auto it = services_.find(assetId.type);
+    if (it == services_.end()) throw std::runtime_error("No analysis service for asset type");
+    return it->second->createAnalysisFromSession(asset, std::move(session));
 }
 
 }  // namespace finapp

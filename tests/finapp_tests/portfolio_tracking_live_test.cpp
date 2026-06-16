@@ -127,11 +127,10 @@ TEST(PortfolioTrackingLive, PEA_ValueSeriesFromCSV) {
     assertValidValueSeries(series, "PEA");
     EXPECT_GT(series.size(), 4u) << "PEA: expected more than 4 weekly data points";
 
-    // Exercise the GetPortfoliosByIds → load + totalValue path.
+    // Exercise the GetPortfoliosByIds → load + computeOverviewAtTs path.
     // This calls assetService_->load(ticker) → YFinanceEquityProvider::fetch,
     // which is the path where currencyFromString can throw for unsupported currencies.
-    const auto portfolio = bundle.service->load("pea");
-    const double totalAtEnd = bundle.service->totalValue(portfolio, lastMs);
+    const double totalAtEnd = bundle.service->computeOverviewAtTs("pea", lastMs).totalValue;
     EXPECT_GT(totalAtEnd, 0.0) << "PEA: totalValue at end of history should be positive";
 }
 
@@ -157,8 +156,7 @@ TEST(PortfolioTrackingLive, NISA_ValueSeriesFromCSV) {
     assertValidValueSeries(series, "NISA");
     EXPECT_GT(series.size(), 4u) << "NISA: expected more than 4 weekly data points";
 
-    // Exercise the GetPortfoliosByIds → load + totalValue path.
-    const auto portfolio = bundle.service->load("nisa");
-    const double totalAtEnd = bundle.service->totalValue(portfolio, lastMs);
+    // Exercise the GetPortfoliosByIds → load + computeOverviewAtTs path.
+    const double totalAtEnd = bundle.service->computeOverviewAtTs("nisa", lastMs).totalValue;
     EXPECT_GT(totalAtEnd, 0.0) << "NISA: totalValue at end of history should be positive";
 }

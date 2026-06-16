@@ -44,6 +44,20 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
         return it->second;
     }
 
+    std::optional<finance::PortfolioSnapshot> loadClosestSnapshot(const std::string& portfolioId,
+                                                                  const Timestamp& ts) const override {
+        auto it = snapshots_.find(portfolioId);
+        if (it == snapshots_.end() || it->second.empty()) return std::nullopt;
+        const auto& vec = it->second;
+        // vec is kept sorted ascending by timestampMs — upper_bound then step back.
+        auto upper = std::upper_bound(vec.begin(), vec.end(), ts,
+                                      [](Timestamp t, const finance::PortfolioSnapshot& s) {
+                                          return t < s.timestampMs;
+                                      });
+        if (upper == vec.begin()) return std::nullopt;
+        return *std::prev(upper);
+    }
+
     void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                               const std::vector<finance::PortfolioSnapshot>& newSnapshots) override {
         auto& vec = snapshots_[portfolioId];

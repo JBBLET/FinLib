@@ -267,6 +267,63 @@ TimeSeries TimeSeriesService::getRaw(const std::string& id, Timestamp startMs, T
     return fetched;
 }
 
+double TimeSeriesService::getSinglePoint(const std::string& id, Timestamp ts) {
+    // Step 1: any cached key whose coverage spans ts — check for an exact non-NaN match.
+    auto localKey = findLocalCoveringKey_(id, ts, ts, INT64_MAX);
+    if (localKey) {
+        TimeSeries series = cache_->load(*localKey);
+        auto exact = series.exactValue(ts);
+        if (exact.has_value() && !std::isnan(*exact)) {
+            if (logger_)
+                logger_->write(logging::Level::Debug,
+                               "getSinglePoint '" + id + "' ts=" + std::to_string(ts) + ": cache exact hit");
+            return *exact;
+        }
+    }
+
+    // Step 2: no exact hit in cache — fetch a window from the provider.
+    if (!provider_) {
+        throw std::runtime_error("TimeSeriesService::getSinglePoint: no provider for series '" + id + "'");
+    }
+
+    auto caps = provider_->capabilities(id);
+    Timestamp windowMs = 5 * caps.finestFrequencyMs;
+    TimeSeries raw = provider_->load(id, ts - windowMs, ts + windowMs);
+    if (raw.size() == 0) {
+        throw std::runtime_error("TimeSeriesService::getSinglePoint: provider returned no data for '" + id + "'");
+    }
+
+    // Check the exact point on raw data before stripping NaN.
+    auto providerExact = raw.exactValue(ts);
+    TimeSeries clean = stripNaN(std::move(raw));
+
+    if (clean.size() > 0) {
+        int64_t nowMs =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count();
+        SeriesKey key{id, caps.finestFrequencyMs};
+        CoverageInfo cov{key, clean.getTimestamps().front(), clean.getTimestamps().back(), "provider", nowMs};
+        cache_->save(key, clean, cov);
+    }
+
+    // Exact non-NaN from provider — done.
+    if (providerExact.has_value() && !std::isnan(*providerExact)) {
+        if (logger_)
+            logger_->write(logging::Level::Debug,
+                           "getSinglePoint '" + id + "' ts=" + std::to_string(ts) + ": provider exact hit");
+        return *providerExact;
+    }
+
+    // Provider had NaN or no point at ts — look back on clean data (no look-ahead).
+    if (logger_)
+        logger_->write(logging::Level::Debug,
+                       "getSinglePoint '" + id + "' ts=" + std::to_string(ts) + ": provider NaN, look-back");
+    if (clean.size() == 0) {
+        throw std::runtime_error("TimeSeriesService::getSinglePoint: all provider data is NaN for '" + id + "'");
+    }
+    return clean.latestValue(ts);
+}
+
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------

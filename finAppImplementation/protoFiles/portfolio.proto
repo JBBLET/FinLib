@@ -19,9 +19,14 @@ service PortfolioService {
   rpc ComputePortfolioAnalysis(ComputePortfolioAnalysisInput) returns (ComputePortfolioAnalysisOutput);
 
   // --- Stateful analysis session: server holds PortfolioAnalysis between calls ---
-  rpc OpenPortfolioAnalysisSession(OpenPortfolioAnalysisSessionInput)           returns (OpenPortfolioAnalysisSessionOutput);
-  rpc UpdatePortfolioAnalysisSessionRange(UpdateSessionRangeInput)              returns (UpdatePortfolioAnalysisSessionOutput);
-  rpc ClosePortfolioAnalysisSession(CloseSessionInput)                          returns (CloseSessionOutput);
+  rpc OpenPortfolioAnalysisSession(OpenPortfolioAnalysisSessionInput)               returns (OpenPortfolioAnalysisSessionOutput);
+  rpc UpdatePortfolioAnalysisSessionRange(UpdateSessionRangeInput)                  returns (UpdatePortfolioAnalysisSessionOutput);
+  rpc UpdatePortfolioAnalysisSessionTimestamp(UpdatePortfolioSessionTimestampInput) returns (UpdatePortfolioSessionTimestampOutput);
+  rpc ClosePortfolioAnalysisSession(CloseSessionInput)                              returns (CloseSessionOutput);
+
+  // --- Asset session extracted from an open portfolio session (no re-fetch) ---
+  rpc ExtractAssetAnalysisFromPortfolioSession(ExtractAssetFromPortfolioSessionInput) returns (ExtractAssetFromPortfolioSessionOutput);
+  rpc CloseAssetSession(CloseSessionInput)                                             returns (CloseSessionOutput);
 
   // --- Transaction management ---
   rpc ListPortfolioTransactionsByPortfolioId(ListPortfolioTransactionsByPortfolioIdInput) returns (ListPortfolioTransactionsByPortfolioIdOutput);
@@ -153,6 +158,23 @@ message OpenPortfolioAnalysisSessionOutput {
 
 message UpdatePortfolioAnalysisSessionOutput {
   PortfolioAnalysisResult result = 1;
+}
+
+message UpdatePortfolioSessionTimestampInput {
+  SessionHandle handle       = 1;
+  int64         timestamp_ms = 2;
+}
+message UpdatePortfolioSessionTimestampOutput {
+  Portfolio snapshot = 1;
+}
+
+message ExtractAssetFromPortfolioSessionInput {
+  SessionHandle portfolio_handle = 1;
+  string        ticker           = 2;
+}
+message ExtractAssetFromPortfolioSessionOutput {
+  SessionHandle        asset_handle = 1;
+  AssetAnalysisResult  result       = 2;
 }
 
 // =================== RPC messages — transactions ===================

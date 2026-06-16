@@ -18,8 +18,11 @@ namespace finui {
 
 // ── Constructor ───────────────────────────────────────────────────────────────
 
-PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSource, ftxui::ScreenInteractive& screen)
+PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSource,
+                                 std::shared_ptr<IPortfolioAnalysisDataSource> analysisDataSource,
+                                 ftxui::ScreenInteractive& screen)
     : dataSource_(std::move(dataSource)),
+      analysisDataSource_(std::move(analysisDataSource)),
       screen_(screen),
       createDialog_(makeCreatePortfolioDialog(
           createForm_, [this] { submitCreatePortfolio_(); }, [this] { enterNormal_(); })),
@@ -27,19 +30,20 @@ PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSourc
           "Delete Portfolio", "", "Delete", [this] { confirmDeletePortfolio_(); }, "Cancel",
           [this] { enterNormal_(); })) {
     // ── Panes ─────────────────────────────────────────────────────────────────
-    txnPane_ = std::make_unique<TransactionsPane>(
-        dataSource_, [this](std::string m, bool e) { statusMsg_ = std::move(m); statusIsError_ = e; });
-    chartPane_ = std::make_unique<ChartPane>(
-        dataSource_, [this](std::string m, bool e) { statusMsg_ = std::move(m); statusIsError_ = e; });
+    auto statusCb = [this](std::string m, bool e) { statusMsg_ = std::move(m); statusIsError_ = e; };
+    overviewPane_ = std::make_unique<OverviewPane>(analysisDataSource_, statusCb);
+    txnPane_ = std::make_unique<TransactionsPane>(dataSource_, statusCb);
+    chartPane_ = std::make_unique<ChartPane>(dataSource_, statusCb);
 
     // ── Right panel ───────────────────────────────────────────────────────────
     rightPanel_ = std::make_shared<TuiTabbedPanel>(std::vector<Tab>{
-        {"Overview", '1', ftxui::Renderer([this] { return buildOverviewPanel_(); })},
+        {"Overview", '1', overviewPane_->component()},
         {"Transactions", '2', txnPane_->component()},
         {"Chart", '3', chartPane_->component()},
     });
 
     rightPanel_->setOnTabChanged([this](int tab) {
+        if (tab == 0) overviewPane_->onActivated();
         if (tab == 1) txnPane_->onActivated();
         if (tab == 2) chartPane_->onActivated();
     });
@@ -136,6 +140,7 @@ void PortfolioModule::loadPortfolioList_() {
         rebuildMenuEntries_();
         selectedPortfolio_ = 0;
         currentSummary_ = {};
+        overviewPane_->setPortfolio({});
         txnPane_->setPortfolio({});
         chartPane_->setPortfolio({});
         statusMsg_ = portfolioList_.empty() ? "No portfolios found."
@@ -151,6 +156,7 @@ void PortfolioModule::loadSelectedPortfolio_() {
     if (portfolioList_.empty()) return;
     try {
         currentSummary_ = dataSource_->loadSummary(portfolioList_[selectedPortfolio_].id);
+        overviewPane_->setPortfolio(currentSummary_);
         txnPane_->setPortfolio(currentSummary_);
         chartPane_->setPortfolio(currentSummary_);
         statusMsg_ = "Loaded: " + currentSummary_.name;
@@ -172,6 +178,7 @@ void PortfolioModule::submitCreatePortfolio_() {
             p.timestampsMs = createForm_.date.empty() ? 0 : utils::PortfolioUtils::parseDate(createForm_.date);
             dataSource_->createPortfolio(p);
             loadPortfolioList_();
+            if (!portfolioList_.empty()) loadSelectedPortfolio_();
             statusMsg_ = "Created: " + createForm_.name;
             statusIsError_ = false;
         } catch (const std::exception& ex) {
@@ -187,6 +194,7 @@ void PortfolioModule::confirmDeletePortfolio_() {
         try {
             dataSource_->deletePortfolio(portfolioList_[selectedPortfolio_].id);
             loadPortfolioList_();
+            if (!portfolioList_.empty()) loadSelectedPortfolio_();
             statusMsg_ = "Portfolio deleted.";
             statusIsError_ = false;
         } catch (const std::exception& ex) {
@@ -226,59 +234,6 @@ ftxui::Element PortfolioModule::buildLeftPanel_() const {
                   ftxui::vbox(
                       {ftxui::vbox(std::move(rows)) | ftxui::flex_grow, ftxui::filler(), ftxui::separator(), hint})) |
            size(ftxui::WIDTH, ftxui::EQUAL, 32);
-}
-
-ftxui::Element PortfolioModule::buildOverviewPanel_() const {
-    const auto& s = currentSummary_;
-    if (s.id.empty()) {
-        return ftxui::vbox(
-            {ftxui::filler(), ftxui::text("  Select a portfolio and press Enter") | ftxui::dim, ftxui::filler()});
-    }
-
-    ftxui::Elements cashRows;
-    for (const auto& c : s.cashBalances) {
-        cashRows.push_back(ftxui::hbox({
-            ftxui::text("  " + c.currency + ": ") | ftxui::bold | size(ftxui::WIDTH, ftxui::EQUAL, 8),
-            ftxui::text(utils::PortfolioUtils::fmtNumber(c.amount)),
-        }));
-    }
-    if (cashRows.empty()) cashRows.push_back(ftxui::text("  —") | ftxui::dim);
-
-    ftxui::Elements posRows;
-    posRows.push_back(ftxui::hbox({
-        ftxui::text(" Ticker") | ftxui::bold | size(ftxui::WIDTH, ftxui::EQUAL, 10),
-        ftxui::text("Quantity") | ftxui::bold | size(ftxui::WIDTH, ftxui::EQUAL, 14),
-        ftxui::text("Value") | ftxui::bold | size(ftxui::WIDTH, ftxui::EQUAL, 14),
-        ftxui::text("Weight") | ftxui::bold | size(ftxui::WIDTH, ftxui::EQUAL, 9),
-    }));
-    posRows.push_back(ftxui::separator());
-    if (s.positions.empty()) {
-        posRows.push_back(ftxui::text("  No positions") | ftxui::dim);
-    } else {
-        for (const auto& p : s.positions) {
-            posRows.push_back(ftxui::hbox({
-                ftxui::text(" " + p.ticker) | size(ftxui::WIDTH, ftxui::EQUAL, 10),
-                ftxui::text(utils::PortfolioUtils::fmtNumber(p.quantity)) | size(ftxui::WIDTH, ftxui::EQUAL, 14),
-                ftxui::text(utils::PortfolioUtils::fmtNumber(p.value)) | size(ftxui::WIDTH, ftxui::EQUAL, 14),
-                ftxui::text(utils::PortfolioUtils::percentDisplay(p.weight)) | size(ftxui::WIDTH, ftxui::EQUAL, 9),
-            }));
-        }
-    }
-
-    return ftxui::vbox({
-        ftxui::hbox({ftxui::text(" Total Value: ") | ftxui::bold,
-                     ftxui::text(utils::PortfolioUtils::currencyDisplay(
-                         s.totalValue, utils::PortfolioUtils::currencyFromString(s.baseCurrency))) |
-                         color(ftxui::Color::Green)}),
-        ftxui::separator(),
-        ftxui::text(" Cash") | ftxui::bold,
-        vbox(std::move(cashRows)),
-        ftxui::separator(),
-        ftxui::text(" Positions") | ftxui::bold,
-        ftxui::vbox(std::move(posRows)) | ftxui::vscroll_indicator | ftxui::frame | ftxui::flex_grow,
-        ftxui::separator(),
-        ftxui::text(" t Add transaction  r Reload") | ftxui::dim,
-    });
 }
 
 ftxui::Element PortfolioModule::renderRoot_() const {

@@ -2,7 +2,6 @@
 #pragma once
 
 #include <Eigen/Dense>
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,7 +15,7 @@ class TimeSeries;
 struct RegularityCheck {
     double cachedTolerance;
     bool isRegular;
-    int64_t medianDeltaT;
+    Timestamp medianDeltaT;
     double standardDeviationDeltaT;
     RegularityCheck(double tolerance, bool r, Timestamp m, double sd)
         : cachedTolerance(tolerance), isRegular(r), medianDeltaT(m), standardDeviationDeltaT(sd) {}
@@ -45,7 +44,7 @@ class TimeSeriesView : public std::enable_shared_from_this<TimeSeriesView> {
     const double* begin() const noexcept;
     const double* end() const noexcept;
     double operator[](size_t i) const;
-    int64_t timestamp(size_t i) const;
+    Timestamp timestamp(size_t i) const;
 
     // methods modifying the range
     TimeSeriesView slice(size_t subStart, size_t subLength) const {

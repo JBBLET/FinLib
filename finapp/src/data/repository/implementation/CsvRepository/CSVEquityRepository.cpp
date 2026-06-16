@@ -16,9 +16,12 @@
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
 
-namespace finapp {
+using finance::Currency;
+using finance::currencyFromString;
+using finance::Equity;
+using finance::IAsset;
 
-using namespace finance;
+namespace finapp {
 
 CSVEquityRepository::CSVEquityRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
     std::filesystem::create_directories(directory_ / assetTypeToString(assetType_));
@@ -100,8 +103,8 @@ void CSVEquityRepository::writeCsv_(const std::shared_ptr<const Equity>& asset) 
         throw std::runtime_error("Cannot open CSV file for writing: " + path.string());
     }
     file << "ticker,name,denomination,exchange,sector\n";
-    file << asset->ticker() + "," + asset->name() + "," + toString(asset->denomination()) + "," + asset->exchange() +
-                "," + asset->sector() + "\n";
+    file << asset->ticker() + ";" + asset->name() + ";" + toString(asset->denomination()) + ";" + asset->exchange() +
+                ";" + asset->sector() + "\n";
 }
 
 void CSVEquityRepository::writeAttributes_(const std::shared_ptr<const Equity>& asset) const {
@@ -131,8 +134,8 @@ std::shared_ptr<Equity> CSVEquityRepository::parseCsvFile_(const std::filesystem
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         std::istringstream iss(line);
-        if (std::getline(iss, tickerString, ',') && std::getline(iss, name, ',') &&
-            std::getline(iss, denomString, ',') && std::getline(iss, exchange, ',') && std::getline(iss, sector)) {
+        if (std::getline(iss, tickerString, ';') && std::getline(iss, name, ';') &&
+            std::getline(iss, denomString, ';') && std::getline(iss, exchange, ';') && std::getline(iss, sector)) {
             denomination = currencyFromString(denomString);
         }
     }

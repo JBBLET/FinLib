@@ -32,7 +32,7 @@ static TimeSeries simpleReturnTransform(const TimeSeries& prices) {
     return TimeSeries("SimpleReturns_" + prices.getId(), std::move(retTs), std::move(returns));
 }
 
-EquityAnalysis::EquityAnalysis(std::shared_ptr<finance::Equity> equity,
+EquityAnalysis::EquityAnalysis(std::shared_ptr<const finance::Equity> equity,
                                std::shared_ptr<::analysis::TimeSeriesSession> session,
                                std::shared_ptr<finapp::AssetService> assetService)
     : IAssetAnalysis{std::move(equity), std::move(session)}, assetService_{std::move(assetService)} {
