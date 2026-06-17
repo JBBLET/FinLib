@@ -69,39 +69,41 @@ TimeSeries TimeSeriesService::get(const std::string& id, Timestamp startMs, Time
         }
     }
 
-    // --- Step 2: finer frequency available locally that covers the range? ---
-    auto localKey = findLocalCoveringKey_(id, startMs, endMs, requestedFrequencyMs);
+    // --- Step 2: any local key (finer or coarser) that covers the full range? ---
+    // Coarser data is resampled to the requested grid via nearest-neighbour, which gives
+    // correct fill-forward behaviour for weekends and holidays.
+    auto localKey = findLocalCoveringKey_(id, startMs, endMs, INT64_MAX);
     if (localKey) {
         if (logger_)
             logger_->write(logging::Level::Debug,
                            "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
                                "ms: local resample from freq=" + std::to_string(localKey->frequencyInMs) + "ms");
-        TimeSeries finerData = cache_->load(*localKey, startMs, endMs);
-        if (localKey->frequencyInMs < requestedFrequencyMs) {
+        TimeSeries localData = cache_->load(*localKey, startMs, endMs);
+        if (localKey->frequencyInMs != requestedFrequencyMs) {
             Timestamps targetTimestamps;
             for (Timestamp t = startMs; t <= endMs; t += requestedFrequencyMs) {
                 targetTimestamps.push_back(t);
             }
-            return finerData.resampling(targetTimestamps, InterpolationStrategy::Nearest);
+            return localData.resampling(targetTimestamps, InterpolationStrategy::Nearest);
         }
-        return finerData;
+        return localData;
     }
 
-    // --- Step 3: need to fetch from provider ---
+    // --- Step 3: fetch from provider ---
     if (!provider_) {
         throw std::runtime_error("No provider available and no local data for series: " + id);
     }
 
-    auto caps = provider_->capabilities(id);
-    if (caps.finestFrequencyMs > requestedFrequencyMs) {
-        throw std::runtime_error("Requested frequency (" + std::to_string(requestedFrequencyMs) +
-                                 " ms) is finer than provider's finest available (" +
-                                 std::to_string(caps.finestFrequencyMs) + " ms) for series: " + id);
-    }
+    // Ask the provider what frequency it can deliver for this specific range, then use
+    // that as the cache key.  This keeps TimeSeriesService provider-agnostic: the service
+    // drives all logic from declared capabilities, not from provider internals.
+    const auto caps = provider_->capabilities(id);
+    const Timestamp providerFreqMs = caps.frequencyForRange(endMs - startMs);
+    const SeriesKey fetchKey{id, providerFreqMs};
 
-    // Check partial coverage — fetch only the gaps
-    if (cache_->exists(requestedKey)) {
-        auto cov = cache_->coverage(requestedKey);
+    // Check partial coverage at the fetch key — fill only the gaps.
+    if (cache_->exists(fetchKey)) {
+        auto cov = cache_->coverage(fetchKey);
         if (cov) {
             auto gaps = computeGaps(*cov, TimeRange{startMs, endMs});
             if (!gaps.empty()) {
@@ -109,13 +111,19 @@ TimeSeries TimeSeriesService::get(const std::string& id, Timestamp startMs, Time
                     logger_->write(logging::Level::Info,
                                    "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
                                        "ms: provider gap fill " + std::to_string(gaps.size()) + " gap(s)");
-                fetchAndMergeGaps_(requestedKey, gaps);
-                return cache_->load(requestedKey, startMs, endMs);
+                fetchAndMergeGaps_(fetchKey, gaps);
             }
+            TimeSeries raw = cache_->load(fetchKey, startMs, endMs);
+            if (providerFreqMs != requestedFrequencyMs) {
+                Timestamps grid;
+                for (Timestamp t = startMs; t <= endMs; t += requestedFrequencyMs) grid.push_back(t);
+                return raw.resampling(grid, InterpolationStrategy::Nearest);
+            }
+            return raw;
         }
     }
 
-    // No existing data at all — full fetch
+    // No existing data at all — full fetch.
     if (logger_)
         logger_->write(logging::Level::Info,
                        "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) + "ms: provider full fetch [" +
@@ -129,10 +137,14 @@ TimeSeries TimeSeriesService::get(const std::string& id, Timestamp startMs, Time
     Timestamp nowMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
             .count();
+    CoverageInfo cov{fetchKey, fetched.getTimestamps().front(), fetched.getTimestamps().back(), "provider", nowMs};
+    cache_->save(fetchKey, fetched, cov);
 
-    CoverageInfo cov{requestedKey, fetched.getTimestamps().front(), fetched.getTimestamps().back(), "provider", nowMs};
-
-    cache_->save(requestedKey, fetched, cov);
+    if (providerFreqMs != requestedFrequencyMs) {
+        Timestamps grid;
+        for (Timestamp t = startMs; t <= endMs; t += requestedFrequencyMs) grid.push_back(t);
+        return fetched.resampling(grid, InterpolationStrategy::Nearest);
+    }
     return fetched;
 }
 
@@ -152,24 +164,22 @@ TimeSeries TimeSeriesService::getResampled(const std::string& id, Timestamp star
             }
         }
 
-        if (auto localKey = findLocalCoveringKey_(id, startMs, endMs, requestedFrequencyMs)) {
+        if (auto localKey = findLocalCoveringKey_(id, startMs, endMs, INT64_MAX)) {
             return *localKey;
         }
 
         if (!provider_) throw std::runtime_error("No provider available and no local data for series: " + id);
 
-        auto caps = provider_->capabilities(id);
-        if (caps.finestFrequencyMs > requestedFrequencyMs)
-            throw std::runtime_error("Requested frequency (" + std::to_string(requestedFrequencyMs) +
-                                     " ms) is finer than provider's finest available (" +
-                                     std::to_string(caps.finestFrequencyMs) + " ms) for series: " + id);
+        const auto caps = provider_->capabilities(id);
+        const Timestamp providerFreqMs = caps.frequencyForRange(endMs - startMs);
+        const SeriesKey fetchKey{id, providerFreqMs};
 
-        if (cache_->exists(key)) {
-            auto cov = cache_->coverage(key);
+        if (cache_->exists(fetchKey)) {
+            auto cov = cache_->coverage(fetchKey);
             if (cov) {
                 auto gaps = computeGaps(*cov, TimeRange{startMs, endMs});
-                if (!gaps.empty()) fetchAndMergeGaps_(key, gaps);
-                return key;
+                if (!gaps.empty()) fetchAndMergeGaps_(fetchKey, gaps);
+                return fetchKey;
             }
         }
 
@@ -181,9 +191,9 @@ TimeSeries TimeSeriesService::getResampled(const std::string& id, Timestamp star
         int64_t nowMs =
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
                 .count();
-        CoverageInfo cov{key, fetched.getTimestamps().front(), fetched.getTimestamps().back(), "provider", nowMs};
-        cache_->save(key, fetched, cov);
-        return key;
+        CoverageInfo cov{fetchKey, fetched.getTimestamps().front(), fetched.getTimestamps().back(), "provider", nowMs};
+        cache_->save(fetchKey, fetched, cov);
+        return fetchKey;
     };
 
     const SeriesKey resolvedKey = ensureAndResolveKey();
@@ -239,8 +249,9 @@ TimeSeries TimeSeriesService::getRaw(const std::string& id, Timestamp startMs, T
         throw std::runtime_error("No provider available and no local data for series: " + id);
     }
 
-    auto caps = provider_->capabilities(id);
-    SeriesKey nativeKey{id, caps.finestFrequencyMs};
+    const auto caps = provider_->capabilities(id);
+    const Timestamp nativeFreqMs = caps.frequencyForRange(endMs - startMs);
+    SeriesKey nativeKey{id, nativeFreqMs};
 
     // Check partial coverage at the native key
     if (cache_->exists(nativeKey)) {
@@ -286,9 +297,11 @@ double TimeSeriesService::getSinglePoint(const std::string& id, Timestamp ts) {
         throw std::runtime_error("TimeSeriesService::getSinglePoint: no provider for series '" + id + "'");
     }
 
-    auto caps = provider_->capabilities(id);
-    Timestamp windowMs = 5 * caps.finestFrequencyMs;
-    TimeSeries raw = provider_->load(id, ts - windowMs, ts + windowMs);
+    const auto caps = provider_->capabilities(id);
+    // Fixed 5-day window on each side guarantees data across weekends and holidays
+    // regardless of the provider's intraday capabilities.
+    constexpr Timestamp kWindowMs = 5LL * 86'400'000LL;
+    TimeSeries raw = provider_->load(id, ts - kWindowMs, ts + kWindowMs);
     if (raw.size() == 0) {
         throw std::runtime_error("TimeSeriesService::getSinglePoint: provider returned no data for '" + id + "'");
     }
@@ -301,7 +314,8 @@ double TimeSeriesService::getSinglePoint(const std::string& id, Timestamp ts) {
         int64_t nowMs =
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
                 .count();
-        SeriesKey key{id, caps.finestFrequencyMs};
+        const Timestamp providerFreqMs = caps.frequencyForRange(2 * kWindowMs);
+        SeriesKey key{id, providerFreqMs};
         CoverageInfo cov{key, clean.getTimestamps().front(), clean.getTimestamps().back(), "provider", nowMs};
         cache_->save(key, clean, cov);
     }

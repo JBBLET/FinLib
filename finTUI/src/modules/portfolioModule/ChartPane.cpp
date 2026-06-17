@@ -32,15 +32,15 @@ int64_t ytdStartMs() {
 
 std::vector<TuiRangeSelector::Range> defaultRanges() {
     return {
-        {"1D",  1 * kDayMs,          3'600'000LL},
-        {"5D",  5 * kDayMs,          kDayMs},
-        {"1M",  30 * kDayMs,         kDayMs},
-        {"3M",  91 * kDayMs,         kDayMs},
-        {"6M",  182 * kDayMs,        kDayMs},
-        {"YTD", -1,                  kDayMs},   // sentinel: compute at load time
-        {"1Y",  365 * kDayMs,        kDayMs},
-        {"5Y",  5 * 365 * kDayMs,    7 * kDayMs},
-        {"ALL", 0,                   kDayMs},   // sentinel: use portfolio earliest ts
+        {"1D", 1 * kDayMs, 3'600'000LL},
+        {"5D", 5 * kDayMs, 3'600'000LL},
+        {"1M", 30 * kDayMs, kDayMs},
+        {"3M", 91 * kDayMs, kDayMs},
+        {"6M", 182 * kDayMs, kDayMs},
+        {"YTD", -1, kDayMs},  // sentinel: compute at load time
+        {"1Y", 365 * kDayMs, kDayMs},
+        {"5Y", 5 * 365 * kDayMs, 7 * kDayMs},
+        {"ALL", 0, kDayMs},  // sentinel: use portfolio earliest ts
     };
 }
 
@@ -50,13 +50,15 @@ ChartPane::ChartPane(std::shared_ptr<IPortfolioDataSource> ds, std::function<voi
     : dataSource_(std::move(ds)), onStatus_(std::move(onStatus)) {
     // Default to 1M (index 2). CatchEvent routes events to the range selector when Chart tab is
     // active without adding it to the FTXUI focus tree, so event routing to other panes is unaffected.
-    rangeSelector_ = ftxui::Make<TuiRangeSelector>(defaultRanges(), [this](const TuiRangeSelector::Range&) {
-        if (!summary_.id.empty()) loadTimeSeries_();
-    }, 2 /* 1M */);
+    rangeSelector_ = ftxui::Make<TuiRangeSelector>(
+        defaultRanges(),
+        [this](const TuiRangeSelector::Range&) {
+            if (!summary_.id.empty()) loadTimeSeries_();
+        },
+        2 /* 1M */);
 
-    component_ = ftxui::CatchEvent(
-        ftxui::Renderer([this] { return buildContent_(); }),
-        [this](ftxui::Event e) -> bool { return rangeSelector_->OnEvent(e); });
+    component_ = ftxui::CatchEvent(ftxui::Renderer([this] { return buildContent_(); }),
+                                   [this](ftxui::Event e) -> bool { return rangeSelector_->OnEvent(e); });
 }
 
 ftxui::Component ChartPane::component() { return component_; }
@@ -80,10 +82,18 @@ void ChartPane::loadTimeSeries_() {
 
         int64_t startMs;
         if (r.durationMs == 0) {
-            // ALL — use the earliest timestamp in the loaded series, or fallback to 10 years
-            startMs = timeSeries_.timestamps.empty() ? nowMs - 10 * 365 * kDayMs : timeSeries_.timestamps.front();
-            // Re-fetch with a very old start; server will clamp to available data
-            startMs = nowMs - 10 * 365 * kDayMs;
+            // ALL — use the portfolio's creation timestamp encoded in its ID ("<ts>_<name>").
+            // Fall back to 10 years if the ID carries no timestamp (ts == 0, i.e. no date
+            // was entered in the creation dialog) or cannot be parsed.
+            int64_t createdAtMs = 0;
+            const auto sep = summary_.id.find('_');
+            if (sep != std::string::npos) {
+                try {
+                    createdAtMs = std::stoll(summary_.id.substr(0, sep));
+                } catch (...) {
+                }
+            }
+            startMs = (createdAtMs > 0) ? createdAtMs : nowMs - 10 * 365 * kDayMs;
         } else if (r.durationMs < 0) {
             // YTD sentinel
             startMs = ytdStartMs();

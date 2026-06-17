@@ -19,9 +19,12 @@ static constexpr int64_t kDayMs = 86'400'000LL;
 static constexpr int64_t kFiveYearsMs = 5LL * 365 * kDayMs;
 
 const std::unordered_map<std::string, finapp_rpc::Currency> kCurrencyFromStr = {
-    {"USD", finapp_rpc::Currency::USD}, {"EUR", finapp_rpc::Currency::EUR},
-    {"JPY", finapp_rpc::Currency::JPY}, {"KRW", finapp_rpc::Currency::KRW},
-    {"CAD", finapp_rpc::Currency::CAD}, {"GBP", finapp_rpc::Currency::GBP},
+    {"USD", finapp_rpc::Currency::USD},
+    {"EUR", finapp_rpc::Currency::EUR},
+    {"JPY", finapp_rpc::Currency::JPY},
+    {"KRW", finapp_rpc::Currency::KRW},
+    {"CAD", finapp_rpc::Currency::CAD},
+    {"GBP", finapp_rpc::Currency::GBP},
 };
 
 const std::unordered_map<std::string, finapp_rpc::TransactionType> kTxnTypeFromStr = {
@@ -34,8 +37,7 @@ const std::unordered_map<std::string, finapp_rpc::TransactionType> kTxnTypeFromS
 };
 
 int64_t nowMs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
         .count();
 }
 
@@ -70,9 +72,7 @@ PortfolioSummary protoToSummary(const finapp_rpc::Portfolio& p) {
 GrpcPortfolioSessionDataSource::GrpcPortfolioSessionDataSource(std::shared_ptr<grpc::Channel> channel)
     : stub_(finapp_rpc::PortfolioService::NewStub(std::move(channel))) {}
 
-GrpcPortfolioSessionDataSource::~GrpcPortfolioSessionDataSource() {
-    closeSession_();
-}
+GrpcPortfolioSessionDataSource::~GrpcPortfolioSessionDataSource() { closeSession_(); }
 
 // ---------------------------------------------------------------------------
 // Session management
@@ -113,8 +113,7 @@ void GrpcPortfolioSessionDataSource::closeSession_() {
 // Analysis result extraction (shared between getTimeSeries and computeAnalysis)
 // ---------------------------------------------------------------------------
 
-PortfolioAnalysisData GrpcPortfolioSessionDataSource::extractAnalysis_(
-    const finapp_rpc::PortfolioAnalysisResult& r) {
+PortfolioAnalysisData GrpcPortfolioSessionDataSource::extractAnalysis_(const finapp_rpc::PortfolioAnalysisResult& r) {
     PortfolioAnalysisData out;
     out.portfolioId = r.portfolio_id();
     out.navSeries = protoToTimeSeries(r.nav_series());
@@ -166,8 +165,7 @@ std::vector<PortfolioListEntry> GrpcPortfolioSessionDataSource::listPortfolios()
 
     std::vector<PortfolioListEntry> entries;
     entries.reserve(reply.listportfoliosidentification_size());
-    for (const auto& ident : reply.listportfoliosidentification())
-        entries.push_back({ident.id(), ident.name()});
+    for (const auto& ident : reply.listportfoliosidentification()) entries.push_back({ident.id(), ident.name()});
     return entries;
 }
 
@@ -237,8 +235,7 @@ std::string GrpcPortfolioSessionDataSource::createPortfolio(const CreatePortfoli
     finapp_rpc::CreatePortfolioInput req;
     req.set_name(p.name);
     req.set_timestampms(p.timestampsMs);
-    if (auto it = kCurrencyFromStr.find(p.currency); it != kCurrencyFromStr.end())
-        req.set_basecurrency(it->second);
+    if (auto it = kCurrencyFromStr.find(p.currency); it != kCurrencyFromStr.end()) req.set_basecurrency(it->second);
 
     finapp_rpc::CreatePortfolioOutput reply;
     grpc::ClientContext ctx;
@@ -315,7 +312,7 @@ void GrpcPortfolioSessionDataSource::importCsv(const std::string& portfolioId, c
 // ---------------------------------------------------------------------------
 
 PortfolioAnalysisData GrpcPortfolioSessionDataSource::computeAnalysis(const std::string& portfolioId, int64_t startMs,
-                                                                       int64_t endMs, int64_t /*frequencyMs*/) {
+                                                                      int64_t endMs, int64_t /*frequencyMs*/) {
     ensureSession_(portfolioId);
 
     finapp_rpc::UpdateSessionRangeInput req;
