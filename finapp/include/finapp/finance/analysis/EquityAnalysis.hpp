@@ -2,9 +2,11 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/asset/Equity.hpp"
+#include "finlib/analysis/MetricHandle.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
 
 namespace finapp {
@@ -23,6 +25,9 @@ class EquityAnalysis : public IAssetAnalysis {
 
  private:
     std::shared_ptr<finapp::AssetService> assetService_;
+
+    std::optional<::analysis::MetricHandle<double>> totalReturnHandle_;
+    std::optional<::analysis::MetricHandle<double>> sharpeHandle_;
 };
 
 }  // namespace finance::analysis

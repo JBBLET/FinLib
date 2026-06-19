@@ -1,19 +1,20 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 
-#include <cstdint>
 #include <functional>
+#include <list>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
+#include "finlib/session/ITimeSeriesSession.hpp"
 
 namespace analysis {
 
@@ -21,50 +22,67 @@ namespace analysis {
 //       timestamp grid. Currently assumes all sessions were constructed with the same shared
 //       TimestampPtr or the same (startMs, endMs, frequencyMs) so their views are already aligned.
 
-using CrossTransform = std::function<TimeSeries(const std::unordered_map<std::string, TimeSeries>&)>;
+using CrossTransform =
+    std::function<TimeSeries(const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>)>;
 
 // Holds N named TimeSeriesSessions and supports cross-series operations
 // (NAV aggregation, correlation/covariance matrices, arbitrary cross-transforms).
 // setRange / setFrequency propagate to every sub-session.
-class MultiTimeSeriesSession {
+class MultiTimeSeriesSession : public ITimeSeriesSession {
+    struct SeriesNode {
+        // Used to represent a derived Series and how to reach it to be able to create derivation  of derivation Similar
+        // to SeriesLeaf in TimeSeriesSession this way can build a graph of dependency to build back
+        std::string name;
+        std::vector<std::string> inputs;
+        CrossTransform crossTransform;
+    };
+
  public:
     MultiTimeSeriesSession() = default;
 
-    void addSession(std::string name, std::shared_ptr<TimeSeriesSession> session);
+    // ITimeSeriesSession — name = "" throws (no single source); non-empty = cross-transform result
+    std::shared_ptr<const TimeSeries> seriesPtr(const std::string& name) override;
+    TimeSeriesView seriesView(const std::string& name) override;
+    const TimeSeriesAnalysis& seriesAnalysis(const std::string& name) override;
 
-    // Propagates to all sub-sessions and invalidates cross-series caches.
-    void setRange(Timestamp startMs, Timestamp endMs);
-    void setFrequency(Timestamp freqMs);
+    void setRange(Timestamp startMs, Timestamp endMs) override;
+    void setFrequency(Timestamp freqMs) override;
 
-    // Per-series — delegates to the named sub-session
-    TimeSeriesView seriesView(const std::string& name) const;
-    const TimeSeriesAnalysis& seriesAnalysis(const std::string& name);
-    TimeSeriesView derivedSeriesView(const std::string& name, const std::string& transform) const;
-    const TimeSeriesAnalysis& derivedSeriesAnalysis(const std::string& name, const std::string& transform);
+    // Sub-session registration — accepts any ITimeSeriesSession (TimeSeriesSession or another Multi)
+    void addSession(std::string name, std::shared_ptr<ITimeSeriesSession> session);
+    void addSession(std::unordered_map<std::string, std::shared_ptr<ITimeSeriesSession>> sessionMap);
 
-    // Cross-series transforms — called with materialized source TimeSeries for every session.
-    // Results are cached and invalidated whenever setRange / setFrequency is called.
-    void addCrossTransform(std::string name, CrossTransform fn);
-    TimeSeriesView crossView(const std::string& name);
-    const TimeSeriesAnalysis& crossAnalysis(const std::string& name);
+    // Per-session access — delegates to the named sub-session
+    TimeSeriesView subSeriesView(const std::string& sessionName, const std::string& seriesName = "");
+    const TimeSeriesAnalysis& subSeriesAnalysis(const std::string& sessionName, const std::string& seriesName = "");
 
-    // Matrix analytics computed over the named sessions.
-    // If transformName is empty the source series is used; otherwise the named derived series.
-    std::vector<std::vector<double>> correlationMatrix(const std::vector<std::string>& names,
-                                                       const std::string& transformName = "");
-    std::vector<std::vector<double>> covarianceMatrix(const std::vector<std::string>& names,
-                                                      const std::string& transformName = "");
+    // Custom metric analysis for a named cross-transform series
+    CustomTimeSeriesAnalysis& customAnalysis(const std::string& seriesName) override;
+    // Reach into a sub-session's custom analysis
+    CustomTimeSeriesAnalysis& subCustomAnalysis(const std::string& sessionName, const std::string& seriesName = "");
+
+    // Cross-series transforms — results are cached and invalidated on setRange / setFrequency.
+    // No inputs = implicitly depends on all current sessions (snapshot at registration time).
+    void addTransform(std::string name, CrossTransform fn);
+    void addTransform(std::string name, std::vector<std::string> inputs, CrossTransform fn);
+    void addTransform(SeriesNode node);
 
     std::vector<std::string> sessionNames() const;
 
  private:
-    std::unordered_map<std::string, std::shared_ptr<TimeSeriesSession>> sessions_;
-    std::unordered_map<std::string, CrossTransform> crossTransforms_;
+    std::unordered_map<std::string, std::shared_ptr<ITimeSeriesSession>> sessions_;
+    std::list<std::string> sessionNames_;
+    std::unordered_map<std::string, std::vector<std::string>> reverseDeps_;
+    std::unordered_map<std::string, SeriesNode> crossTransforms_;
     mutable std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> crossCaches_;
     mutable std::unordered_map<std::string, std::optional<TimeSeriesAnalysis>> crossAnalysisCache_;
 
-    std::unordered_map<std::string, TimeSeries> buildAligned_() const;
-    void invalidateCross_();
+    std::unordered_map<std::string, std::optional<CustomTimeSeriesAnalysis>> crossCustomAnalysisCache_;
+
+    std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> buildAligned_(const std::string& name) const;
+    void buildCross_(const std::string& name) const;
+    void invalidateAll_();
+    void invalidate_(const std::string& name);
 };
 
 }  // namespace analysis

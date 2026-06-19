@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/finance/analysis/FinanceMetrics.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -34,46 +35,47 @@ PortfolioAnalysis::PortfolioAnalysis(const finance::Portfolio& portfolio,
     if (navMode_ == NavMode::TargetWeighted) {
         // NAV(t) = sum(w_i * price_i(t) / price_i(t₀))
         // Weights are fractions summing to 1; result is a return index starting at ~1.0.
-        session_->addCrossTransform(
-            "nav", [w = std::move(navWeights)](const std::unordered_map<std::string, TimeSeries>& aligned) {
-                if (aligned.empty()) return TimeSeries("NAV", std::vector<int64_t>{}, std::vector<double>{});
-
-                const auto& ref = aligned.begin()->second;
-                const size_t n = ref.size();
-                std::vector<double> nav(n, 0.0);
-
-                for (const auto& [ticker, series] : aligned) {
-                    auto wit = w.find(ticker);
-                    if (wit == w.end()) continue;
-                    const auto& vals = series.getValues();
-                    if (vals.empty()) continue;
-                    const double p0 = vals[0];  // price at start of analysis window
-                    for (size_t i = 0; i < n; ++i) nav[i] += wit->second * vals[i] / p0;
-                }
-                return TimeSeries("NAV", ref.getSharedTimestamps(), ref.tsOffset(), std::move(nav));
-            });
+        session_->addTransform("nav",
+                               [w = std::move(navWeights)](
+                                   const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> aligned) {
+                                   if (aligned.empty())
+                                       return TimeSeries("NAV", std::vector<int64_t>{}, std::vector<double>{});
+                                   const auto& ref = *aligned.begin()->second;
+                                   const size_t n = ref.size();
+                                   std::vector<double> nav(n, 0.0);
+                                   for (const auto& [ticker, series] : aligned) {
+                                       auto wit = w.find(ticker);
+                                       if (wit == w.end()) continue;
+                                       const auto& vals = series->getValues();
+                                       if (vals.empty()) continue;
+                                       const double p0 = vals[0];
+                                       for (size_t i = 0; i < n; ++i) nav[i] += wit->second * vals[i] / p0;
+                                   }
+                                   return TimeSeries("NAV", ref.getSharedTimestamps(), ref.tsOffset(), std::move(nav));
+                               });
     } else {
-        // NavMode::QuantityBased
-        // NAV(t) = sum(q_i * price_i(t))
-        // Absolute portfolio value using snapshot quantities.
+        // NavMode::QuantityBased — NAV(t) = sum(q_i * price_i(t))
         // For proper historical accuracy, override via setNavTimeSeries().
-        session_->addCrossTransform(
-            "nav", [q = std::move(navWeights)](const std::unordered_map<std::string, TimeSeries>& aligned) {
-                if (aligned.empty()) return TimeSeries("NAV", std::vector<int64_t>{}, std::vector<double>{});
-
-                const auto& ref = aligned.begin()->second;
-                const size_t n = ref.size();
-                std::vector<double> nav(n, 0.0);
-
-                for (const auto& [ticker, series] : aligned) {
-                    auto qit = q.find(ticker);
-                    if (qit == q.end()) continue;
-                    const auto& vals = series.getValues();
-                    for (size_t i = 0; i < n; ++i) nav[i] += qit->second * vals[i];
-                }
-                return TimeSeries("NAV", ref.getSharedTimestamps(), ref.tsOffset(), std::move(nav));
-            });
+        session_->addTransform("nav",
+                               [q = std::move(navWeights)](
+                                   const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> aligned) {
+                                   if (aligned.empty())
+                                       return TimeSeries("NAV", std::vector<int64_t>{}, std::vector<double>{});
+                                   const auto& ref = *aligned.begin()->second;
+                                   const size_t n = ref.size();
+                                   std::vector<double> nav(n, 0.0);
+                                   for (const auto& [ticker, series] : aligned) {
+                                       auto qit = q.find(ticker);
+                                       if (qit == q.end()) continue;
+                                       const auto& vals = series->getValues();
+                                       for (size_t i = 0; i < n; ++i) nav[i] += qit->second * vals[i];
+                                   }
+                                   return TimeSeries("NAV", ref.getSharedTimestamps(), ref.tsOffset(), std::move(nav));
+                               });
     }
+
+    navTotalReturnHandle_ =
+        session_->customAnalysis("nav").addMetric("nav", "totalReturn", finapp::metrics::totalReturn());
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +106,7 @@ void PortfolioAnalysis::setNavTimeSeries(std::shared_ptr<const TimeSeries> nav) 
 // ---------------------------------------------------------------------------
 TimeSeriesView PortfolioAnalysis::navSeries() {
     if (navSession_) return navSession_->sourceView();
-    return session_->crossView("nav");
+    return session_->seriesView("nav");
 }
 
 const ::analysis::TimeSeriesAnalysis& PortfolioAnalysis::navAnalysis() {
@@ -112,15 +114,20 @@ const ::analysis::TimeSeriesAnalysis& PortfolioAnalysis::navAnalysis() {
         if (!precomputedNavAnalysis_.has_value()) precomputedNavAnalysis_ = ::analysis::TimeSeriesAnalysis(navSeries());
         return precomputedNavAnalysis_.value();
     }
-    return session_->crossAnalysis("nav");
+    return session_->seriesAnalysis("nav");
 }
 
-std::vector<std::vector<double>> PortfolioAnalysis::correlationMatrix(const std::string& transformName) {
-    return session_->correlationMatrix(tickers_, transformName);
+const ::analysis::TimeSeriesAnalysis& PortfolioAnalysis::returnAnalysis() {
+    if (navSession_) {
+        if (!precomputedNavAnalysis_.has_value()) precomputedNavAnalysis_ = ::analysis::TimeSeriesAnalysis(navSeries());
+        return precomputedNavAnalysis_.value();
+    }
+    return session_->seriesAnalysis("nav");
 }
 
-std::vector<std::vector<double>> PortfolioAnalysis::covarianceMatrix(const std::string& transformName) {
-    return session_->covarianceMatrix(tickers_, transformName);
+::analysis::CustomTimeSeriesAnalysis& PortfolioAnalysis::navCustomAnalysis() {
+    if (navSession_) return navSession_->customAnalysis("");
+    return session_->customAnalysis("nav");
 }
 
 // ---------------------------------------------------------------------------

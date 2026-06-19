@@ -76,9 +76,6 @@ message Transaction {
 
 // =================== Analysis types ===================
 
-message CorrelationRow {
-  repeated double values = 1;
-}
 
 message PortfolioAnalysisResult {
   string                    portfolio_id           = 1;
@@ -88,11 +85,6 @@ message PortfolioAnalysisResult {
   repeated AssetAnalysisResult position_analyses   = 5;
   // Ticker ordering used as both row and column labels for the matrices below.
   repeated string           tickers                = 6;
-  // Computed on price series (source).
-  repeated CorrelationRow   price_correlation      = 7;
-  // Computed on the "return" derived series — more meaningful for portfolio risk.
-  repeated CorrelationRow   return_correlation     = 8;
-  repeated CorrelationRow   covariance             = 9;
 }
 
 // =================== RPC messages — CRUD ===================

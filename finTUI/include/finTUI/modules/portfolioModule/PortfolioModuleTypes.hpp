@@ -70,9 +70,6 @@ struct PortfolioAnalysisData {
     TimeSeriesData navSeries;
     AnalysisStatsData navStats;
     std::vector<AssetAnalysisData> positions;
-    std::vector<std::vector<double>> priceCorrelation;
-    std::vector<std::vector<double>> returnCorrelation;
-    std::vector<std::vector<double>> covariance;
 };
 
 struct CreatePortfolioParams {

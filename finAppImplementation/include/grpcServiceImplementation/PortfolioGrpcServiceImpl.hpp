@@ -55,9 +55,9 @@ class PortfolioGrpcServiceImpl final : public finapp_rpc::PortfolioService::Serv
                                                finapp_rpc::CloseSessionOutput*) override;
 
     // --- Asset session extracted from portfolio session ---
-    grpc::Status ExtractAssetAnalysisFromPortfolioSession(
-        grpc::ServerContext*, const finapp_rpc::ExtractAssetFromPortfolioSessionInput*,
-        finapp_rpc::ExtractAssetFromPortfolioSessionOutput*) override;
+    grpc::Status ExtractAssetAnalysisFromPortfolioSession(grpc::ServerContext*,
+                                                          const finapp_rpc::ExtractAssetFromPortfolioSessionInput*,
+                                                          finapp_rpc::ExtractAssetFromPortfolioSessionOutput*) override;
     grpc::Status CloseAssetSession(grpc::ServerContext*, const finapp_rpc::CloseSessionInput*,
                                    finapp_rpc::CloseSessionOutput*) override;
 

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -133,21 +134,6 @@ PortfolioAnalysisData GrpcPortfolioSessionDataSource::extractAnalysis_(const fin
         out.positions.push_back(std::move(asset));
     }
 
-    for (const auto& row : r.price_correlation()) {
-        std::vector<double> rowVec;
-        for (double v : row.values()) rowVec.push_back(v);
-        out.priceCorrelation.push_back(std::move(rowVec));
-    }
-    for (const auto& row : r.return_correlation()) {
-        std::vector<double> rowVec;
-        for (double v : row.values()) rowVec.push_back(v);
-        out.returnCorrelation.push_back(std::move(rowVec));
-    }
-    for (const auto& row : r.covariance()) {
-        std::vector<double> rowVec;
-        for (double v : row.values()) rowVec.push_back(v);
-        out.covariance.push_back(std::move(rowVec));
-    }
     return out;
 }
 

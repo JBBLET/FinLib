@@ -3,12 +3,16 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
+#include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
+#include "finlib/analysis/MetricHandle.hpp"
+#include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/session/MultiTimeSeriesSession.hpp"
 
 namespace finance::analysis {
@@ -45,11 +49,10 @@ class PortfolioAnalysis {
     // NAV series and statistics.
     TimeSeriesView navSeries();
     const ::analysis::TimeSeriesAnalysis& navAnalysis();
+    const ::analysis::TimeSeriesAnalysis& returnAnalysis();
 
-    // Correlation / covariance matrices over price series by default.
-    // Pass transformName = "return" for log-return correlation.
-    std::vector<std::vector<double>> correlationMatrix(const std::string& transformName = "");
-    std::vector<std::vector<double>> covarianceMatrix(const std::string& transformName = "");
+    // Custom metric analysis for the NAV series.
+    ::analysis::CustomTimeSeriesAnalysis& navCustomAnalysis();
 
     // Per-asset access
     std::shared_ptr<IAssetAnalysis> assetAnalysis(const std::string& ticker) const;
@@ -70,6 +73,8 @@ class PortfolioAnalysis {
     // Set by setNavTimeSeries() — takes precedence over the cross-transform.
     std::unique_ptr<::analysis::TimeSeriesSession> navSession_;
     std::optional<::analysis::TimeSeriesAnalysis> precomputedNavAnalysis_;
+
+    std::optional<::analysis::MetricHandle<double>> navTotalReturnHandle_;
 };
 
 }  // namespace finance::analysis

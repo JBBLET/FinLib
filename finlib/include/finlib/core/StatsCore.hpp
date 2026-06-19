@@ -41,6 +41,3 @@ HypothesisTestResult breuschGodfrey(const TimeSeriesView&);
 double PvalueFromTStatistic(double tStat);
 }  // namespace analysis::hypothesisTesting
 
-namespace analysis::finance {
-double volatility(const TimeSeriesView& view, double frequency = 252.0);
-}  //  namespace analysis::finance

@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "portfolio.pb.h"
 
@@ -27,9 +28,8 @@ static AnalysisStatsData protoToStats(const finapp_rpc::AnalysisStats& s) {
     return {s.mean(), s.std_dev(), s.variance(), s.skewness(), s.kurtosis()};
 }
 
-PortfolioAnalysisData GrpcPortfolioAnalysisDataSource::computeAnalysis(const std::string& portfolioId,
-                                                                        int64_t startMs, int64_t endMs,
-                                                                        int64_t frequencyMs) {
+PortfolioAnalysisData GrpcPortfolioAnalysisDataSource::computeAnalysis(const std::string& portfolioId, int64_t startMs,
+                                                                       int64_t endMs, int64_t frequencyMs) {
     finapp_rpc::ComputePortfolioAnalysisInput req;
     req.set_portfolio_id(portfolioId);
     req.set_start_ms(startMs);
@@ -60,22 +60,6 @@ PortfolioAnalysisData GrpcPortfolioAnalysisDataSource::computeAnalysis(const std
             if (ns.name() == "return") asset.returnStats = protoToStats(ns.stats());
         }
         out.positions.push_back(std::move(asset));
-    }
-
-    for (const auto& row : r.price_correlation()) {
-        std::vector<double> rowVec;
-        for (double v : row.values()) rowVec.push_back(v);
-        out.priceCorrelation.push_back(std::move(rowVec));
-    }
-    for (const auto& row : r.return_correlation()) {
-        std::vector<double> rowVec;
-        for (double v : row.values()) rowVec.push_back(v);
-        out.returnCorrelation.push_back(std::move(rowVec));
-    }
-    for (const auto& row : r.covariance()) {
-        std::vector<double> rowVec;
-        for (double v : row.values()) rowVec.push_back(v);
-        out.covariance.push_back(std::move(rowVec));
     }
 
     return out;

@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdint>
 #include <exception>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -86,30 +87,6 @@ static void fillPortfolioAnalysis(finapp_rpc::PortfolioAnalysisResult* proto, co
     for (const auto& ticker : pa.tickers()) {
         proto->add_tickers(ticker);
         fillAssetAnalysis(proto->add_position_analyses(), *pa.assetAnalysis(ticker));
-    }
-
-    try {
-        for (const auto& row : pa.correlationMatrix("")) {
-            auto* r = proto->add_price_correlation();
-            for (double v : row) r->add_values(v);
-        }
-    } catch (const std::exception&) {
-    }
-
-    try {
-        for (const auto& row : pa.correlationMatrix("return")) {
-            auto* r = proto->add_return_correlation();
-            for (double v : row) r->add_values(v);
-        }
-    } catch (const std::exception&) {
-    }
-
-    try {
-        for (const auto& row : pa.covarianceMatrix("return")) {
-            auto* r = proto->add_covariance();
-            for (double v : row) r->add_values(v);
-        }
-    } catch (const std::exception&) {
     }
 }
 
@@ -203,8 +180,7 @@ grpc::Status PortfolioGrpcServiceImpl::GetPortfolioTimeSeriesById(
 
         finance::Portfolio portfolio = portfolioService_->load(id);
         const auto overview = portfolioService_->computeOverviewAtTs(id, endMs);
-        *reply->mutable_portfolio() =
-            finapp_rpc::converters::toProto(portfolio, overview.totalValue, overview.weights);
+        *reply->mutable_portfolio() = finapp_rpc::converters::toProto(portfolio, overview.totalValue, overview.weights);
 
         const TimeSeries vs = portfolioService_->valueSeries(id, startMs, endMs, deltaMs);
         auto* ts = reply->mutable_time_series();
@@ -256,8 +232,8 @@ grpc::Status PortfolioGrpcServiceImpl::OpenPortfolioAnalysisSession(
             portfolio, request->start_ms(), request->end_ms(), request->frequency_ms());
 
         if (pa->navMode() == finance::analysis::NavMode::QuantityBased) {
-            auto nav = portfolioService_->valueSeries(portfolioId,
-                request->start_ms(), request->end_ms(), request->frequency_ms());
+            auto nav = portfolioService_->valueSeries(
+                portfolioId, request->start_ms(), request->end_ms(), request->frequency_ms());
             pa->setNavTimeSeries(std::make_shared<TimeSeries>(std::move(nav)));
         }
 
@@ -302,8 +278,8 @@ grpc::Status PortfolioGrpcServiceImpl::UpdatePortfolioAnalysisSessionTimestamp(
 
         const auto& entry = it->second;
         const auto overview = portfolioService_->computeOverviewAtTs(entry.portfolioId, request->timestamp_ms());
-        *reply->mutable_snapshot() = finapp_rpc::converters::toProto(
-            entry.portfolio, overview.totalValue, overview.weights);
+        *reply->mutable_snapshot() =
+            finapp_rpc::converters::toProto(entry.portfolio, overview.totalValue, overview.weights);
         return grpc::Status::OK;
     } catch (const std::exception& e) {
         GRPC_LOG_AND_RETURN_INTERNAL(e);

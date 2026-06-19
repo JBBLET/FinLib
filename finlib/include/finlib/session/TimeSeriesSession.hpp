@@ -7,18 +7,28 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
+#include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
+#include "finlib/session/ITimeSeriesSession.hpp"
 
 namespace analysis {
 
 using DerivedTransform = std::function<TimeSeries(const TimeSeries&)>;
+using ComputeTransform = std::function<TimeSeries(std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>)>;
 
-class TimeSeriesSession {
+class TimeSeriesSession : public ITimeSeriesSession {
+    struct SeriesNode {
+        std::string name;
+        std::vector<std::string> inputs;
+        ComputeTransform transform;
+    };
+
  public:
     // Regular grid constructor
     TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, Timestamp startMs,
@@ -31,19 +41,30 @@ class TimeSeriesSession {
     explicit TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed);
 
     // Range / frequency setters
-    void setRange(Timestamp newStartMs, Timestamp newEndMs);
-    void setFrequency(Timestamp newFrequencyMs);
+    void setRange(Timestamp newStartMs, Timestamp newEndMs) override;
+    void setFrequency(Timestamp newFrequencyMs) override;
 
     // Named derived transforms
     void addTransform(std::string name, DerivedTransform transform);
+    void addTransform(std::string name, std::vector<std::string> inputs, ComputeTransform transform);
 
-    // View accessors
+    // ITimeSeriesSession — name = "" → source, non-empty → named derived transform
+    std::shared_ptr<const TimeSeries> seriesPtr(const std::string& name) override;
+    TimeSeriesView seriesView(const std::string& name) override;
+    const TimeSeriesAnalysis& seriesAnalysis(const std::string& name) override;
+
+    // Concrete accessors kept for direct use
+    std::shared_ptr<const TimeSeries> sourceTimeSeriesPtr() { return source_; }
+    std::shared_ptr<const TimeSeries> derivedTimeSeriesPtr(const std::string& name);
+
     TimeSeriesView sourceView() const;
     TimeSeriesView derivedView(const std::string& name) const;
 
-    // Analysis accessors
     const TimeSeriesAnalysis& sourceAnalysis();
     const TimeSeriesAnalysis& derivedAnalysis(const std::string& name);
+
+    // Custom metric analysis — created lazily, rebound on range/frequency change
+    CustomTimeSeriesAnalysis& customAnalysis(const std::string& seriesName = "") override;
 
     // Scalar accessors
     Timestamp startMs() const { return startMs_; }
@@ -56,7 +77,7 @@ class TimeSeriesSession {
     std::shared_ptr<TimeSeriesService> service_;
     std::shared_ptr<const TimeSeries> source_;
 
-    std::unordered_map<std::string, DerivedTransform> transforms_;
+    std::unordered_map<std::string, SeriesNode> transforms_;
     mutable std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> derivedCaches_;
     mutable std::unordered_map<std::string, std::optional<TimeSeriesAnalysis>> derivedAnalysisCache_;
 
@@ -66,6 +87,9 @@ class TimeSeriesSession {
     std::optional<Timestamp> frequencyMs_;
 
     std::optional<TimeSeriesAnalysis> sourceAnalysis_;
+
+    std::optional<CustomTimeSeriesAnalysis> sourceCustomAnalysis_;
+    std::unordered_map<std::string, std::optional<CustomTimeSeriesAnalysis>> derivedCustomAnalysisCache_;
 
     void buildDerived_(const std::string& name) const;
     void invalidateAllCache_();

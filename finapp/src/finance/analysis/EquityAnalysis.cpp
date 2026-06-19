@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/finance/analysis/FinanceMetrics.hpp"
 #include "finapp/service/AssetService.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
@@ -38,6 +39,9 @@ EquityAnalysis::EquityAnalysis(std::shared_ptr<const finance::Equity> equity,
     : IAssetAnalysis{std::move(equity), std::move(session)}, assetService_{std::move(assetService)} {
     session_->addTransform("logReturn", logReturnTransform);
     session_->addTransform("simpleReturn", simpleReturnTransform);
+    totalReturnHandle_ = session_->customAnalysis("").addMetric("", "totalReturn", finapp::metrics::totalReturn());
+    sharpeHandle_ = session_->customAnalysis("logReturn").addMetric("logReturn", "sharpe",
+                                                                    finapp::metrics::annualizedSharpe());
 }
 
 }  // namespace finance::analysis

@@ -6,7 +6,9 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/FinlibTypes.hpp"
@@ -63,11 +65,50 @@ void TimeSeriesSession::setFrequency(Timestamp newFrequencyMs) {
 }
 
 void TimeSeriesSession::addTransform(std::string name, DerivedTransform transform) {
-    transforms_[name] = std::move(transform);
+    transforms_[name] =
+        std::move(SeriesNode{name,        //
+                             {"source"},  //
+                             [transform](std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> map) {
+                                 return transform(*map.at("source"));
+                             }});
     derivedCaches_.erase(name);
     derivedAnalysisCache_.erase(name);
 }
 
+void TimeSeriesSession::addTransform(std::string name, std::vector<std::string> inputs, ComputeTransform transform) {
+    transforms_[name] = std::move(SeriesNode{name,               //
+                                             std::move(inputs),  //
+                                             std::move(transform)});
+    derivedCaches_.erase(name);
+    derivedAnalysisCache_.erase(name);
+}
+// ---------------------------------------------------------------------------
+// ITimeSeriesSession
+// ---------------------------------------------------------------------------
+std::shared_ptr<const TimeSeries> TimeSeriesSession::seriesPtr(const std::string& name) {
+    return name.empty() ? sourceTimeSeriesPtr() : derivedTimeSeriesPtr(name);
+}
+
+TimeSeriesView TimeSeriesSession::seriesView(const std::string& name) {
+    return name.empty() ? sourceView() : derivedView(name);
+}
+
+const TimeSeriesAnalysis& TimeSeriesSession::seriesAnalysis(const std::string& name) {
+    return name.empty() ? sourceAnalysis() : derivedAnalysis(name);
+}
+
+// ---------------------------------------------------------------------------
+// TimeSeries accessors
+// ---------------------------------------------------------------------------
+
+std::shared_ptr<const TimeSeries> TimeSeriesSession::derivedTimeSeriesPtr(const std::string& name) {
+    if (name == "") return sourceTimeSeriesPtr();
+
+    if (transforms_.find(name) == transforms_.end())
+        throw std::logic_error("No transform named '" + name + "' registered on this session");
+    if (derivedCaches_.find(name) == derivedCaches_.end()) buildDerived_(name);
+    return derivedCaches_.at(name);
+}
 // ---------------------------------------------------------------------------
 // View accessors
 // ---------------------------------------------------------------------------
@@ -124,14 +165,41 @@ void TimeSeriesSession::extendRange_(Timestamp newStartMs, Timestamp newEndMs) {
     }
 }
 
+CustomTimeSeriesAnalysis& TimeSeriesSession::customAnalysis(const std::string& name) {
+    if (name.empty()) {
+        if (!sourceCustomAnalysis_.has_value())
+            sourceCustomAnalysis_ = CustomTimeSeriesAnalysis("", sourceView());
+        return sourceCustomAnalysis_.value();
+    }
+    auto& ca = derivedCustomAnalysisCache_[name];
+    if (!ca.has_value()) ca = CustomTimeSeriesAnalysis(name, derivedView(name));
+    return ca.value();
+}
+
 void TimeSeriesSession::invalidateAllCache_() {
     derivedCaches_.clear();
     sourceAnalysis_.reset();
     derivedAnalysisCache_.clear();
+    if (sourceCustomAnalysis_.has_value()) sourceCustomAnalysis_->rebind(sourceView());
+    for (auto& [name, ca] : derivedCustomAnalysisCache_)
+        if (ca.has_value()) ca->rebind(derivedView(name));
 }
 
 void TimeSeriesSession::buildDerived_(const std::string& name) const {
-    derivedCaches_[name] = std::make_shared<const TimeSeries>(transforms_.at(name)(*source_));
+    const SeriesNode& leaf = transforms_.at(name);
+    std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> inputMap;
+    inputMap.reserve(leaf.inputs.size());
+    for (const auto& dep : leaf.inputs) {
+        if (dep == "source") {
+            inputMap.emplace("source", source_);
+        } else {
+            if (derivedCaches_.find(dep) == derivedCaches_.end()) {
+                buildDerived_(dep);
+            }
+            inputMap.emplace(dep, derivedCaches_.at(dep));
+        }
+    }
+    derivedCaches_[name] = std::make_shared<const TimeSeries>(leaf.transform(std::move(inputMap)));
 }
 
 }  // namespace analysis
