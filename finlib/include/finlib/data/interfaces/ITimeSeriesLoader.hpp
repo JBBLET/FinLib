@@ -28,6 +28,19 @@ struct LoaderCapabilities {
         }
         return finestFrequencyMs;
     }
+
+    // Returns the minimum fetch range such that load() selects the correct interval
+    // for data of the given age (age = now - ts). Needed when requesting a narrow
+    // window around a historical point — the range must clear the previous tier's
+    // maxRangeMs threshold so the provider picks the right interval.
+    Timestamp minFetchRangeFor(Timestamp ageMs) const {
+        Timestamp prevMax = 0;
+        for (const auto& tier : tiers) {
+            if (ageMs <= tier.maxRangeMs) return prevMax + 1;
+            prevMax = tier.maxRangeMs;
+        }
+        return prevMax + 1;
+    }
 };
 
 class ITimeSeriesLoader {

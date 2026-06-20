@@ -298,10 +298,21 @@ double TimeSeriesService::getSinglePoint(const std::string& id, Timestamp ts) {
     }
 
     const auto caps = provider_->capabilities(id);
-    // Fixed 5-day window on each side guarantees data across weekends and holidays
-    // regardless of the provider's intraday capabilities.
-    constexpr Timestamp kWindowMs = 5LL * 86'400'000LL;
-    TimeSeries raw = provider_->load(id, ts - kWindowMs, ts + kWindowMs);
+
+    // The window must be wide enough that load(ts-w, ts+w) triggers the right tier for
+    // the age of ts. Providers like YFinance only serve 1m for the last 7 days and 5m
+    // for the last 60 days — a fixed narrow window always lands in the finest tier and
+    // fails for historical timestamps.
+    int64_t nowMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    Timestamp ageMs = (ts < nowMs) ? (nowMs - ts) : 0LL;
+    Timestamp freqMs = caps.frequencyForRange(ageMs);
+    // 2*windowMs must exceed the previous tier boundary so load() lands in the right tier.
+    Timestamp minRange = caps.minFetchRangeFor(ageMs);
+    Timestamp windowMs = std::max((minRange / 2) + 1, 5 * freqMs);
+
+    TimeSeries raw = provider_->load(id, ts - windowMs, ts + windowMs);
     if (raw.size() == 0) {
         throw std::runtime_error("TimeSeriesService::getSinglePoint: provider returned no data for '" + id + "'");
     }
@@ -311,11 +322,7 @@ double TimeSeriesService::getSinglePoint(const std::string& id, Timestamp ts) {
     TimeSeries clean = stripNaN(std::move(raw));
 
     if (clean.size() > 0) {
-        int64_t nowMs =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count();
-        const Timestamp providerFreqMs = caps.frequencyForRange(2 * kWindowMs);
-        SeriesKey key{id, providerFreqMs};
+        SeriesKey key{id, freqMs};
         CoverageInfo cov{key, clean.getTimestamps().front(), clean.getTimestamps().back(), "provider", nowMs};
         cache_->save(key, clean, cov);
     }

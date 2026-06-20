@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include "finapp/data/providers/implementations/Yfinance/YFinanceProvider.hpp"
@@ -12,8 +13,12 @@ TEST(YFinanceProvider, DownloadAAPLLast10Days) {
     YFinanceProvider provider("/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python",
                               "/home/jbblet/user/Documents/Projects/FinLib/finapp/scripts/YFinanceFetcher.py");
 
-    int64_t startTs = 1704153600000;  // 2024-01-02 UTC
-    int64_t endTs = 1705363200000;    // 2024-01-16 UTC
+    // Use a rolling window in the last 7 days so 1m data is always available.
+    constexpr int64_t kDayMs = 86'400'000LL;
+    int64_t endTs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch())
+                        .count();
+    int64_t startTs = endTs - 5 * kDayMs;
 
     TimeSeries ts = provider.load("AAPL", startTs, endTs);
 
