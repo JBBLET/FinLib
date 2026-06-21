@@ -13,19 +13,12 @@
 #include <vector>
 
 #include "finapp/data/providers/interfaces/IAssetProviders.hpp"
-#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryAssetRepository.hpp"
-#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryFXRepository.hpp"
-#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryPortfolioRepository.hpp"
+#include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
-#include "finapp/finance/common/Currency.hpp"
 #include "finlib/core/TimeSeries.hpp"
-#include "finlib/data/implementation/InMemoryTimeSeriesRepository.hpp"
 #include "finlib/data/interfaces/ITimeSeriesLoader.hpp"
 
 namespace finapp::test {
-
-using namespace finance;
-using namespace finapp;
 
 // ---------------------------------------------------------------------------
 // TimeSeries provider fake
@@ -75,11 +68,11 @@ class FakeTimeSeriesLoader : public ITimeSeriesLoader {
 
 class FakeAssetProvider : public IAssetProvider {
  public:
-    void setAsset(const std::string& ticker, std::shared_ptr<IAsset> asset) {
+    void setAsset(const std::string& ticker, std::shared_ptr<finance::IAsset> asset) {
         assets_[ticker] = std::move(asset);
     }
 
-    std::shared_ptr<IAsset> fetch(const std::string& ticker) const override {
+    std::shared_ptr<finance::IAsset> fetch(const std::string& ticker) const override {
         auto it = assets_.find(ticker);
         return it == assets_.end() ? nullptr : it->second;
     }
@@ -87,7 +80,7 @@ class FakeAssetProvider : public IAssetProvider {
     bool exists(const std::string& ticker) const override { return assets_.contains(ticker); }
 
  private:
-    std::unordered_map<std::string, std::shared_ptr<IAsset>> assets_;
+    std::unordered_map<std::string, std::shared_ptr<finance::IAsset>> assets_;
 };
 
 // ---------------------------------------------------------------------------
@@ -97,7 +90,7 @@ class FakeAssetProvider : public IAssetProvider {
 // Build a TimeSeries at a regular grid with a constant value — used to preload the
 // fake provider with canned market data for tests.
 inline TimeSeries makeFlatSeries(const std::string& id, int64_t startMs, int64_t endMs, int64_t frequencyMs,
-                                  double value) {
+                                 double value) {
     std::vector<int64_t> ts;
     for (int64_t t = startMs; t <= endMs; t += frequencyMs) ts.push_back(t);
     std::vector<double> vs(ts.size(), value);

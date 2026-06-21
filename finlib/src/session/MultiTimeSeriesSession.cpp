@@ -11,15 +11,20 @@
 
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
 namespace analysis {
 
+MultiTimeSeriesSession::MultiTimeSeriesSession(logging::ILogger* logger)
+    : logger_{logging::PrefixedLogger::wrap(logger, "MultiTimeSeriesSession")} {}
+
 // ---------------------------------------------------------------------------
 // Session management
 // ---------------------------------------------------------------------------
 void MultiTimeSeriesSession::addSession(std::string name, std::shared_ptr<ITimeSeriesSession> session) {
+    if (logger_) logger_->write(logging::Level::Debug, "addSession '" + name + "'");
     if (!sessions_.count(name)) sessionNames_.push_back(name);
     invalidate_(name);
     sessions_[std::move(name)] = std::move(session);
@@ -57,11 +62,15 @@ const TimeSeriesAnalysis& MultiTimeSeriesSession::seriesAnalysis(const std::stri
 // Range / frequency
 // ---------------------------------------------------------------------------
 void MultiTimeSeriesSession::setRange(Timestamp startMs, Timestamp endMs) {
+    if (logger_)
+        logger_->write(logging::Level::Debug,
+                       "setRange [" + std::to_string(startMs) + ".." + std::to_string(endMs) + "]");
     for (auto& [name, session] : sessions_) session->setRange(startMs, endMs);
     invalidateAll_();
 }
 
 void MultiTimeSeriesSession::setFrequency(Timestamp freqMs) {
+    if (logger_) logger_->write(logging::Level::Debug, "setFrequency " + std::to_string(freqMs) + "ms");
     for (auto& [name, session] : sessions_) session->setFrequency(freqMs);
     invalidateAll_();
 }
@@ -69,8 +78,7 @@ void MultiTimeSeriesSession::setFrequency(Timestamp freqMs) {
 // ---------------------------------------------------------------------------
 // Sub-session access
 // ---------------------------------------------------------------------------
-TimeSeriesView MultiTimeSeriesSession::subSeriesView(const std::string& sessionName,
-                                                     const std::string& seriesName) {
+TimeSeriesView MultiTimeSeriesSession::subSeriesView(const std::string& sessionName, const std::string& seriesName) {
     return sessions_.at(sessionName)->seriesView(seriesName);
 }
 
@@ -105,9 +113,11 @@ void MultiTimeSeriesSession::addTransform(std::string name, std::vector<std::str
 }
 
 void MultiTimeSeriesSession::addTransform(MultiTimeSeriesSession::SeriesNode node) {
+    if (logger_)
+        logger_->write(logging::Level::Debug,
+                       "addTransform '" + node.name + "' (" + std::to_string(node.inputs.size()) + " inputs)");
     // Remove stale reverse dep entries for this name before re-registering.
-    for (auto& [_, deps] : reverseDeps_)
-        deps.erase(std::remove(deps.begin(), deps.end(), node.name), deps.end());
+    for (auto& [_, deps] : reverseDeps_) deps.erase(std::remove(deps.begin(), deps.end(), node.name), deps.end());
 
     crossCaches_.erase(node.name);
     crossAnalysisCache_.erase(node.name);
@@ -157,6 +167,7 @@ std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> MultiTimeSeri
 }
 
 void MultiTimeSeriesSession::buildCross_(const std::string& name) const {
+    if (logger_) logger_->write(logging::Level::Debug, "buildCross_ '" + name + "'");
     auto aligned = buildAligned_(name);
     crossCaches_[name] = std::make_shared<const TimeSeries>(crossTransforms_.at(name).crossTransform(aligned));
 }

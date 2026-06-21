@@ -52,13 +52,20 @@ inline TransactionType transactionTypeFromString(const std::string& type) { retu
 // Order: Deposit < Dividend < Buy/Sell < Withdrawal < Split.
 inline int transactionTypePriority(TransactionType t) {
     switch (t) {
-        case TransactionType::Deposit:    return 0;
-        case TransactionType::Dividend:   return 1;
-        case TransactionType::Buy:        return 2;
-        case TransactionType::Sell:       return 2;
-        case TransactionType::Withdrawal: return 3;
-        case TransactionType::Split:      return 4;
-        default:                          return 5;
+        case TransactionType::Deposit:
+            return 0;
+        case TransactionType::Dividend:
+            return 1;
+        case TransactionType::Buy:
+            return 2;
+        case TransactionType::Sell:
+            return 2;
+        case TransactionType::Withdrawal:
+            return 3;
+        case TransactionType::Split:
+            return 4;
+        default:
+            return 5;
     }
 }
 

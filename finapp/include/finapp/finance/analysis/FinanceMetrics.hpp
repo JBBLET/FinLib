@@ -15,15 +15,11 @@ inline analysis::MetricFn<double> totalReturn() {
 }
 
 inline analysis::MetricFn<double> annualizedSharpe(double annualizationFactor = 252.0) {
-    return [annualizationFactor](TimeSeriesView v) {
-        return finapp::stats::sharpeRatio(v, annualizationFactor);
-    };
+    return [annualizationFactor](TimeSeriesView v) { return finapp::stats::sharpeRatio(v, annualizationFactor); };
 }
 
 inline analysis::MetricFn<double> annualizedVolatility(double annualizationFactor = 252.0) {
-    return [annualizationFactor](TimeSeriesView v) {
-        return finapp::stats::volatility(v, annualizationFactor);
-    };
+    return [annualizationFactor](TimeSeriesView v) { return finapp::stats::volatility(v, annualizationFactor); };
 }
 
 inline analysis::MultiMetricFn<std::vector<std::vector<double>>> correlationMatrix() {

@@ -24,23 +24,22 @@ TransactionsPane::TransactionsPane(std::shared_ptr<IPortfolioDataSource> ds,
             {"", "Date", 13, [this](int i) { return utils::PortfolioUtils::fmtDate(transactions_[i].timestampMs); }},
             {"", "Type", 12, [this](int i) { return transactions_[i].type; }},
             {"Asset", "Ticker", 10, [this](int i) { return transactions_[i].ticker; }},
-            {"Asset", "Qty", 12,
-             [this](int i) { return utils::PortfolioUtils::fmtNumber(transactions_[i].quantity); }},
-            {"Amount", "Price", 12,
+            {"Asset", "Qty", 12, [this](int i) { return utils::PortfolioUtils::fmtNumber(transactions_[i].quantity); }},
+            {"Amount",
+             "Price",
+             12,
              [this](int i) { return utils::PortfolioUtils::fmtNumber(transactions_[i].pricePerUnit); }},
-            {"Amount", "Fees", 10,
-             [this](int i) { return utils::PortfolioUtils::fmtNumber(transactions_[i].fees); }},
+            {"Amount", "Fees", 10, [this](int i) { return utils::PortfolioUtils::fmtNumber(transactions_[i].fees); }},
             {"", "CCY", 5, [this](int i) { return transactions_[i].currency; }},
         },
         [this] { return static_cast<int>(transactions_.size()); });
 
     addDialog_ = makeAddTransactionDialog(addForm_, [this] { submitAdd_(); }, [this] { enterNormal_(); });
     editDialog_ = makeAddTransactionDialog(addForm_, [this] { submitEdit_(); }, [this] { enterNormal_(); });
-    deleteConfirm_ = std::make_shared<TuiConfirmationDialog>("Delete Transaction", "", "Confirm",
-                                                             [this] { confirmDelete_(); }, "Cancel",
-                                                             [this] { enterNormal_(); });
-    importDialog_ = std::make_shared<TuiFileDialog>(".csv", [this](std::string path) { submitImport_(path); },
-                                                    [this] { enterNormal_(); });
+    deleteConfirm_ = std::make_shared<TuiConfirmationDialog>(
+        "Delete Transaction", "", "Confirm", [this] { confirmDelete_(); }, "Cancel", [this] { enterNormal_(); });
+    importDialog_ = std::make_shared<TuiFileDialog>(
+        ".csv", [this](std::string path) { submitImport_(path); }, [this] { enterNormal_(); });
 
     table_->setOnEdit([this](int i) { startEdit_(i); });
     table_->setOnDelete([this](int i) {
@@ -68,11 +67,11 @@ TransactionsPane::TransactionsPane(std::shared_ptr<IPortfolioDataSource> ds,
 
     app_ = ftxui::Container::Tab(
         {
-            table_,                                         // 0 Normal
-            ftxui::Maybe(addDialog_, &showAdd_),            // 1 AddTransaction
-            ftxui::Maybe(editDialog_, &showEdit_),          // 2 EditTransaction
-            ftxui::Maybe(deleteConfirm_, &showDelete_),     // 3 DeleteTransaction
-            ftxui::Maybe(importDialog_, &showImport_),      // 4 ImportTransactions
+            table_,                                      // 0 Normal
+            ftxui::Maybe(addDialog_, &showAdd_),         // 1 AddTransaction
+            ftxui::Maybe(editDialog_, &showEdit_),       // 2 EditTransaction
+            ftxui::Maybe(deleteConfirm_, &showDelete_),  // 3 DeleteTransaction
+            ftxui::Maybe(importDialog_, &showImport_),   // 4 ImportTransactions
         },
         &modeAsInt_);
     component_ = ftxui::Renderer(app_, [this] { return renderRoot_(); });
@@ -223,8 +222,7 @@ ftxui::Element TransactionsPane::buildContent_() const {
     return ftxui::vbox({
         table_->Render(),
         ftxui::separator(),
-        ftxui::text(hasData ? " t Add   e Edit   x Delete   i Import   ↑↓ Navigate" : " t Add   i Import") |
-            ftxui::dim,
+        ftxui::text(hasData ? " t Add   e Edit   x Delete   i Import   ↑↓ Navigate" : " t Add   i Import") | ftxui::dim,
     });
 }
 

@@ -11,6 +11,7 @@
 
 #include "finlib/analysis/ITimeSeriesAnalysis.hpp"
 #include "finlib/analysis/MetricHandle.hpp"
+#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
 namespace analysis {
@@ -30,32 +31,37 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     std::unordered_map<std::string, TimeSeriesView> views_;   // value — cheap, rebindable
     std::unordered_map<std::string, MetricEntry> metricFns_;  // permanent — survive rebind
     std::unordered_map<std::string, std::any> metricCache_;
+    logging::ILogger* logger_ = nullptr;
 
  public:
     // Single-series — seriesName matches the key used in addMetric
-    CustomTimeSeriesAnalysis(std::string seriesName, TimeSeriesView view) {
+    CustomTimeSeriesAnalysis(std::string seriesName, TimeSeriesView view, logging::ILogger* logger = nullptr)
+        : logger_{logger} {
         views_.emplace(std::move(seriesName), std::move(view));
     }
 
     // Multi-series
-    explicit CustomTimeSeriesAnalysis(std::unordered_map<std::string, TimeSeriesView> views)
-        : views_(std::move(views)) {}
+    explicit CustomTimeSeriesAnalysis(std::unordered_map<std::string, TimeSeriesView> views,
+                                      logging::ILogger* logger = nullptr)
+        : views_(std::move(views)), logger_{logger} {}
 
     // ITimeSeriesAnalysis — single-view rebind for single-series analyses
     void rebind(TimeSeriesView newView) override {
-        if (views_.size() != 1)
-            throw std::logic_error("rebind(view) requires exactly one registered view");
+        if (views_.size() != 1) throw std::logic_error("rebind(view) requires exactly one registered view");
+        if (logger_) logger_->write(logging::Level::Debug, "rebind");
         views_.begin()->second = std::move(newView);
         metricCache_.clear();
     }
 
     // Session calls this on setRange / setFrequency — keeps definitions, refreshes views
     void rebind(const std::string& seriesName, TimeSeriesView newView) {
+        if (logger_) logger_->write(logging::Level::Debug, "rebind '" + seriesName + "'");
         views_.at(seriesName) = std::move(newView);
         metricCache_.clear();
     }
 
     void rebind(std::unordered_map<std::string, TimeSeriesView> newViews) {
+        if (logger_) logger_->write(logging::Level::Debug, "rebind all views");
         views_ = std::move(newViews);
         metricCache_.clear();
     }
@@ -134,6 +140,7 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     T compute(const MetricHandle<T>& handle) {
         if (auto it = metricCache_.find(handle.cacheKey()); it != metricCache_.end())
             return std::any_cast<T>(it->second);
+        if (logger_) logger_->write(logging::Level::Debug, "compute: " + handle.cacheKey());
         auto& entry = metricFns_.at(handle.cacheKey());
         std::unordered_map<std::string, TimeSeriesView> inputViews;
         for (const auto& name : entry.inputs) inputViews.emplace(name, views_.at(name));

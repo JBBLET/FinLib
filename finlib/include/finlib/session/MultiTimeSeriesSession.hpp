@@ -12,6 +12,7 @@
 #include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/session/ITimeSeriesSession.hpp"
@@ -38,7 +39,7 @@ class MultiTimeSeriesSession : public ITimeSeriesSession {
     };
 
  public:
-    MultiTimeSeriesSession() = default;
+    explicit MultiTimeSeriesSession(logging::ILogger* logger = nullptr);
 
     // ITimeSeriesSession — name = "" throws (no single source); non-empty = cross-transform result
     std::shared_ptr<const TimeSeries> seriesPtr(const std::string& name) override;
@@ -78,6 +79,8 @@ class MultiTimeSeriesSession : public ITimeSeriesSession {
     mutable std::unordered_map<std::string, std::optional<TimeSeriesAnalysis>> crossAnalysisCache_;
 
     std::unordered_map<std::string, std::optional<CustomTimeSeriesAnalysis>> crossCustomAnalysisCache_;
+
+    std::unique_ptr<logging::ILogger> logger_;
 
     std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> buildAligned_(const std::string& name) const;
     void buildCross_(const std::string& name) const;

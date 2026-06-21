@@ -4,26 +4,24 @@
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryAssetRepository.hpp"
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryFXRepository.hpp"
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryPortfolioRepository.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Equity.hpp"
-#include "finapp/finance/asset/IAsset.hpp"
-#include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
-#include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
 #include "finapp/service/AssetService.hpp"
 #include "finapp/service/FXService.hpp"
 #include "finapp/service/PortfolioService.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"
+#include "finlib/data/implementation/InMemoryTimeSeriesRepository.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "support/service_test_fakes.hpp"
-
-using namespace finance;
-using namespace finapp;
-using namespace finapp::test;
 
 namespace {
 
@@ -34,60 +32,123 @@ constexpr int64_t kDay = 86'400'000;
 // portfolio value is preserved across the split tick.
 TimeSeries makeSTCKPriceSeries() {
     std::vector<int64_t> ts;
-    std::vector<double>  vs;
-    for (int i = 0; i <= 5; ++i) { ts.push_back(i * kDay); vs.push_back(10.0); }
-    for (int i = 6; i <= 8; ++i) { ts.push_back(i * kDay); vs.push_back(5.0); }
+    std::vector<double> vs;
+    for (int i = 0; i <= 5; ++i) {
+        ts.push_back(i * kDay);
+        vs.push_back(10.0);
+    }
+    for (int i = 6; i <= 8; ++i) {
+        ts.push_back(i * kDay);
+        vs.push_back(5.0);
+    }
     return TimeSeries("STCK", std::move(ts), std::move(vs));
 }
 
 class PortfolioTrackingMathTest : public ::testing::Test {
  protected:
     std::shared_ptr<InMemoryTimeSeriesRepository> innerRepo;
-    std::shared_ptr<CachedTimeSeriesRepository>   cachedRepo;
-    std::shared_ptr<FakeTimeSeriesLoader>          tsLoader;
-    std::shared_ptr<TimeSeriesService>             tsService;
-    std::shared_ptr<InMemoryAssetRepository>       equityRepo;
-    std::shared_ptr<FakeAssetProvider>             equityProvider;
-    std::shared_ptr<AssetService>                  assetService;
-    std::shared_ptr<InMemoryFXRepository>          fxRepo;
-    std::shared_ptr<FXService>                     fxService;
-    std::shared_ptr<InMemoryPortfolioRepository>   portfolioRepo;
-    std::unique_ptr<PortfolioService>              service;
+    std::shared_ptr<CachedTimeSeriesRepository> cachedRepo;
+    std::shared_ptr<finapp::test::FakeTimeSeriesLoader> tsLoader;
+    std::shared_ptr<TimeSeriesService> tsService;
+    std::shared_ptr<finapp::InMemoryAssetRepository> equityRepo;
+    std::shared_ptr<finapp::test::FakeAssetProvider> equityProvider;
+    std::shared_ptr<finapp::AssetService> assetService;
+    std::shared_ptr<finapp::InMemoryFXRepository> fxRepo;
+    std::shared_ptr<finapp::FXService> fxService;
+    std::shared_ptr<finapp::InMemoryPortfolioRepository> portfolioRepo;
+    std::unique_ptr<finapp::PortfolioService> service;
 
     void SetUp() override {
-        innerRepo  = std::make_shared<InMemoryTimeSeriesRepository>();
+        innerRepo = std::make_shared<InMemoryTimeSeriesRepository>();
         cachedRepo = std::make_shared<CachedTimeSeriesRepository>(innerRepo);
-        tsLoader   = std::make_shared<FakeTimeSeriesLoader>();
-        tsService  = std::make_shared<TimeSeriesService>(cachedRepo, tsLoader);
+        tsLoader = std::make_shared<finapp::test::FakeTimeSeriesLoader>();
+        tsService = std::make_shared<TimeSeriesService>(cachedRepo, tsLoader);
 
-        equityRepo     = std::make_shared<InMemoryAssetRepository>();
-        equityProvider = std::make_shared<FakeAssetProvider>();
-        std::unordered_map<AssetType, std::shared_ptr<IAssetRepository>> repos     = {{AssetType::Equity, equityRepo}};
-        std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>>   providers = {{AssetType::Equity, equityProvider}};
-        assetService = std::make_shared<AssetService>(tsService, std::move(repos), std::move(providers));
+        equityRepo = std::make_shared<finapp::InMemoryAssetRepository>();
+        equityProvider = std::make_shared<finapp::test::FakeAssetProvider>();
+        std::unordered_map<finance::AssetType, std::shared_ptr<finapp::IAssetRepository>> repos = {
+            {finance::AssetType::Equity, equityRepo}};
+        std::unordered_map<finance::AssetType, std::shared_ptr<finapp::IAssetProvider>> providers = {
+            {finance::AssetType::Equity, equityProvider}};
+        assetService = std::make_shared<finapp::AssetService>(tsService, std::move(repos), std::move(providers));
 
-        fxRepo    = std::make_shared<InMemoryFXRepository>();
-        fxService = std::make_shared<FXService>(tsService, fxRepo);
+        fxRepo = std::make_shared<finapp::InMemoryFXRepository>();
+        fxService = std::make_shared<finapp::FXService>(tsService, fxRepo);
 
-        portfolioRepo = std::make_shared<InMemoryPortfolioRepository>();
-        service       = std::make_unique<PortfolioService>(portfolioRepo, assetService, fxService);
+        portfolioRepo = std::make_shared<finapp::InMemoryPortfolioRepository>();
+        service = std::make_unique<finapp::PortfolioService>(portfolioRepo, assetService, fxService);
 
-        equityRepo->save(std::make_shared<Equity>("STCK", "Stock Inc.", Currency::EUR));
+        equityRepo->save(std::make_shared<finance::Equity>("STCK", "Stock Inc.", finance::Currency::EUR));
         tsLoader->setSeries("STCK", makeSTCKPriceSeries());
 
         // Empty snapshot at t=0; all transactions live in [1*kDay, 6*kDay].
-        portfolioRepo->saveSnapshot(PortfolioSnapshot{"math_pf", Currency::EUR, 0, "math_pf", {}, {}});
+        portfolioRepo->saveSnapshot(
+            finance::PortfolioSnapshot{"math_pf", finance::Currency::EUR, 0, "math_pf", {}, {}});
 
         // Day 1 Deposit 10 000 EUR / Day 2 Buy 100 STCK (fees 5) / Day 3 Dividend 0.1/share
         // Day 4 Sell 50 STCK (fees 5) / Day 5 Withdrawal 500 / Day 6 Split 2:1
         // Seed via service so rebuildSnapshotsFrom_ builds the per-transaction snapshot
         // chain that valueSeries/weightSeries require.
-        service->addTransaction("math_pf", {"", 1 * kDay, TransactionType::Deposit,    AssetType::Cash,   "EUR",  10000.0, 1.0,  0.0, Currency::EUR});
-        service->addTransaction("math_pf", {"", 2 * kDay, TransactionType::Buy,        AssetType::Equity, "STCK",   100.0, 10.0, 5.0, Currency::EUR});
-        service->addTransaction("math_pf", {"", 3 * kDay, TransactionType::Dividend,   AssetType::Equity, "STCK",     0.0, 0.1,  0.0, Currency::EUR});
-        service->addTransaction("math_pf", {"", 4 * kDay, TransactionType::Sell,       AssetType::Equity, "STCK",    50.0, 10.0, 5.0, Currency::EUR});
-        service->addTransaction("math_pf", {"", 5 * kDay, TransactionType::Withdrawal, AssetType::Cash,   "EUR",    500.0, 1.0,  0.0, Currency::EUR});
-        service->addTransaction("math_pf", {"", 6 * kDay, TransactionType::Split,      AssetType::Equity, "STCK",     2.0, 0.0,  0.0, Currency::EUR});
+        service->addTransaction("math_pf",
+                                {"",
+                                 1 * kDay,
+                                 finance::TransactionType::Deposit,
+                                 finance::AssetType::Cash,
+                                 "EUR",
+                                 10000.0,
+                                 1.0,
+                                 0.0,
+                                 finance::Currency::EUR});
+        service->addTransaction("math_pf",
+                                {"",
+                                 2 * kDay,
+                                 finance::TransactionType::Buy,
+                                 finance::AssetType::Equity,
+                                 "STCK",
+                                 100.0,
+                                 10.0,
+                                 5.0,
+                                 finance::Currency::EUR});
+        service->addTransaction("math_pf",
+                                {"",
+                                 3 * kDay,
+                                 finance::TransactionType::Dividend,
+                                 finance::AssetType::Equity,
+                                 "STCK",
+                                 0.0,
+                                 0.1,
+                                 0.0,
+                                 finance::Currency::EUR});
+        service->addTransaction("math_pf",
+                                {"",
+                                 4 * kDay,
+                                 finance::TransactionType::Sell,
+                                 finance::AssetType::Equity,
+                                 "STCK",
+                                 50.0,
+                                 10.0,
+                                 5.0,
+                                 finance::Currency::EUR});
+        service->addTransaction("math_pf",
+                                {"",
+                                 5 * kDay,
+                                 finance::TransactionType::Withdrawal,
+                                 finance::AssetType::Cash,
+                                 "EUR",
+                                 500.0,
+                                 1.0,
+                                 0.0,
+                                 finance::Currency::EUR});
+        service->addTransaction("math_pf",
+                                {"",
+                                 6 * kDay,
+                                 finance::TransactionType::Split,
+                                 finance::AssetType::Equity,
+                                 "STCK",
+                                 2.0,
+                                 0.0,
+                                 0.0,
+                                 finance::Currency::EUR});
     }
 };
 
@@ -114,8 +175,7 @@ TEST_F(PortfolioTrackingMathTest, ValueSeriesExactPerTick) {
     TimeSeries series = service->valueSeries("math_pf", 0, 8 * kDay, kDay);
 
     ASSERT_EQ(series.size(), 9u);
-    const std::vector<double> expected = {
-        0.0, 10000.0, 9995.0, 10005.0, 10000.0, 9500.0, 9500.0, 9500.0, 9500.0};
+    const std::vector<double> expected = {0.0, 10000.0, 9995.0, 10005.0, 10000.0, 9500.0, 9500.0, 9500.0, 9500.0};
     for (size_t i = 0; i < expected.size(); ++i) {
         EXPECT_NEAR(series.getValues()[i], expected[i], 1e-6) << "value mismatch at tick " << i;
     }

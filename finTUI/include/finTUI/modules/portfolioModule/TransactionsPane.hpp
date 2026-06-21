@@ -20,8 +20,7 @@ namespace finui {
 
 class TransactionsPane {
  public:
-    TransactionsPane(std::shared_ptr<IPortfolioDataSource> ds,
-                     std::function<void(std::string, bool)> onStatus);
+    TransactionsPane(std::shared_ptr<IPortfolioDataSource> ds, std::function<void(std::string, bool)> onStatus);
     TransactionsPane(const TransactionsPane&) = delete;
     TransactionsPane(TransactionsPane&&) = delete;
     TransactionsPane& operator=(const TransactionsPane&) = delete;

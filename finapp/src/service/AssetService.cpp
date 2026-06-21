@@ -156,20 +156,14 @@ double AssetService::loadValueAtTs(const finance::AssetId& assetId, const Timest
 std::shared_ptr<::analysis::TimeSeriesSession> AssetService::createSession(const AssetId& id, Timestamp startMs,
                                                                            Timestamp endMs, Timestamp frequencyMs) {
     auto asset = load(id);
-    auto session = ::analysis::TimeSeriesSession(timeSeriesService_,      //
-                                                 asset->priceSeriesId(),  //
-                                                 startMs,                 //
-                                                 endMs,                   //
-                                                 frequencyMs);
-    return std::make_shared<::analysis::TimeSeriesSession>(session);
+    return std::make_shared<::analysis::TimeSeriesSession>(
+        timeSeriesService_, asset->priceSeriesId(), startMs, endMs, frequencyMs);
 }
 
 std::shared_ptr<::analysis::TimeSeriesSession> AssetService::createSession(const AssetId& id,
                                                                            TimestampsPtr timestamps) {
     auto asset = load(id);
-    auto session = ::analysis::TimeSeriesSession(timeSeriesService_,      //
-                                                 asset->priceSeriesId(),  //
-                                                 timestamps);
-    return std::make_shared<::analysis::TimeSeriesSession>(session);
+    return std::make_shared<::analysis::TimeSeriesSession>(
+        timeSeriesService_, asset->priceSeriesId(), std::move(timestamps));
 }
 }  // namespace finapp

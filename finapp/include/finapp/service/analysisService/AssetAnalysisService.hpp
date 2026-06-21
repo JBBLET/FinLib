@@ -4,6 +4,7 @@
 #include <memory>
 #include <unordered_map>
 
+#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -18,13 +19,14 @@ class PortfolioAnalysisService;
 class AssetAnalysisService {
  public:
     AssetAnalysisService(std::shared_ptr<AssetService> assetService,
-                         std::unordered_map<finance::AssetType, std::shared_ptr<IAssetAnalysisService>> services);
+                         std::unordered_map<finance::AssetType, std::shared_ptr<IAssetAnalysisService>> services,
+                         finapp::logging::ILogger* logger = nullptr);
 
     // Full factory — creates a session then wraps it into a typed IAssetAnalysis.
-    std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysis(
-        const finance::AssetId& id, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs);
-    std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysis(
-        const finance::AssetId& id, TimestampsPtr timestamps);
+    std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysis(const finance::AssetId& id, Timestamp startMs,
+                                                                      Timestamp endMs, Timestamp frequencyMs);
+    std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysis(const finance::AssetId& id,
+                                                                      TimestampsPtr timestamps);
 
     // Session-reuse factory — wraps an existing session without fetching.
     std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysisFromSession(
@@ -34,6 +36,7 @@ class AssetAnalysisService {
  private:
     std::shared_ptr<AssetService> assetService_;
     std::unordered_map<finance::AssetType, std::shared_ptr<IAssetAnalysisService>> services_;
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 };
 
 }  // namespace finapp

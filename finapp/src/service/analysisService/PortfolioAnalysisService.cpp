@@ -7,25 +7,36 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finlib/session/MultiTimeSeriesSession.hpp"
 
 namespace finapp {
 
-PortfolioAnalysisService::PortfolioAnalysisService(std::shared_ptr<AssetAnalysisService> assetAnalysisService)
-    : assetAnalysisService_{std::move(assetAnalysisService)} {}
+PortfolioAnalysisService::PortfolioAnalysisService(std::shared_ptr<AssetAnalysisService> assetAnalysisService,
+                                                   finapp::logging::ILogger* logger)
+    : assetAnalysisService_{std::move(assetAnalysisService)},
+      logger_{finapp::logging::PrefixedLogger::wrap(logger, "PortfolioAnalysisService")} {}
 
 // ---------------------------------------------------------------------------
 // Public factory
 // ---------------------------------------------------------------------------
 std::shared_ptr<finance::analysis::PortfolioAnalysis> PortfolioAnalysisService::createPortfolioAnalysis(
     const finance::Portfolio& portfolio, int64_t startMs, int64_t endMs, int64_t frequencyMs) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "createPortfolioAnalysis '" + portfolio.id() + "' [" + std::to_string(startMs) + ".." +
+                           std::to_string(endMs) + "] " + std::to_string(portfolio.positions().size()) + " positions");
     return assemble_(portfolio, buildAssetAnalyses_(portfolio, startMs, endMs, frequencyMs));
 }
 
 std::shared_ptr<finance::analysis::PortfolioAnalysis> PortfolioAnalysisService::createPortfolioAnalysis(
     const finance::Portfolio& portfolio, std::shared_ptr<std::vector<int64_t>> timestamps) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "createPortfolioAnalysis '" + portfolio.id() + "' (custom grid) " +
+                           std::to_string(portfolio.positions().size()) + " positions");
     return assemble_(portfolio, buildAssetAnalyses_(portfolio, std::move(timestamps)));
 }
 

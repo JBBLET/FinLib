@@ -43,6 +43,7 @@ std::vector<Transaction> YahooFinanceImporter::parse(const std::filesystem::path
     if (!file.is_open()) {
         throw std::runtime_error("YahooFinanceImporter: cannot open file: " + csvPath.string());
     }
+    if (config.logger) config.logger->write(finapp::logging::Level::Info, "parse: " + csvPath.string());
     return parseStream_(file, config);
 }
 
@@ -105,18 +106,14 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
             } else if (txType == "WITHDRAWAL") {
                 type = TransactionType::Withdrawal;
             } else {
+                if (config.logger)
+                    config.logger->write(finapp::logging::Level::Debug,
+                                         "skipped $$CASH_TX row — unknown type '" + txType + "'");
                 continue;
             }
             const Currency txCurrency = readCurrencyCol().value_or(config.baseCurrency);
-            result.push_back(Transaction{"",
-                                         timestampMs,
-                                         type,
-                                         AssetType::Cash,
-                                         toString(txCurrency),
-                                         quantity,
-                                         1.0,
-                                         fees,
-                                         txCurrency});
+            result.push_back(Transaction{
+                "", timestampMs, type, AssetType::Cash, toString(txCurrency), quantity, 1.0, fees, txCurrency});
         } else {
             TransactionType type;
             if (txType == "BUY") {
@@ -127,6 +124,9 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
                 type = TransactionType::Dividend;
             } else {
                 // SPLIT has no price in Yahoo exports — skip and handle manually if needed.
+                if (config.logger)
+                    config.logger->write(finapp::logging::Level::Debug,
+                                         "skipped '" + symbol + "' row — unsupported type '" + txType + "'");
                 continue;
             }
             const Currency settlement = readCurrencyCol().value_or(resolveCurrency(symbol));
@@ -138,6 +138,8 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
     std::sort(result.begin(), result.end(), [](const Transaction& a, const Transaction& b) {
         return a.timestampsMs < b.timestampsMs;
     });
+    if (config.logger)
+        config.logger->write(finapp::logging::Level::Info, "parsed " + std::to_string(result.size()) + " transactions");
     return result;
 }
 

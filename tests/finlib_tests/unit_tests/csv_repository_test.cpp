@@ -1,6 +1,7 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>

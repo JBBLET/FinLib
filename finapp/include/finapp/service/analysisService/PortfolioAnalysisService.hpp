@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 #include "finapp/service/analysisService/AssetAnalysisService.hpp"
@@ -21,7 +22,8 @@ namespace finapp {
 
 class PortfolioAnalysisService {
  public:
-    explicit PortfolioAnalysisService(std::shared_ptr<AssetAnalysisService> assetAnalysisService);
+    explicit PortfolioAnalysisService(std::shared_ptr<AssetAnalysisService> assetAnalysisService,
+                                      finapp::logging::ILogger* logger = nullptr);
 
     // Full portfolio analysis: per-asset sessions wired into a MultiTimeSeriesSession.
     // NavMode is chosen automatically:
@@ -38,6 +40,7 @@ class PortfolioAnalysisService {
 
  private:
     std::shared_ptr<AssetAnalysisService> assetAnalysisService_;
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     // Returns one IAssetAnalysis per position. Internal step used by createPortfolioAnalysis.
     std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> buildAssetAnalyses_(

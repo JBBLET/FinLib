@@ -90,15 +90,15 @@ ftxui::Element OverviewPane::buildSummarySection_() const {
                 ftxui::text(" " + p.ticker) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 10),
                 ftxui::text(utils::PortfolioUtils::fmtNumber(p.quantity)) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 14),
                 ftxui::text(utils::PortfolioUtils::fmtNumber(p.value)) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 14),
-                ftxui::text(utils::PortfolioUtils::percentDisplay(p.weight)) | ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 9),
+                ftxui::text(utils::PortfolioUtils::percentDisplay(p.weight)) |
+                    ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 9),
             }));
         }
     }
 
     return ftxui::vbox({
         ftxui::hbox({ftxui::text(" Total Value: ") | ftxui::bold,
-                     ftxui::text(utils::PortfolioUtils::currencyStringDisplay(
-                         s.totalValue, s.baseCurrency)) |
+                     ftxui::text(utils::PortfolioUtils::currencyStringDisplay(s.totalValue, s.baseCurrency)) |
                          ftxui::color(ftxui::Color::Green)}),
         ftxui::separator(),
         ftxui::text(" Cash") | ftxui::bold,
@@ -141,7 +141,10 @@ ftxui::Element OverviewPane::buildPositionStatsSection_() const {
 
     bool hasReturnStats = false;
     for (const auto& pos : analysis_.positions) {
-        if (pos.returnStats.has_value()) { hasReturnStats = true; break; }
+        if (pos.returnStats.has_value()) {
+            hasReturnStats = true;
+            break;
+        }
     }
     if (!hasReturnStats) return ftxui::text("");
 

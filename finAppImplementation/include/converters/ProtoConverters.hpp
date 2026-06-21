@@ -51,14 +51,14 @@ inline finapp_rpc::Transaction toProto(const finance::Transaction& t) {
 
 inline finance::Transaction fromProto(const finapp_rpc::Transaction& proto) {
     return finance::Transaction{
-        .id                 = proto.id(),
-        .timestampsMs       = proto.timestampsms(),
-        .type               = fromProto(proto.type()),
-        .assetType          = fromProto(proto.assettype()),
-        .assetTicker        = proto.assetticker(),
-        .quantity           = proto.quantity(),
-        .pricePerUnit       = proto.priceperunit(),
-        .fees               = proto.fees(),
+        .id = proto.id(),
+        .timestampsMs = proto.timestampsms(),
+        .type = fromProto(proto.type()),
+        .assetType = fromProto(proto.assettype()),
+        .assetTicker = proto.assetticker(),
+        .quantity = proto.quantity(),
+        .pricePerUnit = proto.priceperunit(),
+        .fees = proto.fees(),
         .settlementCurrency = fromProto(proto.settlementcurrency()),
     };
 }

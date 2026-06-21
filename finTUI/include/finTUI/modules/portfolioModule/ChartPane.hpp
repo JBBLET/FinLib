@@ -16,8 +16,7 @@ namespace finui {
 
 class ChartPane {
  public:
-    ChartPane(std::shared_ptr<IPortfolioDataSource> ds,
-              std::function<void(std::string, bool)> onStatus);
+    ChartPane(std::shared_ptr<IPortfolioDataSource> ds, std::function<void(std::string, bool)> onStatus);
     ChartPane(const ChartPane&) = delete;
     ChartPane(ChartPane&&) = delete;
     ChartPane& operator=(const ChartPane&) = delete;

@@ -3,11 +3,13 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
@@ -18,7 +20,7 @@ namespace finapp {
 
 class CSVPortfolioRepository : public IPortfolioRepository {
  public:
-    explicit CSVPortfolioRepository(std::filesystem::path directory);
+    explicit CSVPortfolioRepository(std::filesystem::path directory, finapp::logging::ILogger* logger = nullptr);
     void saveSnapshot(const finance::PortfolioSnapshot& snapshot) override;
     std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolio) const override;
     std::vector<finance::PortfolioSnapshot> loadAllSnapshots(const std::string& portfolioId) const override;
@@ -37,6 +39,7 @@ class CSVPortfolioRepository : public IPortfolioRepository {
 
  private:
     std::filesystem::path directory_;
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     std::filesystem::path csvSnapshotPath_(const std::string& portfolioID) const;
     std::filesystem::path csvSnapshotPositionsPath_(const std::string& portfolioID, const int64_t& timestampMs) const;

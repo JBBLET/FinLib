@@ -36,7 +36,7 @@ std::vector<std::vector<double>> correlationMatrix(const std::vector<const TimeS
     std::vector<double> means(m);
     std::vector<double> stddevs(m);
     for (size_t i = 0; i < m; ++i) {
-        means[i]   = analysis::stats::mean(*views[i]);
+        means[i] = analysis::stats::mean(*views[i]);
         stddevs[i] = analysis::stats::standardDeviation(*views[i]);
     }
 
@@ -45,12 +45,9 @@ std::vector<std::vector<double>> correlationMatrix(const std::vector<const TimeS
         result[a][a] = 1.0;
         for (size_t b = a + 1; b < m; ++b) {
             double cov = 0.0;
-            for (size_t i = 0; i < n; ++i)
-                cov += ((*views[a])[i] - means[a]) * ((*views[b])[i] - means[b]);
+            for (size_t i = 0; i < n; ++i) cov += ((*views[a])[i] - means[a]) * ((*views[b])[i] - means[b]);
             cov /= static_cast<double>(n - 1);
-            const double corr = (stddevs[a] > 0.0 && stddevs[b] > 0.0)
-                                    ? cov / (stddevs[a] * stddevs[b])
-                                    : 0.0;
+            const double corr = (stddevs[a] > 0.0 && stddevs[b] > 0.0) ? cov / (stddevs[a] * stddevs[b]) : 0.0;
             result[a][b] = result[b][a] = corr;
         }
     }

@@ -15,12 +15,11 @@ class TuiRangeSelector : public ftxui::ComponentBase {
  public:
     struct Range {
         std::string label;
-        int64_t durationMs;   // 0 = ALL (caller maps to portfolio start)
+        int64_t durationMs;  // 0 = ALL (caller maps to portfolio start)
         int64_t frequencyMs;
     };
 
-    TuiRangeSelector(std::vector<Range> ranges, std::function<void(const Range&)> onSelect,
-                     int initialSelected = 0);
+    TuiRangeSelector(std::vector<Range> ranges, std::function<void(const Range&)> onSelect, int initialSelected = 0);
 
     ftxui::Element OnRender() override;
     bool OnEvent(ftxui::Event e) override;

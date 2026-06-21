@@ -11,8 +11,10 @@ namespace finui {
 
 TuiRangeSelector::TuiRangeSelector(std::vector<Range> ranges, std::function<void(const Range&)> onSelect,
                                    int initialSelected)
-    : ranges_(std::move(ranges)), onSelect_(std::move(onSelect)),
-      focusedIdx_(initialSelected), selectedIdx_(initialSelected) {}
+    : ranges_(std::move(ranges)),
+      onSelect_(std::move(onSelect)),
+      focusedIdx_(initialSelected),
+      selectedIdx_(initialSelected) {}
 
 ftxui::Element TuiRangeSelector::OnRender() {
     ftxui::Elements buttons;
@@ -34,11 +36,17 @@ ftxui::Element TuiRangeSelector::OnRender() {
 
 bool TuiRangeSelector::OnEvent(ftxui::Event e) {
     if (e == ftxui::Event::ArrowLeft) {
-        if (focusedIdx_ > 0) { --focusedIdx_; return true; }
+        if (focusedIdx_ > 0) {
+            --focusedIdx_;
+            return true;
+        }
         return false;
     }
     if (e == ftxui::Event::ArrowRight) {
-        if (focusedIdx_ < static_cast<int>(ranges_.size()) - 1) { ++focusedIdx_; return true; }
+        if (focusedIdx_ < static_cast<int>(ranges_.size()) - 1) {
+            ++focusedIdx_;
+            return true;
+        }
         return false;
     }
     if (e == ftxui::Event::Return) {

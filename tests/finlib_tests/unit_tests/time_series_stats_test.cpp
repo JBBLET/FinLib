@@ -2,19 +2,20 @@
 #include <gtest/gtest.h>
 
 #include <memory>
-#include <vector>
 
+#include "TestMockTimeSeries.hpp"
 #include "finlib/core/StatsCore.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
-class TimeSeriesStatsTest : public ::testing::Test {
+class TimeSeriesStatsTest : public TimeSeriesMocks {
  protected:
-    std::vector<int64_t> ts = {1000, 2000, 3000, 4000, 5000};
-    std::vector<double> vals = {10.0, 20.0, 30.0, 40.0, 50.0};
     std::shared_ptr<TimeSeries> series;
 
-    void SetUp() override { series = std::make_shared<TimeSeries>("TestTimeSeries", ts, vals); }
+    void SetUp() override {
+        TimeSeriesMocks::SetUp();
+        series = decadeSeries;
+    }
 };
 
 TEST_F(TimeSeriesStatsTest, TimeSeriesProducesFullView) {

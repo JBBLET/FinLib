@@ -16,20 +16,20 @@ namespace finui {
 class AppShell {
  public:
     AppShell(std::vector<std::shared_ptr<IModule>> modules, ftxui::ScreenInteractive& screen);
-    AppShell(const AppShell&)            = delete;
-    AppShell(AppShell&&)                 = delete;
+    AppShell(const AppShell&) = delete;
+    AppShell(AppShell&&) = delete;
     AppShell& operator=(const AppShell&) = delete;
-    AppShell& operator=(AppShell&&)      = delete;
+    AppShell& operator=(AppShell&&) = delete;
 
     ftxui::Component component();
 
  private:
     std::vector<std::shared_ptr<IModule>> modules_;
-    ftxui::ScreenInteractive&             screen_;
-    int                                   activeModule_ = 0;
-    bool                                  menuOpen_     = false;
-    int                                   menuCursor_   = 0;
-    ftxui::Component                      component_;
+    ftxui::ScreenInteractive& screen_;
+    int activeModule_ = 0;
+    bool menuOpen_ = false;
+    int menuCursor_ = 0;
+    ftxui::Component component_;
 
     ftxui::Element renderModuleMenu_() const;
 };

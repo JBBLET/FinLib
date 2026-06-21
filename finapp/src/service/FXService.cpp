@@ -65,20 +65,14 @@ double FXService::loadSingleFxAtTs(const Currency& baseCurrency, const Currency&
 std::shared_ptr<::analysis::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
                                                                         Timestamp startMs, Timestamp endMs,
                                                                         Timestamp frequencyMs) {
-    auto session = analysis::TimeSeriesSession(timeSeriesService_,        //
-                                               makePairId_(base, quote),  //
-                                               startMs,                   //
-                                               endMs,                     //
-                                               frequencyMs);
-    return std::make_shared<::analysis::TimeSeriesSession>(session);
+    return std::make_shared<::analysis::TimeSeriesSession>(
+        timeSeriesService_, makePairId_(base, quote), startMs, endMs, frequencyMs);
 }
 
 std::shared_ptr<::analysis::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
                                                                         TimestampsPtr timestamps) {
-    auto session = analysis::TimeSeriesSession(timeSeriesService_,        //
-                                               makePairId_(base, quote),  //
-                                               timestamps);
-    return std::make_shared<::analysis::TimeSeriesSession>(session);
+    return std::make_shared<::analysis::TimeSeriesSession>(
+        timeSeriesService_, makePairId_(base, quote), std::move(timestamps));
 }
 // ---------------------------------------------------------------------------
 // Private helpers

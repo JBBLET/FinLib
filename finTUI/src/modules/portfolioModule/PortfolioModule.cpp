@@ -30,7 +30,10 @@ PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSourc
           "Delete Portfolio", "", "Delete", [this] { confirmDeletePortfolio_(); }, "Cancel",
           [this] { enterNormal_(); })) {
     // ── Panes ─────────────────────────────────────────────────────────────────
-    auto statusCb = [this](std::string m, bool e) { statusMsg_ = std::move(m); statusIsError_ = e; };
+    auto statusCb = [this](std::string m, bool e) {
+        statusMsg_ = std::move(m);
+        statusIsError_ = e;
+    };
     overviewPane_ = std::make_unique<OverviewPane>(analysisDataSource_, statusCb);
     txnPane_ = std::make_unique<TransactionsPane>(dataSource_, statusCb);
     chartPane_ = std::make_unique<ChartPane>(dataSource_, statusCb);
@@ -64,7 +67,7 @@ PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSourc
     app_ = CatchEvent(
         ftxui::Container::Tab(
             {
-                ftxui::Container::Horizontal({portfolioMenu_, rightPanel_}),  // 0 Normal
+                ftxui::Container::Horizontal({portfolioMenu_, rightPanel_}),   // 0 Normal
                 ftxui::Maybe(createDialog_, &showCreatePortfolio_),            // 1 CreatePortfolio
                 ftxui::Maybe(deletePortfolioConfirm_, &showDeletePortfolio_),  // 2 DeletePortfolio
             },

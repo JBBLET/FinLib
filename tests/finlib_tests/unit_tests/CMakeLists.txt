@@ -111,6 +111,18 @@ target_link_libraries(model_session_test
         gtest_main
 )
 
+add_executable(session_test
+    session_test.cpp
+)
+
+target_link_libraries(session_test
+    PRIVATE
+        finlib_core
+        finlib_analysis
+        finlib_session
+        gtest_main
+)
+
 add_test(
     NAME ARModelTest
     COMMAND ar_model_test
@@ -121,6 +133,11 @@ add_test(
     COMMAND model_session_test
 )
 
+add_test(
+    NAME SessionTest
+    COMMAND session_test
+)
+
 set_tests_properties(
     TimeSeriesResamplingTest
     TimeSeriesOperationTest
@@ -129,6 +146,7 @@ set_tests_properties(
     TimeSeriesAnalysisTest
     ARModelTest
     ModelSessionTest
+    SessionTest
     PROPERTIES
         LABELS "unit"
       )

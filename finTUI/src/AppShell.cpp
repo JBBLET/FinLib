@@ -19,16 +19,32 @@ AppShell::AppShell(std::vector<std::shared_ptr<IModule>> modules, ftxui::ScreenI
 
     auto withShellKeys = ftxui::CatchEvent(inner, [this](ftxui::Event e) -> bool {
         if (menuOpen_) {
-            if (e == ftxui::Event::ArrowUp)   { if (menuCursor_ > 0) --menuCursor_; return true; }
-            if (e == ftxui::Event::ArrowDown)  { if (menuCursor_ < (int)modules_.size() - 1) ++menuCursor_; return true; }
-            if (e == ftxui::Event::Return)     { activeModule_ = menuCursor_; menuOpen_ = false; return true; }
-            if (e == ftxui::Event::Escape)     { menuOpen_ = false; return true; }
+            if (e == ftxui::Event::ArrowUp) {
+                if (menuCursor_ > 0) --menuCursor_;
+                return true;
+            }
+            if (e == ftxui::Event::ArrowDown) {
+                if (menuCursor_ < (int)modules_.size() - 1) ++menuCursor_;
+                return true;
+            }
+            if (e == ftxui::Event::Return) {
+                activeModule_ = menuCursor_;
+                menuOpen_ = false;
+                return true;
+            }
+            if (e == ftxui::Event::Escape) {
+                menuOpen_ = false;
+                return true;
+            }
             return true;  // swallow all keys while menu is open
         }
-        if (e == ftxui::Event::Character('q')) { screen_.Exit(); return true; }
+        if (e == ftxui::Event::Character('q')) {
+            screen_.Exit();
+            return true;
+        }
         if ((int)modules_.size() > 1 && e == ftxui::Event::Character('m')) {
             menuCursor_ = activeModule_;
-            menuOpen_   = true;
+            menuOpen_ = true;
             return true;
         }
         return false;

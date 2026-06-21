@@ -25,12 +25,10 @@ struct AddTransactionForm {
     int typeIdx = 0;
 };
 
-std::shared_ptr<TuiFormDialog> makeCreatePortfolioDialog(CreatePortfolioForm& f,
-                                                          std::function<void()> onSubmit,
-                                                          std::function<void()> onCancel);
+std::shared_ptr<TuiFormDialog> makeCreatePortfolioDialog(CreatePortfolioForm& f, std::function<void()> onSubmit,
+                                                         std::function<void()> onCancel);
 
-std::shared_ptr<TuiFormDialog> makeAddTransactionDialog(AddTransactionForm& f,
-                                                        std::function<void()> onSubmit,
+std::shared_ptr<TuiFormDialog> makeAddTransactionDialog(AddTransactionForm& f, std::function<void()> onSubmit,
                                                         std::function<void()> onCancel);
 
 }  // namespace finui

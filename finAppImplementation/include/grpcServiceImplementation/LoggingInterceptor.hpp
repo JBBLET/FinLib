@@ -23,15 +23,15 @@ class LoggingInterceptor : public grpc::experimental::Interceptor {
         }
 
         if (methods->QueryInterceptionHookPoint(Hook::PRE_SEND_STATUS)) {
-            const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                       std::chrono::steady_clock::now() - start_)
-                                       .count();
+            const auto elapsedMs =
+                std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_)
+                    .count();
             grpc::Status status = methods->GetSendStatus();
             const bool ok = status.ok();
             const std::string statusStr = ok ? "OK" : status.error_message();
-            logger_->write(ok ? finapp::logging::Level::Info : finapp::logging::Level::Error,
-                           std::string("[gRPC <<<] ") + method_ + " [" + statusStr + "] " +
-                               std::to_string(elapsedMs) + "ms");
+            logger_->write(
+                ok ? finapp::logging::Level::Info : finapp::logging::Level::Error,
+                std::string("[gRPC <<<] ") + method_ + " [" + statusStr + "] " + std::to_string(elapsedMs) + "ms");
         }
 
         methods->Proceed();
@@ -47,8 +47,7 @@ class LoggingInterceptorFactory : public grpc::experimental::ServerInterceptorFa
  public:
     explicit LoggingInterceptorFactory(finapp::logging::ILogger* logger) : logger_(logger) {}
 
-    grpc::experimental::Interceptor* CreateServerInterceptor(
-        grpc::experimental::ServerRpcInfo* info) override {
+    grpc::experimental::Interceptor* CreateServerInterceptor(grpc::experimental::ServerRpcInfo* info) override {
         return new LoggingInterceptor(info, logger_);
     }
 

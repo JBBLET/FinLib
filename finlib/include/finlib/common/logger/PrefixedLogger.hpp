@@ -1,5 +1,6 @@
 // Copyright 2026 JBBLET
 #pragma once
+
 #include <memory>
 #include <string>
 #include <utility>

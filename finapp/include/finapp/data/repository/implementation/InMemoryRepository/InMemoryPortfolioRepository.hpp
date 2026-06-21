@@ -26,9 +26,10 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
             *it = snapshot;
         } else {
             vec.push_back(snapshot);
-            std::sort(vec.begin(), vec.end(), [](const finance::PortfolioSnapshot& a, const finance::PortfolioSnapshot& b) {
-                return a.timestampMs < b.timestampMs;
-            });
+            std::sort(
+                vec.begin(), vec.end(), [](const finance::PortfolioSnapshot& a, const finance::PortfolioSnapshot& b) {
+                    return a.timestampMs < b.timestampMs;
+                });
         }
     }
 
@@ -50,10 +51,9 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
         if (it == snapshots_.end() || it->second.empty()) return std::nullopt;
         const auto& vec = it->second;
         // vec is kept sorted ascending by timestampMs — upper_bound then step back.
-        auto upper = std::upper_bound(vec.begin(), vec.end(), ts,
-                                      [](Timestamp t, const finance::PortfolioSnapshot& s) {
-                                          return t < s.timestampMs;
-                                      });
+        auto upper = std::upper_bound(vec.begin(), vec.end(), ts, [](Timestamp t, const finance::PortfolioSnapshot& s) {
+            return t < s.timestampMs;
+        });
         if (upper == vec.begin()) return std::nullopt;
         return *std::prev(upper);
     }
@@ -61,7 +61,8 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
     void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                               const std::vector<finance::PortfolioSnapshot>& newSnapshots) override {
         auto& vec = snapshots_[portfolioId];
-        vec.erase(std::remove_if(vec.begin(), vec.end(),
+        vec.erase(std::remove_if(vec.begin(),
+                                 vec.end(),
                                  [fromTimestampMs](const finance::PortfolioSnapshot& s) {
                                      return s.timestampMs >= fromTimestampMs;
                                  }),
@@ -117,8 +118,8 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
             throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
         }
         auto& txns = it->second;
-        auto txIt = std::find_if(txns.begin(), txns.end(),
-                                 [&](const finance::Transaction& t) { return t.id == transactionId; });
+        auto txIt = std::find_if(
+            txns.begin(), txns.end(), [&](const finance::Transaction& t) { return t.id == transactionId; });
         if (txIt == txns.end()) {
             throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
         }

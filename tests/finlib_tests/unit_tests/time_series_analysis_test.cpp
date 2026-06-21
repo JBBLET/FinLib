@@ -2,41 +2,12 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
-#include <memory>
-#include <utility>
-#include <vector>
 
+#include "TestMockTimeSeries.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/StatsCore.hpp"
-#include "finlib/core/TimeSeries.hpp"
-#include "finlib/core/TimeSeriesView.hpp"
 
-class TimeSeriesAnalysisTest : public ::testing::Test {
- protected:
-    // Simple known data: {1, 2, 3, 4, 5}
-    std::shared_ptr<TimeSeries> simpleSeries;
-    // Constant series: all 3.0
-    std::shared_ptr<TimeSeries> constantSeries;
-    // Larger series for autocovariance tests
-    std::shared_ptr<TimeSeries> largerSeries;
-
-    void SetUp() override {
-        simpleSeries = std::make_shared<TimeSeries>("SimpleSeries", std::vector<int64_t>{1000, 2000, 3000, 4000, 5000},
-                                                    std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0});
-
-        constantSeries =
-            std::make_shared<TimeSeries>("constantSeries", std::vector<int64_t>{1000, 2000, 3000, 4000, 5000},
-                                         std::vector<double>{3.0, 3.0, 3.0, 3.0, 3.0});
-
-        std::vector<int64_t> ts(100);
-        std::vector<double> vals(100);
-        for (size_t i = 0; i < 100; ++i) {
-            ts[i] = static_cast<int64_t>(i) * 1000;
-            vals[i] = std::sin(static_cast<double>(i) * 0.1) * 10.0;
-        }
-        largerSeries = std::make_shared<TimeSeries>("largerSeries", std::move(ts), std::move(vals));
-    }
-};
+class TimeSeriesAnalysisTest : public TimeSeriesMocks {};
 
 // ============================================================
 // Basic Statistics Tests

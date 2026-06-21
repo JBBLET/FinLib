@@ -2,18 +2,19 @@
 #include <gtest/gtest.h>
 
 #include <memory>
-#include <vector>
 
+#include "TestMockTimeSeries.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
-class TimeSeriesViewTest : public ::testing::Test {
+class TimeSeriesViewTest : public TimeSeriesMocks {
  protected:
-    std::vector<int64_t> ts = {1000, 2000, 3000, 4000, 5000};
-    std::vector<double> vals = {10.0, 20.0, 30.0, 40.0, 50.0};
     std::shared_ptr<TimeSeries> series;
 
-    void SetUp() override { series = std::make_shared<TimeSeries>("TestTimeSeries", ts, vals); }
+    void SetUp() override {
+        TimeSeriesMocks::SetUp();
+        series = decadeSeries;
+    }
 };
 
 TEST_F(TimeSeriesViewTest, TimeSeriesProducesFullView) {
@@ -84,13 +85,13 @@ TEST_F(TimeSeriesViewTest, AlignmentMismatchThrows) {
 TEST_F(TimeSeriesViewTest, ViewArithmeticSharesTimestampPointer) {
     // v_curr - v_lag is the shifted-view pattern used for log-return derivation.
     // The result must share the original series' TimestampPtr — no allocation.
-    auto v_curr = series->slice(1, 3);      // begin_=1, length_=3, lag=0
-    auto v_lag  = series->slice(1, 3).shift(1);  // begin_=1, length_=3, lag=1
+    auto v_curr = series->slice(1, 3);          // begin_=1, length_=3, lag=0
+    auto v_lag = series->slice(1, 3).shift(1);  // begin_=1, length_=3, lag=1
 
     TimeSeries diff = v_curr - v_lag;
 
     EXPECT_EQ(diff.getSharedTimestamps(), series->getSharedTimestamps());
-    EXPECT_EQ(diff.tsOffset(), 1u);   // begin_=1, source tsOffset_=0 → result tsOffset_=1
+    EXPECT_EQ(diff.tsOffset(), 1u);  // begin_=1, source tsOffset_=0 → result tsOffset_=1
     EXPECT_EQ(diff.size(), 3u);
     EXPECT_EQ(diff.getTimestamps()[0], 2000);  // timestamps[1]
     EXPECT_EQ(diff.getTimestamps()[2], 4000);  // timestamps[3]
@@ -109,7 +110,7 @@ TEST_F(TimeSeriesViewTest, ApplySharesTimestampPointer) {
 TEST_F(TimeSeriesViewTest, OffsetSeriesTimestampsCorrect) {
     // A derived series with tsOffset > 0 must report only its own slice of timestamps.
     auto v_curr = series->slice(1, 3);
-    auto v_lag  = series->slice(1, 3).shift(1);
+    auto v_lag = series->slice(1, 3).shift(1);
     TimeSeries diff = v_curr - v_lag;
 
     // getTimestamps() span must cover exactly [begin_, begin_+length_) of the original vector.
@@ -122,7 +123,7 @@ TEST_F(TimeSeriesViewTest, OffsetSeriesTimestampsCorrect) {
 
 TEST_F(TimeSeriesViewTest, ScalarArithmeticSharesTimestampPointer) {
     // Scalar operators must also share the source's TimestampPtr.
-    auto view   = series->slice(1, 3);
+    auto view = series->slice(1, 3);
     TimeSeries result = view + 5.0;
 
     EXPECT_EQ(result.getSharedTimestamps(), series->getSharedTimestamps());

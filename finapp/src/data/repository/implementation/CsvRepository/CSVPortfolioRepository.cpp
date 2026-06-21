@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -33,13 +34,19 @@ using finance::Transaction;
 using finance::transactionTypeFromString;
 namespace finapp {
 
-CSVPortfolioRepository::CSVPortfolioRepository(std::filesystem::path directory) : directory_{std::move(directory)} {
+CSVPortfolioRepository::CSVPortfolioRepository(std::filesystem::path directory, finapp::logging::ILogger* logger)
+    : directory_{std::move(directory)},
+      logger_{finapp::logging::PrefixedLogger::wrap(logger, "CSVPortfolioRepository")} {
     std::filesystem::create_directories(directory_ / "Portfolio" / "Positions");
     std::filesystem::create_directories(directory_ / "Portfolio" / "Cash");
+    if (logger_) logger_->write(finapp::logging::Level::Info, "directory: " + directory_.string());
 }
 
 // IPortfolioRepository Interface
 void CSVPortfolioRepository::saveSnapshot(const PortfolioSnapshot& snapshot) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "saveSnapshot '" + snapshot.portfolioId + "' t=" + std::to_string(snapshot.timestampMs));
     writeSnapshotCsv_(snapshot.portfolioId, snapshot);
 }
 
@@ -75,6 +82,9 @@ std::optional<PortfolioSnapshot> CSVPortfolioRepository::loadClosestSnapshot(con
 
 void CSVPortfolioRepository::appendTransactions(const std::string& portfolioID,
                                                 const std::vector<Transaction>& transactions) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "appendTransactions '" + portfolioID + "' count=" + std::to_string(transactions.size()));
     auto path = csvTransactionsPath_(portfolioID);
     std::filesystem::create_directories(path.parent_path());
     bool needsheader = !std::filesystem::exists(path) || std::filesystem::file_size(path) == 0;
@@ -95,6 +105,9 @@ void CSVPortfolioRepository::appendTransactions(const std::string& portfolioID,
 
 std::vector<Transaction> CSVPortfolioRepository::loadTransactions(const std::string& portfolioId,
                                                                   int64_t afterTimestamps) const {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "loadTransactions '" + portfolioId + "' after=" + std::to_string(afterTimestamps));
     auto path = csvTransactionsPath_(portfolioId);
     if (!std::filesystem::exists(path)) {
         if (!exists(portfolioId))
@@ -128,6 +141,9 @@ bool CSVPortfolioRepository::exists(const std::string& portfolioId) const {
 }
 
 void CSVPortfolioRepository::deleteTransaction(const std::string& portfolioId, const std::string& transactionId) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Info,
+                       "deleteTransaction '" + transactionId + "' from '" + portfolioId + "'");
     const auto transactionsPath = csvTransactionsPath_(portfolioId);
     if (!std::filesystem::exists(transactionsPath)) {
         throw std::runtime_error("CSVPortfolioRepository::deleteTransaction: no transactions file for portfolio '" +
@@ -150,6 +166,7 @@ void CSVPortfolioRepository::deleteTransaction(const std::string& portfolioId, c
 }
 
 void CSVPortfolioRepository::deletePortfolio(const std::string& portfolioId) {
+    if (logger_) logger_->write(finapp::logging::Level::Info, "deletePortfolio '" + portfolioId + "'");
     const auto snapshotPath = csvSnapshotPath_(portfolioId);
     const auto transactionsPath = csvTransactionsPath_(portfolioId);
 
@@ -201,6 +218,10 @@ std::filesystem::path CSVPortfolioRepository::cashBalanceFilePath_(const std::st
 
 void CSVPortfolioRepository::replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                                                   const std::vector<PortfolioSnapshot>& newSnapshots) {
+    if (logger_)
+        logger_->write(finapp::logging::Level::Debug,
+                       "replaceSnapshotsFrom '" + portfolioId + "' from=" + std::to_string(fromTimestampMs) +
+                           " newCount=" + std::to_string(newSnapshots.size()));
     const auto snapshotPath = csvSnapshotPath_(portfolioId);
     std::filesystem::create_directories(snapshotPath.parent_path());
 

@@ -40,4 +40,3 @@ HypothesisTestResult breuschGodfrey(const TimeSeriesView&);
 
 double PvalueFromTStatistic(double tStat);
 }  // namespace analysis::hypothesisTesting
-

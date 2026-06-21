@@ -49,7 +49,8 @@ int main() {
     // TimeSeriesService: CSV cache + YFinance as the network loader
     auto csvTsRepo = std::make_shared<CSVRepository>(dataDir / "timeseries", finlibLogger.get());
     auto cachedRepo = std::make_shared<CachedTimeSeriesRepository>(csvTsRepo, finlibLogger.get());
-    auto yfinance = std::make_shared<finapp::YFinanceProvider>(venvPython.string(), yfinanceScript.string());
+    auto yfinance =
+        std::make_shared<finapp::YFinanceProvider>(venvPython.string(), yfinanceScript.string(), logger.get());
     auto tsSvc = std::make_shared<TimeSeriesService>(cachedRepo, yfinance, finlibLogger.get());
 
     // AssetService
@@ -58,7 +59,7 @@ int main() {
         {finance::AssetType::Cash, std::make_shared<finapp::CSVCashRepository>(dataDir / "assets")},
     };
     std::unordered_map<finance::AssetType, std::shared_ptr<finapp::IAssetProvider>> assetProviders{
-        {finance::AssetType::Equity, std::make_shared<finapp::YFinanceEquityProvider>()},
+        {finance::AssetType::Equity, std::make_shared<finapp::YFinanceEquityProvider>(logger.get())},
     };
     auto assetSvc =
         std::make_shared<finapp::AssetService>(tsSvc, std::move(assetRepos), std::move(assetProviders), logger.get());
@@ -68,15 +69,16 @@ int main() {
     auto fxSvc = std::make_shared<finapp::FXService>(tsSvc, fxRepo, logger.get());
 
     // PortfolioService
-    auto portfolioRepo = std::make_shared<finapp::CSVPortfolioRepository>(dataDir / "portfolios");
+    auto portfolioRepo = std::make_shared<finapp::CSVPortfolioRepository>(dataDir / "portfolios", logger.get());
     auto portfolioSvc = std::make_shared<finapp::PortfolioService>(portfolioRepo, assetSvc, fxSvc, logger.get());
 
     // Analysis services
     std::unordered_map<finance::AssetType, std::shared_ptr<finapp::IAssetAnalysisService>> analysisSvcMap{
-        {finance::AssetType::Equity, std::make_shared<finapp::EquityAnalysisService>(assetSvc)},
+        {finance::AssetType::Equity, std::make_shared<finapp::EquityAnalysisService>(assetSvc, logger.get())},
     };
-    auto assetAnalysisSvc = std::make_shared<finapp::AssetAnalysisService>(assetSvc, std::move(analysisSvcMap));
-    auto portfolioAnalysisSvc = std::make_shared<finapp::PortfolioAnalysisService>(assetAnalysisSvc);
+    auto assetAnalysisSvc =
+        std::make_shared<finapp::AssetAnalysisService>(assetSvc, std::move(analysisSvcMap), logger.get());
+    auto portfolioAnalysisSvc = std::make_shared<finapp::PortfolioAnalysisService>(assetAnalysisSvc, logger.get());
 
     // gRPC server
     const std::string address = "0.0.0.0:50051";

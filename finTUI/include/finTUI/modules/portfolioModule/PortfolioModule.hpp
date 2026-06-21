@@ -24,8 +24,7 @@ namespace finui {
 class PortfolioModule : public IModule {
  public:
     PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSource,
-                    std::shared_ptr<IPortfolioAnalysisDataSource> analysisDataSource,
-                    ftxui::ScreenInteractive& screen);
+                    std::shared_ptr<IPortfolioAnalysisDataSource> analysisDataSource, ftxui::ScreenInteractive& screen);
     PortfolioModule(const PortfolioModule&) = delete;
     PortfolioModule(PortfolioModule&&) = delete;
     PortfolioModule& operator=(const PortfolioModule&) = delete;

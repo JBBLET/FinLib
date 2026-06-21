@@ -40,8 +40,8 @@ EquityAnalysis::EquityAnalysis(std::shared_ptr<const finance::Equity> equity,
     session_->addTransform("logReturn", logReturnTransform);
     session_->addTransform("simpleReturn", simpleReturnTransform);
     totalReturnHandle_ = session_->customAnalysis("").addMetric("", "totalReturn", finapp::metrics::totalReturn());
-    sharpeHandle_ = session_->customAnalysis("logReturn").addMetric("logReturn", "sharpe",
-                                                                    finapp::metrics::annualizedSharpe());
+    sharpeHandle_ =
+        session_->customAnalysis("logReturn").addMetric("logReturn", "sharpe", finapp::metrics::annualizedSharpe());
 }
 
 }  // namespace finance::analysis

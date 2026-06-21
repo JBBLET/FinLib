@@ -13,10 +13,6 @@
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "support/service_test_fakes.hpp"
 
-using namespace finance;
-using namespace finapp;
-using namespace finapp::test;
-
 namespace {
 
 constexpr int64_t kDay = 86'400'000;
@@ -25,25 +21,25 @@ class FXServiceTest : public ::testing::Test {
  protected:
     std::shared_ptr<InMemoryTimeSeriesRepository> innerRepo;
     std::shared_ptr<CachedTimeSeriesRepository> cachedRepo;
-    std::shared_ptr<FakeTimeSeriesLoader> provider;
+    std::shared_ptr<finapp::test::FakeTimeSeriesLoader> provider;
     std::shared_ptr<TimeSeriesService> tsService;
-    std::shared_ptr<InMemoryFXRepository> fxRepo;
-    std::unique_ptr<FXService> service;
+    std::shared_ptr<finapp::InMemoryFXRepository> fxRepo;
+    std::unique_ptr<finapp::FXService> service;
 
     void SetUp() override {
         innerRepo = std::make_shared<InMemoryTimeSeriesRepository>();
         cachedRepo = std::make_shared<CachedTimeSeriesRepository>(innerRepo);
-        provider = std::make_shared<FakeTimeSeriesLoader>();
+        provider = std::make_shared<finapp::test::FakeTimeSeriesLoader>();
         tsService = std::make_shared<TimeSeriesService>(cachedRepo, provider);
-        fxRepo = std::make_shared<InMemoryFXRepository>();
-        service = std::make_unique<FXService>(tsService, fxRepo);
+        fxRepo = std::make_shared<finapp::InMemoryFXRepository>();
+        service = std::make_unique<finapp::FXService>(tsService, fxRepo);
     }
 };
 
 }  // namespace
 
 TEST_F(FXServiceTest, SameCurrencyReturnsConstantOneSeries) {
-    TimeSeries result = service->load(Currency::USD, Currency::USD, 0, 4 * kDay, kDay);
+    TimeSeries result = service->load(finance::Currency::USD, finance::Currency::USD, 0, 4 * kDay, kDay);
     ASSERT_EQ(result.size(), 5);
     for (double v : result.getValues()) {
         EXPECT_DOUBLE_EQ(v, 1.0);
@@ -52,7 +48,7 @@ TEST_F(FXServiceTest, SameCurrencyReturnsConstantOneSeries) {
 
 TEST_F(FXServiceTest, SameCurrencySharedTimestampsReturnsConstantOne) {
     auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
-    TimeSeries result = service->load(Currency::EUR, Currency::EUR, timestamps);
+    TimeSeries result = service->load(finance::Currency::EUR, finance::Currency::EUR, timestamps);
     ASSERT_EQ(result.size(), 4);
     for (double v : result.getValues()) {
         EXPECT_DOUBLE_EQ(v, 1.0);
@@ -63,10 +59,10 @@ TEST_F(FXServiceTest, SameCurrencySharedTimestampsReturnsConstantOne) {
 
 TEST_F(FXServiceTest, LoadExistingPairHitsRepositorySeriesId) {
     // Repo already knows about the pair → service uses the persisted timeseriesID.
-    fxRepo->save(FXInfos{Currency::EUR, Currency::USD, "FX:EUR_USD"});
-    provider->setSeries("FX:EUR_USD", makeFlatSeries("FX:EUR_USD", 0, 4 * kDay, kDay, 1.08));
+    fxRepo->save(finapp::FXInfos{finance::Currency::EUR, finance::Currency::USD, "FX:EUR_USD"});
+    provider->setSeries("FX:EUR_USD", finapp::test::makeFlatSeries("FX:EUR_USD", 0, 4 * kDay, kDay, 1.08));
 
-    TimeSeries result = service->load(Currency::EUR, Currency::USD, 0, 4 * kDay, kDay);
+    TimeSeries result = service->load(finance::Currency::EUR, finance::Currency::USD, 0, 4 * kDay, kDay);
     ASSERT_EQ(result.size(), 5);
     for (double v : result.getValues()) {
         EXPECT_DOUBLE_EQ(v, 1.08);
@@ -74,26 +70,26 @@ TEST_F(FXServiceTest, LoadExistingPairHitsRepositorySeriesId) {
 }
 
 TEST_F(FXServiceTest, LoadUnknownPairCreatesFXInfosAndFetches) {
-    ASSERT_FALSE(fxRepo->exists(Currency::USD, Currency::JPY));
+    ASSERT_FALSE(fxRepo->exists(finance::Currency::USD, finance::Currency::JPY));
     // Canonical derived id is "<base><quote>=X" (yfinance FX ticker convention).
-    provider->setSeries("USDJPY=X", makeFlatSeries("USDJPY=X", 0, 4 * kDay, kDay, 150.0));
+    provider->setSeries("USDJPY=X", finapp::test::makeFlatSeries("USDJPY=X", 0, 4 * kDay, kDay, 150.0));
 
-    TimeSeries result = service->load(Currency::USD, Currency::JPY, 0, 4 * kDay, kDay);
+    TimeSeries result = service->load(finance::Currency::USD, finance::Currency::JPY, 0, 4 * kDay, kDay);
     ASSERT_EQ(result.size(), 5);
     EXPECT_DOUBLE_EQ(result.getValues().front(), 150.0);
 
     // The new pair must now be persisted so subsequent calls hit the fast path.
-    ASSERT_TRUE(fxRepo->exists(Currency::USD, Currency::JPY));
-    EXPECT_EQ(fxRepo->load(Currency::USD, Currency::JPY).timeseriesID, "USDJPY=X");
+    ASSERT_TRUE(fxRepo->exists(finance::Currency::USD, finance::Currency::JPY));
+    EXPECT_EQ(fxRepo->load(finance::Currency::USD, finance::Currency::JPY).timeseriesID, "USDJPY=X");
 }
 
 TEST_F(FXServiceTest, SharedTimestampOverloadKeepsPointerAlignment) {
-    fxRepo->save(FXInfos{Currency::GBP, Currency::EUR, "GBPEUR"});
-    provider->setSeries("GBPEUR", makeFlatSeries("GBPEUR", 0, 6 * kDay, kDay, 1.17));
+    fxRepo->save(finapp::FXInfos{finance::Currency::GBP, finance::Currency::EUR, "GBPEUR"});
+    provider->setSeries("GBPEUR", finapp::test::makeFlatSeries("GBPEUR", 0, 6 * kDay, kDay, 1.17));
 
     auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
-    TimeSeries a = service->load(Currency::GBP, Currency::EUR, timestamps);
-    TimeSeries b = service->load(Currency::GBP, Currency::EUR, timestamps);
+    TimeSeries a = service->load(finance::Currency::GBP, finance::Currency::EUR, timestamps);
+    TimeSeries b = service->load(finance::Currency::GBP, finance::Currency::EUR, timestamps);
 
     ASSERT_EQ(a.size(), 4);
     ASSERT_EQ(b.size(), 4);
@@ -105,17 +101,17 @@ TEST_F(FXServiceTest, SharedTimestampOverloadKeepsPointerAlignment) {
 
 TEST_F(FXServiceTest, SharedTimestampsOverloadForUnknownPairRegistersAndAlignsPointer) {
     // No entry in fxRepo — service auto-creates via makePairId_ convention ("USDJPY=X").
-    provider->setSeries("USDJPY=X", makeFlatSeries("USDJPY=X", 0, 6 * kDay, kDay, 155.0));
-    ASSERT_FALSE(fxRepo->exists(Currency::USD, Currency::JPY));
+    provider->setSeries("USDJPY=X", finapp::test::makeFlatSeries("USDJPY=X", 0, 6 * kDay, kDay, 155.0));
+    ASSERT_FALSE(fxRepo->exists(finance::Currency::USD, finance::Currency::JPY));
 
     auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
-    TimeSeries result = service->load(Currency::USD, Currency::JPY, timestamps);
+    TimeSeries result = service->load(finance::Currency::USD, finance::Currency::JPY, timestamps);
 
     ASSERT_EQ(result.size(), 4);
     EXPECT_DOUBLE_EQ(result.getValues()[0], 155.0);
     // Pair must now be registered so subsequent range calls hit the fast path.
-    EXPECT_TRUE(fxRepo->exists(Currency::USD, Currency::JPY));
-    EXPECT_EQ(fxRepo->load(Currency::USD, Currency::JPY).timeseriesID, "USDJPY=X");
+    EXPECT_TRUE(fxRepo->exists(finance::Currency::USD, finance::Currency::JPY));
+    EXPECT_EQ(fxRepo->load(finance::Currency::USD, finance::Currency::JPY).timeseriesID, "USDJPY=X");
     // Shared-timestamps pointer alignment must hold even on first-time resolution.
     EXPECT_EQ(result.getSharedTimestamps().get(), timestamps.get());
 }
