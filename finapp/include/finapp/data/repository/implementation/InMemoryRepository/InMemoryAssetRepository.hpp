@@ -2,11 +2,11 @@
 #pragma once
 
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/data/repository/interface/IAssetRepository.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 
@@ -15,7 +15,7 @@ namespace finapp {
 class InMemoryAssetRepository : public IAssetRepository {
  public:
     void save(const std::shared_ptr<const finance::IAsset>& asset) override {
-        if (!asset) throw std::invalid_argument("InMemoryAssetRepository: null asset");
+        if (!asset) throw finapp::InvalidArgument("InMemoryAssetRepository: null asset");
         assets_[asset->ticker()] = asset;
     }
 

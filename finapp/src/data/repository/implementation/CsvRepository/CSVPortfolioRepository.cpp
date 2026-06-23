@@ -10,13 +10,13 @@
 #include <fstream>
 #include <optional>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -111,8 +111,8 @@ std::vector<Transaction> CSVPortfolioRepository::loadTransactions(const std::str
     auto path = csvTransactionsPath_(portfolioId);
     if (!std::filesystem::exists(path)) {
         if (!exists(portfolioId))
-            throw std::runtime_error("CSVPortfolioRepository::loadTransactions: portfolio '" + portfolioId +
-                                     "' not found");
+            throw finapp::Exception("CSVPortfolioRepository::loadTransactions: portfolio '" + portfolioId +
+                                    "' not found");
         return {};
     }
     return parseTransactionsCsvFile_(path, afterTimestamps);
@@ -146,16 +146,16 @@ void CSVPortfolioRepository::deleteTransaction(const std::string& portfolioId, c
                        "deleteTransaction '" + transactionId + "' from '" + portfolioId + "'");
     const auto transactionsPath = csvTransactionsPath_(portfolioId);
     if (!std::filesystem::exists(transactionsPath)) {
-        throw std::runtime_error("CSVPortfolioRepository::deleteTransaction: no transactions file for portfolio '" +
-                                 portfolioId + "'.");
+        throw finapp::Exception("CSVPortfolioRepository::deleteTransaction: no transactions file for portfolio '" +
+                                portfolioId + "'.");
     }
 
     // Find the transaction by id, record its timestamp for snapshot invalidation, then rewrite the log.
     std::vector<Transaction> all = parseTransactionsCsvFile_(transactionsPath, 0);
     auto it = std::find_if(all.begin(), all.end(), [&](const Transaction& t) { return t.id == transactionId; });
     if (it == all.end()) {
-        throw std::runtime_error("CSVPortfolioRepository::deleteTransaction: transaction '" + transactionId +
-                                 "' not found in portfolio '" + portfolioId + "'.");
+        throw finapp::Exception("CSVPortfolioRepository::deleteTransaction: transaction '" + transactionId +
+                                "' not found in portfolio '" + portfolioId + "'.");
     }
     const int64_t deletedTimestampMs = it->timestampsMs;
     all.erase(it);
@@ -171,8 +171,8 @@ void CSVPortfolioRepository::deletePortfolio(const std::string& portfolioId) {
     const auto transactionsPath = csvTransactionsPath_(portfolioId);
 
     if (!std::filesystem::exists(snapshotPath) && !std::filesystem::exists(transactionsPath)) {
-        throw std::runtime_error("CSVPortfolioRepository::deletePortfolio: portfolio '" + portfolioId +
-                                 "' does not exist.");
+        throw finapp::Exception("CSVPortfolioRepository::deletePortfolio: portfolio '" + portfolioId +
+                                "' does not exist.");
     }
     if (std::filesystem::exists(snapshotPath)) {
         std::filesystem::rename(snapshotPath, csvDeletedSnapshotPath_(portfolioId));
@@ -230,7 +230,7 @@ void CSVPortfolioRepository::replaceSnapshotsFrom(const std::string& portfolioId
     if (std::filesystem::exists(snapshotPath) && std::filesystem::file_size(snapshotPath) > 0) {
         std::ifstream inFile(snapshotPath);
         if (!inFile.is_open())
-            throw std::runtime_error("Cannot open snapshot CSV for reading: " + snapshotPath.string());
+            throw finapp::Exception("Cannot open snapshot CSV for reading: " + snapshotPath.string());
         std::string line;
         std::getline(inFile, line);  // skip header
         while (std::getline(inFile, line)) {
@@ -271,7 +271,7 @@ void CSVPortfolioRepository::replaceSnapshotsFrom(const std::string& portfolioId
 
     // Single write pass: header + surviving rows + new rows.
     std::ofstream outFile(snapshotPath, std::ios::trunc);
-    if (!outFile.is_open()) throw std::runtime_error("Cannot open snapshot CSV for writing: " + snapshotPath.string());
+    if (!outFile.is_open()) throw finapp::Exception("Cannot open snapshot CSV for writing: " + snapshotPath.string());
     outFile << "name,baseCurrency,timestampMs,portfolioID,positions_id,cashBalances_id\n";
     for (const auto& row : keptRows) outFile << row << '\n';
     for (const auto& row : newRows) outFile << row << '\n';
@@ -290,7 +290,7 @@ std::string CSVPortfolioRepository::writeSnapshotPositionsFile_(const PortfolioS
     std::filesystem::create_directories(path.parent_path());
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open attributes file for writing: " + path.string());
+        throw finapp::Exception("Cannot open attributes file for writing: " + path.string());
     }
     file << "# " + snapshot.portfolioId + "_" + std::to_string(snapshot.timestampMs) + ".pos\n";
     for (const SnapshotPosition& pos : snapshot.positions) {
@@ -305,7 +305,7 @@ std::string CSVPortfolioRepository::writeCashBalancesFile_(const PortfolioSnapsh
     std::filesystem::create_directories(path.parent_path());
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open attributes file for writing: " + path.string());
+        throw finapp::Exception("Cannot open attributes file for writing: " + path.string());
     }
     file << "# " + snapshot.portfolioId + "_" + std::to_string(snapshot.timestampMs) + ".cash\n";
     for (const auto& [currency, quantity] : snapshot.cashBalances) {
@@ -318,7 +318,7 @@ void CSVPortfolioRepository::writeFullTransactionsCsv_(const std::filesystem::pa
                                                        const std::vector<Transaction>& transactions) {
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV File of Transactions for writing: " + path.string());
+        throw finapp::Exception("Cannot open CSV File of Transactions for writing: " + path.string());
     }
     file << "id,timestampMs,type,asset_type,asset_ticker,quantity,price_per_unit,fees,settlement_currency\n";
     for (const Transaction& transaction : transactions) {
@@ -333,7 +333,7 @@ void CSVPortfolioRepository::appendTransactionsCsv_(const std::filesystem::path&
                                                     const std::vector<Transaction>& transactions) {
     std::ofstream file(path, std::ios::app);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV File of Transactions for writing: " + path.string());
+        throw finapp::Exception("Cannot open CSV File of Transactions for writing: " + path.string());
     }
     for (const Transaction& transaction : transactions) {
         file << transaction.id << ";" << std::to_string(transaction.timestampsMs) << ";" << toString(transaction.type)
@@ -346,7 +346,7 @@ std::optional<PortfolioSnapshot> CSVPortfolioRepository::parseSnapshotCsvFile_(
     const std::filesystem::path& path) const {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Could not open the file to parse the snapshot: " + path.string());
+        throw finapp::Exception("Could not open the file to parse the snapshot: " + path.string());
     }
     std::optional<PortfolioSnapshot> output;
     std::string line, prevLine;
@@ -389,7 +389,7 @@ std::optional<PortfolioSnapshot> CSVPortfolioRepository::parseSnapshotCsvFile_(
 std::vector<PortfolioSnapshot> CSVPortfolioRepository::parseAllSnapshotRows_(const std::filesystem::path& path) const {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Could not open snapshot file: " + path.string());
+        throw finapp::Exception("Could not open snapshot file: " + path.string());
     }
     std::vector<PortfolioSnapshot> output;
     std::string line;
@@ -425,7 +425,7 @@ std::vector<SnapshotPosition> CSVPortfolioRepository::parsePositionsSnapshotFile
     const std::filesystem::path& path) const {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Could not open the file to parse the snapshot: " + path.string());
+        throw finapp::Exception("Could not open the file to parse the snapshot: " + path.string());
     }
     std::string line;
     std::string assetTypeString, assetTicker, assetQuantityString;
@@ -456,7 +456,7 @@ std::unordered_map<Currency, double> CSVPortfolioRepository::parseCashBalanceFil
     const std::filesystem::path& path) const {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Could not open the file to parse the cash Balance: " + path.string());
+        throw finapp::Exception("Could not open the file to parse the cash Balance: " + path.string());
     }
     std::string line;
     std::string currencyString, currencyQuantityString;
@@ -482,7 +482,7 @@ std::vector<Transaction> CSVPortfolioRepository::parseTransactionsCsvFile_(const
                                                                            int64_t afterTimestamps) const {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Could not open the file to parse the Transactions: " + path.string());
+        throw finapp::Exception("Could not open the file to parse the Transactions: " + path.string());
     }
     std::vector<Transaction> output;
     output.reserve(200);

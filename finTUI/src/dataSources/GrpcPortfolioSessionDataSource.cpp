@@ -17,7 +17,7 @@ namespace finui {
 namespace {
 
 static constexpr int64_t kDayMs = 86'400'000LL;
-static constexpr int64_t kFiveYearsMs = 5LL * 365 * kDayMs;
+static constexpr int64_t kOneYearMs = 365LL * kDayMs;
 
 const std::unordered_map<std::string, finapp_rpc::Currency> kCurrencyFromStr = {
     {"USD", finapp_rpc::Currency::USD},
@@ -86,7 +86,7 @@ void GrpcPortfolioSessionDataSource::ensureSession_(const std::string& portfolio
     const int64_t now = nowMs();
     finapp_rpc::OpenPortfolioAnalysisSessionInput req;
     req.set_portfolio_id(portfolioId);
-    req.set_start_ms(now - kFiveYearsMs);
+    req.set_start_ms(now - kOneYearMs);
     req.set_end_ms(now);
     req.set_frequency_ms(kDayMs);
 
@@ -98,6 +98,8 @@ void GrpcPortfolioSessionDataSource::ensureSession_(const std::string& portfolio
     sessionHandle_ = reply.handle().id();
     sessionPortfolioId_ = portfolioId;
 }
+
+void GrpcPortfolioSessionDataSource::onPortfolioDeselected() { closeSession_(); }
 
 void GrpcPortfolioSessionDataSource::closeSession_() {
     if (sessionHandle_.empty()) return;

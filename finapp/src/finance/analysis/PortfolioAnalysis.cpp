@@ -2,12 +2,12 @@
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/finance/analysis/FinanceMetrics.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
@@ -49,7 +49,8 @@ PortfolioAnalysis::PortfolioAnalysis(const finance::Portfolio& portfolio,
                                        const auto& vals = series->getValues();
                                        if (vals.empty()) continue;
                                        const double p0 = vals[0];
-                                       for (size_t i = 0; i < n; ++i) nav[i] += wit->second * vals[i] / p0;
+                                       const size_t useN = std::min(n, vals.size());
+                                       for (size_t i = 0; i < useN; ++i) nav[i] += wit->second * vals[i] / p0;
                                    }
                                    return TimeSeries("NAV", ref.getSharedTimestamps(), ref.tsOffset(), std::move(nav));
                                });
@@ -68,7 +69,8 @@ PortfolioAnalysis::PortfolioAnalysis(const finance::Portfolio& portfolio,
                                        auto qit = q.find(ticker);
                                        if (qit == q.end()) continue;
                                        const auto& vals = series->getValues();
-                                       for (size_t i = 0; i < n; ++i) nav[i] += qit->second * vals[i];
+                                       const size_t useN = std::min(n, vals.size());
+                                       for (size_t i = 0; i < useN; ++i) nav[i] += qit->second * vals[i];
                                    }
                                    return TimeSeries("NAV", ref.getSharedTimestamps(), ref.tsOffset(), std::move(nav));
                                });
@@ -135,7 +137,7 @@ const ::analysis::TimeSeriesAnalysis& PortfolioAnalysis::returnAnalysis() {
 // ---------------------------------------------------------------------------
 std::shared_ptr<IAssetAnalysis> PortfolioAnalysis::assetAnalysis(const std::string& ticker) const {
     auto it = index_.find(ticker);
-    if (it == index_.end()) throw std::runtime_error("No analysis for ticker: " + ticker);
+    if (it == index_.end()) throw finapp::Exception("No analysis for ticker: " + ticker);
     return it->second;
 }
 

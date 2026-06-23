@@ -16,7 +16,8 @@ class ITimeSeriesRepository : public ITimeSeriesLoader, public ITimeSeriesSaver 
 
     virtual Timestamps availableFrequencies(const std::string& id) const = 0;
 
-    TimeSeries load(const std::string& id, Timestamp startTimestampMs, Timestamp endTimestampMs) const override = 0;
+    TimeSeries load(const std::string& id, Timestamp startTimestampMs, Timestamp endTimestampMs,
+                    std::optional<Timestamp> /*requestedFrequency*/ = std::nullopt) const override = 0;
     virtual TimeSeries load(const SeriesKey& key) const = 0;
     virtual TimeSeries load(const SeriesKey& key, Timestamp startTimestampMs, Timestamp endTimestampMs) const = 0;
 };

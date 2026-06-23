@@ -5,11 +5,11 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/finance/common/Currency.hpp"
 using finance::Currency;
 using finance::currencyFromString;
@@ -28,7 +28,7 @@ std::vector<FXInfos> CSVFXRepository::readAll_() const {
     }
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open FX CSV file: " + path.string());
+        throw finapp::Exception("Cannot open FX CSV file: " + path.string());
     }
     std::vector<FXInfos> entries;
     std::string line;
@@ -50,7 +50,7 @@ void CSVFXRepository::writeAll_(const std::vector<FXInfos>& entries) const {
 
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open FX CSV file for writing: " + path.string());
+        throw finapp::Exception("Cannot open FX CSV file for writing: " + path.string());
     }
     file << "baseCurrency;quoteCurrency;timeseriesID\n";
     for (const auto& entry : entries) {
@@ -65,7 +65,7 @@ FXInfos CSVFXRepository::load(const Currency& baseCurrency, const Currency& quot
             return entry;
         }
     }
-    throw std::runtime_error("FX pair not found: " + toString(baseCurrency) + "/" + toString(quoteCurrency));
+    throw finapp::Exception("FX pair not found: " + toString(baseCurrency) + "/" + toString(quoteCurrency));
 }
 
 void CSVFXRepository::save(const FXInfos& fxInfos) {

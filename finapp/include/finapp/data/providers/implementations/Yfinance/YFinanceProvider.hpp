@@ -2,6 +2,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "finapp/common/logger/ILogger.hpp"
@@ -13,7 +14,8 @@ namespace finapp {
 class YFinanceProvider : public ITimeSeriesLoader {
  public:
     YFinanceProvider(std::string pythonExec, std::string scriptPath, finapp::logging::ILogger* logger = nullptr);
-    TimeSeries load(const std::string& name, Timestamp startTimestamp, Timestamp endTimestamp) const override;
+    TimeSeries load(const std::string& name, Timestamp startTimestamp, Timestamp endTimestamp,
+                    std::optional<Timestamp> requestedFrequency = std::nullopt) const override;
     LoaderCapabilities capabilities(const std::string& id) const override;
 
  private:

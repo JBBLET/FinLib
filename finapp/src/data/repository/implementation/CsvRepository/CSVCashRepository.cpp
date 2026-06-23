@@ -6,12 +6,12 @@
 #include <fstream>
 #include <memory>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/finance/asset/Cash.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -34,7 +34,7 @@ std::filesystem::path CSVCashRepository::csvPath_(const std::string& ticker) con
 std::shared_ptr<Cash> CSVCashRepository::readCsv_(const std::string& ticker) const {
     auto path = csvPath_(ticker);
     if (!std::filesystem::exists(path)) {
-        throw std::runtime_error("CSV file not found:" + path.string());
+        throw finapp::Exception("CSV file not found:" + path.string());
     }
     return parseCsvFile_(path, ticker);
 }
@@ -45,7 +45,7 @@ void CSVCashRepository::writeCsv_(const std::shared_ptr<const Cash>& asset) cons
 
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV file for writing: " + path.string());
+        throw finapp::Exception("Cannot open CSV file for writing: " + path.string());
     }
     file << "ticker,denomination\n";
     file << asset->ticker() + ";" + toString(asset->denomination()) + "\n";
@@ -54,7 +54,7 @@ void CSVCashRepository::writeCsv_(const std::shared_ptr<const Cash>& asset) cons
 std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& ticker) {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV file: " + path.string());
+        throw finapp::Exception("Cannot open CSV file: " + path.string());
     }
     std::string tickerString, denomString;
     std::string line;
@@ -67,13 +67,13 @@ std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::pa
             return std::make_shared<Cash>(Cash(denomination));
         }
     }
-    throw std::runtime_error("No data found in CSV file: " + path.string());
+    throw finapp::Exception("No data found in CSV file: " + path.string());
 }
 
 void CSVCashRepository::save(const std::shared_ptr<const IAsset>& asset) {
     auto cash = std::dynamic_pointer_cast<const Cash>(asset);
     if (!cash) {
-        throw std::runtime_error("CSVCashRepository::save called with non-Cash asset");
+        throw finapp::Exception("CSVCashRepository::save called with non-Cash asset");
     }
     writeCsv_(cash);
 }

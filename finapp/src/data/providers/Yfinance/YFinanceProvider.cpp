@@ -6,6 +6,7 @@
 #include <pybind11/stl.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -39,9 +40,11 @@ LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) con
     };
 }
 
-TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts) const {
+TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts,
+                                   std::optional<Timestamp> requestedFrequency) const {
     constexpr int64_t kDayMs = 86'400'000LL;
-    const Timestamp freqMs = capabilities(symbol).frequencyForRange(end_ts - start_ts);
+    // Use explicitly requested frequency when provided; otherwise auto-detect from range.
+    const Timestamp freqMs = requestedFrequency.value_or(capabilities(symbol).frequencyForRange(end_ts - start_ts));
     std::string interval;
     if (freqMs <= 60'000LL)
         interval = "1m";

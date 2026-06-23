@@ -23,6 +23,10 @@ class IPortfolioDataSource {
     virtual TimeSeriesData getTimeSeries(const std::string& portfolioId, int64_t startMs, int64_t endMs,
                                          int64_t deltaMs) = 0;
     virtual void importCsv(const std::string& portfolioId, const std::string& csvData) = 0;
+
+    // Called when the user navigates away from the portfolio (e.g. back to the
+    // portfolio list). Implementations may release server-side sessions here.
+    virtual void onPortfolioDeselected() {}
 };
 
 }  // namespace finui

@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -35,9 +36,7 @@ using finance::IAsset;
 using finance::Portfolio;
 using finance::PortfolioSnapshot;
 using finance::SnapshotPosition;
-using finance::TargetAllocation;
 using finance::Transaction;
-using finance::TransactionType;
 
 namespace {
 constexpr Timestamp kDefaultSpotFrequencyMs = 86'400'000;
@@ -68,7 +67,7 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency,
                                       Timestamp timestampMs) {
     if (portfolioRepository_->exists(portfolioId)) {
-        throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
+        throw finapp::Exception("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
     }
     if (logger_)
         logger_->write(finapp::logging::Level::Info,
@@ -80,7 +79,7 @@ Portfolio PortfolioService::createNew(const std::string& portfolioId, const std:
 
 void PortfolioService::deletePortfolio(const std::string& portfolioId) {
     if (!portfolioRepository_->exists(portfolioId)) {
-        throw std::runtime_error("PortfolioService::deletePortfolio: portfolio '" + portfolioId + "' does not exist.");
+        throw finapp::Exception("PortfolioService::deletePortfolio: portfolio '" + portfolioId + "' does not exist.");
     }
     if (logger_) logger_->write(finapp::logging::Level::Info, "deletePortfolio: id='" + portfolioId + "'");
     portfolioRepository_->deletePortfolio(portfolioId);
@@ -90,7 +89,7 @@ Portfolio PortfolioService::load(const std::string& portfolioId) {
     if (logger_) logger_->write(finapp::logging::Level::Debug, "load: id='" + portfolioId + "'");
     auto snapshotOpt = portfolioRepository_->loadLatestSnapshot(portfolioId);
     if (!snapshotOpt.has_value()) {
-        throw std::runtime_error("PortfolioService::load: no snapshot found for portfolio " + portfolioId);
+        throw finapp::Exception("PortfolioService::load: no snapshot found for portfolio " + portfolioId);
     }
     const PortfolioSnapshot& snapshot = *snapshotOpt;
 
@@ -155,7 +154,7 @@ void PortfolioService::save(const Portfolio& portfolio, Timestamp timestampMs) {
 //
 //         // Convert delta back into asset-denomination quantity.
 //         if (price <= 0.0 || fx <= 0.0) {
-//             throw std::runtime_error("PortfolioService::rebalance: non-positive price/fx for " +
+//             throw finapp::Exception("PortfolioService::rebalance: non-positive price/fx for " +
 //             target.assetId.ticker);
 //         }
 //         const double deltaQuantity = deltaValueBase / (price * fx);
@@ -187,12 +186,12 @@ TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, Timesta
 
 TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, TimestampsPtr timestamps) {
     if (!timestamps || timestamps->empty()) {
-        throw std::invalid_argument("PortfolioService::valueSeries: timestamps must be non-empty.");
+        throw finapp::InvalidArgument("PortfolioService::valueSeries: timestamps must be non-empty.");
     }
 
     auto allSnapshots = portfolioRepository_->loadAllSnapshots(portfolioId);
     if (allSnapshots.empty()) {
-        throw std::runtime_error("PortfolioService::valueSeries: no snapshot for portfolio " + portfolioId);
+        throw finapp::Exception("PortfolioService::valueSeries: no snapshot for portfolio " + portfolioId);
     }
     std::sort(allSnapshots.begin(), allSnapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
         return a.timestampMs < b.timestampMs;
@@ -274,7 +273,7 @@ finance::PortfolioOverviewAtTs PortfolioService::computeOverviewAtTs(const std::
 
 PortfolioService::PortfolioMetadata PortfolioService::loadMetadata(const std::string& portfolioId) {
     auto snap = portfolioRepository_->loadLatestSnapshot(portfolioId);
-    if (!snap.has_value()) throw std::runtime_error("No snapshot for portfolio: " + portfolioId);
+    if (!snap.has_value()) throw finapp::Exception("No snapshot for portfolio: " + portfolioId);
     return {snap->portfolioId, snap->name, snap->baseCurrency};
 }
 
@@ -324,8 +323,8 @@ void PortfolioService::deleteTransaction(const std::string& portfolioId, const s
     const auto it =
         std::find_if(allTxs.begin(), allTxs.end(), [&](const Transaction& t) { return t.id == transactionId; });
     if (it == allTxs.end()) {
-        throw std::runtime_error("PortfolioService::deleteTransaction: transaction '" + transactionId +
-                                 "' not found in portfolio '" + portfolioId + "'.");
+        throw finapp::Exception("PortfolioService::deleteTransaction: transaction '" + transactionId +
+                                "' not found in portfolio '" + portfolioId + "'.");
     }
     const Timestamp deletedTs = it->timestampsMs;
     portfolioRepository_->deleteTransaction(portfolioId, transactionId);
@@ -361,8 +360,8 @@ void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, Tim
         }
     }
     if (!baseSnap) {
-        throw std::runtime_error("PortfolioService::rebuildSnapshotsFrom_: no base snapshot before " +
-                                 std::to_string(fromTimestampMs) + " for portfolio '" + portfolioId + "'.");
+        throw finapp::Exception("PortfolioService::rebuildSnapshotsFrom_: no base snapshot before " +
+                                std::to_string(fromTimestampMs) + " for portfolio '" + portfolioId + "'.");
     }
 
     // Load every transaction that follows the base snapshot and sort them.

@@ -66,21 +66,25 @@ vector<double> TimeSeries::partialWalk(const Timestamps& targetTimestamps, size_
     vector<double> newValues;
     newValues.resize(chunkLength);
 
-    const size_t originalSize = timestamps_->size();
+    // Use the span view so tsOffset_ is applied — timestamps_->size() can exceed
+    // values_.size() when this series shares a parent's TimestampsPtr (e.g. after a
+    // slice via TimeSeriesView::materialise_ or TimeSeries arithmetic operators).
+    const auto span = getTimestamps();
+    const size_t originalSize = values_.size();
     if (originalSize == 0) {
         throw std::runtime_error("TimeSeries::resampling: cannot resample from empty series '" + id_ + "'");
     }
 
-    auto it = std::lower_bound(timestamps_->begin(), timestamps_->end(), targetTimestamps[startIndex]);
-    size_t dataIndex = std::distance(timestamps_->begin(), it);
+    auto it = std::lower_bound(span.begin(), span.end(), targetTimestamps[startIndex]);
+    size_t dataIndex = std::distance(span.begin(), it);
     if (dataIndex > 0) dataIndex--;
 
     for (size_t i = 0; i < chunkLength; i++) {
         int64_t currentTarget = targetTimestamps[startIndex + i];
-        while (dataIndex < (originalSize - 1) && (*timestamps_)[dataIndex + 1] <= currentTarget) {
+        while (dataIndex < (originalSize - 1) && span[dataIndex + 1] <= currentTarget) {
             dataIndex++;
         }
-        if (currentTarget <= (*timestamps_)[0]) {
+        if (currentTarget <= span[0]) {
             newValues[i] = values_[0];
         } else if (dataIndex >= originalSize - 1) {
             newValues[i] = values_.back();
@@ -88,9 +92,9 @@ vector<double> TimeSeries::partialWalk(const Timestamps& targetTimestamps, size_
             newValues[i] = applyStrategy(strategy,
                                          currentGen,
                                          currentTarget,
-                                         (*timestamps_)[dataIndex],
+                                         span[dataIndex],
                                          values_[dataIndex],
-                                         (*timestamps_)[dataIndex + 1],
+                                         span[dataIndex + 1],
                                          values_[dataIndex + 1]);
         }
     }

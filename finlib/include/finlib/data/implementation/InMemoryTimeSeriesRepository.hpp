@@ -19,7 +19,8 @@
 // reports coverage exactly over what was saved. Does not fetch on load misses.
 class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
  public:
-    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs) const override {
+    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs,
+                    std::optional<Timestamp> /*requestedFrequency*/ = std::nullopt) const override {
         auto it = std::find_if(data_.begin(), data_.end(), [&](const auto& kv) { return kv.first.SeriesId == id; });
         if (it == data_.end()) {
             throw std::runtime_error("InMemoryTimeSeriesRepository: no data for id " + id);

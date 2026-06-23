@@ -38,6 +38,7 @@ class GrpcPortfolioSessionDataSource : public IPortfolioDataSource, public IPort
     TimeSeriesData getTimeSeries(const std::string& portfolioId, int64_t startMs, int64_t endMs,
                                  int64_t deltaMs) override;
     void importCsv(const std::string& portfolioId, const std::string& csvData) override;
+    void onPortfolioDeselected() override;
 
     // --- IPortfolioAnalysisDataSource ---
     PortfolioAnalysisData computeAnalysis(const std::string& portfolioId, int64_t startMs, int64_t endMs,

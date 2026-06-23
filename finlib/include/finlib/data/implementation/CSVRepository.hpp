@@ -25,7 +25,8 @@ class CSVRepository : public ITimeSeriesRepository {
 
     // --- ITimeSeriesLoader ---
     /// Finds the finest available frequency for `id` and loads data in [startMs, endMs].
-    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs) const override;
+    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs,
+                    std::optional<Timestamp> requestedFrequency = std::nullopt) const override;
     LoaderCapabilities capabilities(const std::string& id) const override;
 
     // --- ITimeSeriesSaver (via doSave/doMerge) ---

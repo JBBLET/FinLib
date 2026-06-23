@@ -5,10 +5,11 @@
 #include <cctype>
 #include <cstdint>
 #include <functional>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "finapp/common/Exception.hpp"
 
 namespace finance {
 enum class Currency : uint8_t { USD, EUR, JPY, KRW, CAD, GBP };
@@ -46,8 +47,8 @@ inline Currency currencyFromString(const std::string& id) {
     std::transform(upperCaseStr.begin(), upperCaseStr.end(), upperCaseStr.begin(), ::toupper);
     auto it = stringToCurrencyMap.find(upperCaseStr);
     if (it == stringToCurrencyMap.end()) {
-        throw std::invalid_argument("Unsupported currency code: '" + id +
-                                    "'. Supported: USD, EUR, JPY, KRW, CAD, GBP.");
+        throw finapp::InvalidArgument("Unsupported currency code: '" + id +
+                                      "'. Supported: USD, EUR, JPY, KRW, CAD, GBP.");
     }
     return it->second;
 }

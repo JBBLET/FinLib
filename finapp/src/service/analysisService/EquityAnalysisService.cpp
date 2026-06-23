@@ -2,9 +2,9 @@
 #include "finapp/service/analysisService/AssetsAnalysis/EquityAnalysisService.hpp"
 
 #include <memory>
-#include <stdexcept>
 #include <utility>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/analysis/EquityAnalysis.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
@@ -27,7 +27,7 @@ std::shared_ptr<finance::analysis::IAssetAnalysis> EquityAnalysisService::create
         return std::make_shared<finance::analysis::EquityAnalysis>(
             finance::analysis::EquityAnalysis(equityPtr, session, assetService_));
     } else {
-        throw std::runtime_error("IAsset to Equity Cast Error!");
+        throw finapp::Exception("IAsset to Equity Cast Error!");
     }
 }
 }  // namespace finapp

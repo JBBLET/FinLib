@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/finance/asset/Equity.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -31,7 +32,7 @@ void CSVEquityRepository::save(const std::shared_ptr<const IAsset>& asset) {
     // TODO(JBBLET) look into performance gain from switching to a static_pointer_cast
     auto equity = std::dynamic_pointer_cast<const Equity>(asset);
     if (!equity) {
-        throw std::runtime_error("CSVEquityRepository::save called with non-Equity asset");
+        throw finapp::Exception("CSVEquityRepository::save called with non-Equity asset");
     }
     writeAttributes_(equity);
     writeCsv_(equity);
@@ -82,7 +83,7 @@ std::filesystem::path CSVEquityRepository::attributePath_(const std::string& tic
 std::shared_ptr<Equity> CSVEquityRepository::readCsv_(const std::string& ticker) const {
     auto path = csvPath_(ticker);
     if (!std::filesystem::exists(path)) {
-        throw std::runtime_error("CSV file not found:" + path.string());
+        throw finapp::Exception("CSV file not found:" + path.string());
     }
     return parseCsvFile_(path, ticker);
 }
@@ -90,7 +91,7 @@ std::shared_ptr<Equity> CSVEquityRepository::readCsv_(const std::string& ticker)
 std::unordered_map<std::string, std::string> CSVEquityRepository::readAttribute_(const std::string& ticker) const {
     auto path = attributePath_(ticker);
     if (!std::filesystem::exists(path)) {
-        throw std::runtime_error("Attributes file not found" + path.string());
+        throw finapp::Exception("Attributes file not found" + path.string());
     }
     return parseAttributeFile_(path);
 }
@@ -100,7 +101,7 @@ void CSVEquityRepository::writeCsv_(const std::shared_ptr<const Equity>& asset) 
 
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV file for writing: " + path.string());
+        throw finapp::Exception("Cannot open CSV file for writing: " + path.string());
     }
     file << "ticker,name,denomination,exchange,sector\n";
     file << asset->ticker() + ";" + asset->name() + ";" + toString(asset->denomination()) + ";" + asset->exchange() +
@@ -113,7 +114,7 @@ void CSVEquityRepository::writeAttributes_(const std::shared_ptr<const Equity>& 
 
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open attributes file for writing: " + path.string());
+        throw finapp::Exception("Cannot open attributes file for writing: " + path.string());
     }
     file << "# " + asset->ticker() + ".attr\n";
     for (const auto& [key, value] : asset->attributes()) {
@@ -125,7 +126,7 @@ std::shared_ptr<Equity> CSVEquityRepository::parseCsvFile_(const std::filesystem
                                                            const std::string& ticker) {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV file: " + path.string());
+        throw finapp::Exception("Cannot open CSV file: " + path.string());
     }
     std::string tickerString, name, denomString, exchange, sector;
     Currency denomination;
@@ -146,7 +147,7 @@ std::unordered_map<std::string, std::string> CSVEquityRepository::parseAttribute
     const std::filesystem::path& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open Attributes file: " + path.string());
+        throw finapp::Exception("Cannot open Attributes file: " + path.string());
     }
     std::unordered_map<std::string, std::string> output;
     std::string key, value;

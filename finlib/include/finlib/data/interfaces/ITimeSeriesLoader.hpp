@@ -1,6 +1,7 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,7 @@ class ITimeSeriesLoader {
     ITimeSeriesLoader(ITimeSeriesLoader&&) = default;
     ITimeSeriesLoader& operator=(ITimeSeriesLoader&&) = default;
 
-    virtual TimeSeries load(const std::string& id, Timestamp startTimestampMs, Timestamp endTimestampMs) const = 0;
+    virtual TimeSeries load(const std::string& id, Timestamp startTimestampMs, Timestamp endTimestampMs,
+                            std::optional<Timestamp> requestedFrequency = std::nullopt) const = 0;
     virtual LoaderCapabilities capabilities(const std::string& id) const = 0;
 };

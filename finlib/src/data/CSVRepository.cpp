@@ -26,7 +26,8 @@ CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* 
 }
 
 // ITimeSeriesLoader Interface
-TimeSeries CSVRepository::load(const std::string& id, Timestamp startMs, Timestamp endMs) const {
+TimeSeries CSVRepository::load(const std::string& id, Timestamp startMs, Timestamp endMs,
+                               std::optional<Timestamp> /*requestedFrequency*/) const {
     auto freqs = availableFrequencies(id);
     if (freqs.empty()) {
         throw std::runtime_error("No data found for series: " + id);

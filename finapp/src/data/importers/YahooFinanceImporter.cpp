@@ -6,19 +6,17 @@
 #include <fstream>
 #include <optional>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
 #include "finlib/common/utils/TimeUtils.hpp"
 
 namespace finapp {
-
-using namespace finance;
 
 namespace {
 // Yahoo Finance CSV column indices (0-based)
@@ -38,25 +36,27 @@ constexpr int kMinCols = 17;
 constexpr int kColCurrency = 17;
 }  // namespace
 
-std::vector<Transaction> YahooFinanceImporter::parse(const std::filesystem::path& csvPath, const Config& config) {
+std::vector<finance::Transaction> YahooFinanceImporter::parse(const std::filesystem::path& csvPath,
+                                                              const Config& config) {
     std::ifstream file(csvPath);
     if (!file.is_open()) {
-        throw std::runtime_error("YahooFinanceImporter: cannot open file: " + csvPath.string());
+        throw finapp::Exception("YahooFinanceImporter: cannot open file: " + csvPath.string());
     }
     if (config.logger) config.logger->write(finapp::logging::Level::Info, "parse: " + csvPath.string());
     return parseStream_(file, config);
 }
 
-std::vector<Transaction> YahooFinanceImporter::parseFromString(const std::string& csvData, const Config& config) {
+std::vector<finance::Transaction> YahooFinanceImporter::parseFromString(const std::string& csvData,
+                                                                        const Config& config) {
     std::istringstream stream(csvData);
     return parseStream_(stream, config);
 }
 
-std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream, const Config& config) {
+std::vector<finance::Transaction> YahooFinanceImporter::parseStream_(std::istream& stream, const Config& config) {
     auto resolveCurrency = config.currencyResolver ? config.currencyResolver
                                                    : [&config](const std::string&) { return config.baseCurrency; };
 
-    std::vector<Transaction> result;
+    std::vector<finance::Transaction> result;
     std::string line;
     std::getline(stream, line);  // skip header
 
@@ -88,7 +88,7 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
 
         // Resolve the settlement currency: column 17 wins when present and valid;
         // otherwise fall back to the resolver (equity) or baseCurrency (cash).
-        auto readCurrencyCol = [&]() -> std::optional<Currency> {
+        auto readCurrencyCol = [&]() -> std::optional<finance::Currency> {
             if (static_cast<int>(cols.size()) > kColCurrency && !cols[kColCurrency].empty()) {
                 try {
                     return finance::currencyFromString(cols[kColCurrency]);
@@ -100,28 +100,35 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
         };
 
         if (symbol == "$$CASH_TX") {
-            TransactionType type;
+            finance::TransactionType type;
             if (txType == "DEPOSIT") {
-                type = TransactionType::Deposit;
+                type = finance::TransactionType::Deposit;
             } else if (txType == "WITHDRAWAL") {
-                type = TransactionType::Withdrawal;
+                type = finance::TransactionType::Withdrawal;
             } else {
                 if (config.logger)
                     config.logger->write(finapp::logging::Level::Debug,
                                          "skipped $$CASH_TX row — unknown type '" + txType + "'");
                 continue;
             }
-            const Currency txCurrency = readCurrencyCol().value_or(config.baseCurrency);
-            result.push_back(Transaction{
-                "", timestampMs, type, AssetType::Cash, toString(txCurrency), quantity, 1.0, fees, txCurrency});
+            const finance::Currency txCurrency = readCurrencyCol().value_or(config.baseCurrency);
+            result.push_back(finance::Transaction{"",
+                                                  timestampMs,
+                                                  type,
+                                                  finance::AssetType::Cash,
+                                                  toString(txCurrency),
+                                                  quantity,
+                                                  1.0,
+                                                  fees,
+                                                  txCurrency});
         } else {
-            TransactionType type;
+            finance::TransactionType type;
             if (txType == "BUY") {
-                type = TransactionType::Buy;
+                type = finance::TransactionType::Buy;
             } else if (txType == "SELL") {
-                type = TransactionType::Sell;
+                type = finance::TransactionType::Sell;
             } else if (txType == "DIVIDEND") {
-                type = TransactionType::Dividend;
+                type = finance::TransactionType::Dividend;
             } else {
                 // SPLIT has no price in Yahoo exports — skip and handle manually if needed.
                 if (config.logger)
@@ -129,13 +136,13 @@ std::vector<Transaction> YahooFinanceImporter::parseStream_(std::istream& stream
                                          "skipped '" + symbol + "' row — unsupported type '" + txType + "'");
                 continue;
             }
-            const Currency settlement = readCurrencyCol().value_or(resolveCurrency(symbol));
-            result.push_back(
-                Transaction{"", timestampMs, type, AssetType::Equity, symbol, quantity, price, fees, settlement});
+            const finance::Currency settlement = readCurrencyCol().value_or(resolveCurrency(symbol));
+            result.push_back(finance::Transaction{
+                "", timestampMs, type, finance::AssetType::Equity, symbol, quantity, price, fees, settlement});
         }
     }
 
-    std::sort(result.begin(), result.end(), [](const Transaction& a, const Transaction& b) {
+    std::sort(result.begin(), result.end(), [](const finance::Transaction& a, const finance::Transaction& b) {
         return a.timestampsMs < b.timestampsMs;
     });
     if (config.logger)

@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YfinanceUtils.hpp"
 #include "finapp/finance/asset/Equity.hpp"
@@ -16,8 +17,6 @@
 namespace py = pybind11;
 
 namespace finapp {
-
-using namespace finance;
 
 YFinanceEquityProvider::YFinanceEquityProvider(finapp::logging::ILogger* logger)
     : logger_{finapp::logging::PrefixedLogger::wrap(logger, "YFinanceEquityProvider")} {}
@@ -37,18 +36,18 @@ std::shared_ptr<finance::IAsset> YFinanceEquityProvider::fetch(const std::string
 
     // currencyFromString throws std::invalid_argument for unsupported currency codes.
     // Phase 1 supports: USD, EUR, JPY, KRW, CAD, GBP.
-    Currency denom = [&] {
+    finance::Currency denom = [&] {
         try {
-            return currencyFromString(currency);
+            return finance::currencyFromString(currency);
         } catch (const std::invalid_argument& e) {
-            throw std::invalid_argument(std::string(e.what()) + " (ticker: " + ticker + ")");
+            throw finapp::InvalidArgument(std::string(e.what()) + " (ticker: " + ticker + ")");
         }
     }();
 
     if (logger_)
         logger_->write(finapp::logging::Level::Debug,
                        "fetch '" + ticker + "' → name='" + name + "' currency=" + currency + " exchange=" + exchange);
-    return std::make_shared<Equity>(ticker, name, denom, exchange, sector);
+    return std::make_shared<finance::Equity>(ticker, name, denom, exchange, sector);
 }
 
 bool YFinanceEquityProvider::exists(const std::string& ticker) const {

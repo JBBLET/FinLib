@@ -26,7 +26,8 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
 
     // --- ITimeSeriesLoader ---
 
-    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs) const override {
+    TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs,
+                    std::optional<Timestamp> /*requestedFrequency*/ = std::nullopt) const override {
         return inner_->load(id, startMs, endMs);
     }
 

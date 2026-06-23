@@ -3,10 +3,10 @@
 #include "finapp/service/FXService.hpp"
 
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finlib/common/FinlibTypes.hpp"
@@ -42,7 +42,7 @@ TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCu
 
 TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, TimestampsPtr timestamps) {
     if (!timestamps) {
-        throw std::invalid_argument("FXService::load: timestamps pointer is null.");
+        throw finapp::InvalidArgument("FXService::load: timestamps pointer is null.");
     }
 
     if (baseCurrency == quoteCurrency) {

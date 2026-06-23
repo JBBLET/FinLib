@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "converters/ProtoConverters.hpp"
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/data/importers/YahooFinanceImporter.hpp"
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
@@ -23,12 +24,14 @@
 #include "portfolio.pb.h"
 
 // Log the error via the service's logger (if set) and return an INTERNAL gRPC status.
-#define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                  \
-    do {                                                                                 \
-        if (logger_)                                                                     \
-            logger_->write(finapp::logging::Level::Error,                                \
-                           std::string("[gRPC ERROR] ") + __func__ + ": " + (e).what()); \
-        return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                     \
+#define GRPC_LOG_AND_RETURN_INTERNAL(e)                                                                         \
+    do {                                                                                                        \
+        std::string trace_;                                                                                     \
+        if (const auto* t = std::dynamic_cast<const finapp::Traced>(&(e))) trace_ = "\n" + t->formattedTrace(); \
+        if (logger_)                                                                                            \
+            logger_->write(finapp::logging::Level::Error,                                                       \
+                           std::string("[gRPC ERROR] ") + __func__ + ": " + (e).what() + trace_);               \
+        return grpc::Status{grpc::StatusCode::INTERNAL, (e).what()};                                            \
     } while (false)
 
 // ===================================

@@ -60,12 +60,22 @@ TimeSeries TimeSeriesService::get(const std::string& id, Timestamp startMs, Time
                                    "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) + "ms: cache hit");
                 return cache_->load(requestedKey, startMs, endMs);
             }
-            if (logger_)
-                logger_->write(logging::Level::Debug,
-                               "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
-                                   "ms: partial cache, filling " + std::to_string(gaps.size()) + " gap(s)");
-            fetchAndMergeGaps_(requestedKey, gaps);
-            return cache_->load(requestedKey, startMs, endMs);
+            // Before going to the provider, check if a strictly-finer local key covers
+            // the full range.  If yes, fall through to Step 2: resample synthetically
+            // for this call without saving (interpolated values must not be persisted).
+            if (findLocalCoveringKey_(id, startMs, endMs, requestedFrequencyMs - 1)) {
+                if (logger_)
+                    logger_->write(logging::Level::Debug,
+                                   "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
+                                       "ms: partial cache but finer local covers range — synthetic resample");
+            } else {
+                if (logger_)
+                    logger_->write(logging::Level::Debug,
+                                   "get '" + id + "' freq=" + std::to_string(requestedFrequencyMs) +
+                                       "ms: partial cache, filling " + std::to_string(gaps.size()) + " gap(s)");
+                fetchAndMergeGaps_(requestedKey, gaps);
+                return cache_->load(requestedKey, startMs, endMs);
+            }
         }
     }
 
@@ -314,6 +324,25 @@ double TimeSeriesService::getSinglePoint(const std::string& id, Timestamp ts) {
 
     TimeSeries raw = provider_->load(id, ts - windowMs, ts + windowMs);
     if (raw.size() == 0) {
+        // Provider returned nothing — market may be closed (weekend/holiday).
+        // Fall back to the most recent cached bar at or before ts (look-back, no look-ahead).
+        auto freqs = cache_->availableFrequencies(id);
+        std::sort(freqs.begin(), freqs.end());
+        for (Timestamp freq : freqs) {
+            SeriesKey k{id, freq};
+            auto cov = cache_->coverage(k);
+            if (!cov || cov->coveredFromMs > ts) continue;
+            try {
+                double v = cache_->load(k).latestValue(ts);
+                if (!std::isnan(v)) {
+                    if (logger_)
+                        logger_->write(logging::Level::Debug,
+                                       "getSinglePoint '" + id + "' ts=" + std::to_string(ts) +
+                                           ": provider empty, cache look-back");
+                    return v;
+                }
+            } catch (...) {}
+        }
         throw std::runtime_error("TimeSeriesService::getSinglePoint: provider returned no data for '" + id + "'");
     }
 
@@ -380,10 +409,9 @@ void TimeSeriesService::fetchAndMergeGaps_(const SeriesKey& key, const std::vect
         // Skip gaps narrower than the series frequency — a daily provider has no new
         // data points to fill within an intraday gap.
         if (gap.endTimeStampMs - gap.startTimeStampMs < key.frequencyInMs) continue;
-        TimeSeries gapData = stripNaN(provider_->load(key.SeriesId, gap.startTimeStampMs, gap.endTimeStampMs));
+        TimeSeries gapData =
+            stripNaN(provider_->load(key.SeriesId, gap.startTimeStampMs, gap.endTimeStampMs, key.frequencyInMs));
         if (gapData.size() > 0) {
-            // merge() recomputes coverage from the merged timestamps, so NaN-free data
-            // automatically yields the correct coveredToMs for future gap detection.
             cache_->merge(key, gapData);
         }
     }

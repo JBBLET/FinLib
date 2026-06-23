@@ -55,9 +55,9 @@ PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSourc
     ftxui::MenuOption menuOpt = ftxui::MenuOption::Vertical();
     menuOpt.on_change = [this] {
         rightPanel_->setActiveTab(0);
-        loadSelectedPortfolio_();
     };
     menuOpt.on_enter = [this] {
+        loadSelectedPortfolio_();
         activePane_ = Pane::Right;
         rightPanel_->TakeFocus();
     };
@@ -107,6 +107,11 @@ PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSourc
             }
             // ── Right pane: only module-level concerns ────────────────────────
             if (e == ftxui::Event::Escape) {
+                dataSource_->onPortfolioDeselected();
+                currentSummary_ = {};
+                overviewPane_->setPortfolio({});
+                txnPane_->setPortfolio({});
+                chartPane_->setPortfolio({});
                 activePane_ = Pane::Left;
                 rightPanel_->setActiveTab(0);
                 portfolioMenu_->TakeFocus();
@@ -118,7 +123,6 @@ PortfolioModule::PortfolioModule(std::shared_ptr<IPortfolioDataSource> dataSourc
     uiComponent_ = Renderer(app_, [this] { return renderRoot_(); });
 
     loadPortfolioList_();
-    if (!portfolioList_.empty()) loadSelectedPortfolio_();
 }
 
 ftxui::Component PortfolioModule::component() { return uiComponent_; }
@@ -181,7 +185,6 @@ void PortfolioModule::submitCreatePortfolio_() {
             p.timestampsMs = createForm_.date.empty() ? 0 : utils::PortfolioUtils::parseDate(createForm_.date);
             dataSource_->createPortfolio(p);
             loadPortfolioList_();
-            if (!portfolioList_.empty()) loadSelectedPortfolio_();
             statusMsg_ = "Created: " + createForm_.name;
             statusIsError_ = false;
         } catch (const std::exception& ex) {
@@ -197,7 +200,6 @@ void PortfolioModule::confirmDeletePortfolio_() {
         try {
             dataSource_->deletePortfolio(portfolioList_[selectedPortfolio_].id);
             loadPortfolioList_();
-            if (!portfolioList_.empty()) loadSelectedPortfolio_();
             statusMsg_ = "Portfolio deleted.";
             statusIsError_ = false;
         } catch (const std::exception& ex) {
