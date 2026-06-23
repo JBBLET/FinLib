@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -31,7 +32,8 @@ class FakeTimeSeriesLoader : public ITimeSeriesLoader {
  public:
     void setSeries(const std::string& id, TimeSeries ts) { series_.insert_or_assign(id, std::move(ts)); }
 
-    TimeSeries load(const std::string& id, int64_t startMs, int64_t endMs) const override {
+    TimeSeries load(const std::string& id, int64_t startMs, int64_t endMs,
+                    std::optional<int64_t> /*requestedFrequency*/ = std::nullopt) const override {
         auto it = series_.find(id);
         if (it == series_.end()) {
             throw std::runtime_error("FakeTimeSeriesLoader: no series configured for id " + id);

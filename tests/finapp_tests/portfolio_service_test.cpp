@@ -9,6 +9,9 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryAssetRepository.hpp"
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryFXRepository.hpp"
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryPortfolioRepository.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Equity.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -22,6 +25,7 @@
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"
+#include "finlib/data/implementation/InMemoryTimeSeriesRepository.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "support/service_test_fakes.hpp"
 
