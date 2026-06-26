@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "finapp/finance/analysis/FinanceMetrics.hpp"
 #include "finapp/finance/analysis/ReturnTransforms.hpp"

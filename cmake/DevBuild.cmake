@@ -1,9 +1,4 @@
 # cmake/DevBuild.cmake — standalone development build configuration.
-#
-# Included ONLY when FinLib is the top-level project (see PROJECT_IS_TOP_LEVEL in the
-# root CMakeLists.txt). A consumer that pulls FinLib via add_subdirectory / FetchContent
-# never runs any of this: it gets the library targets only and controls Python + testing
-# itself. Keep everything dev/standalone-specific here so the consumable surface stays clean.
 
 # Dev defaults applied BEFORE dependency resolution — they steer Python discovery and
 # declare the test/benchmark options, so they must run before find_package(Python3) and

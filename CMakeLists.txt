@@ -9,9 +9,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-# Is FinLib the top-level project (standalone dev build) or consumed as a dependency
-# (add_subdirectory / FetchContent)? PROJECT_IS_TOP_LEVEL is provided natively by
-# CMake >= 3.21; compute it manually for older versions so consumers aren't forced to upgrade.
 if(NOT DEFINED PROJECT_IS_TOP_LEVEL)
     if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         set(PROJECT_IS_TOP_LEVEL ON)
@@ -20,17 +17,13 @@ if(NOT DEFINED PROJECT_IS_TOP_LEVEL)
     endif()
 endif()
 
-# Dev/standalone-only configuration that must run BEFORE dependency resolution
-# (in-repo .venv for Python, test/benchmark options). A consumer never executes this —
-# see cmake/DevBuild.cmake. Consumers provide their own Python and control testing.
 if(PROJECT_IS_TOP_LEVEL)
     include(DevBuild)
     finlib_dev_predeps()
 endif()
 
 # --------------------------------------------------------------------------------------
-# Dependencies required by the consumable libraries.
-# Each is guarded so a consumer that already provides the dependency is not overridden.
+# Dependencies
 # --------------------------------------------------------------------------------------
 include(FetchContent)
 

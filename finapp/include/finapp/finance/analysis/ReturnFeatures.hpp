@@ -5,11 +5,6 @@
 
 #include "finapp/finance/analysis/AnalysisFeature.hpp"
 
-// Concrete analysis features built on the generic feature mechanism in
-// AnalysisFeature.hpp. These are ordinary FeatureInstallers — nothing about
-// them is privileged; an analysis treats them exactly like a client-supplied
-// custom feature. Install them with PortfolioAnalysis::installFeature /
-// IAssetAnalysis::installFeature.
 namespace finance::analysis {
 
 // Derives "logReturn" from the base and registers sharpe + annualizedVolatility on it.
