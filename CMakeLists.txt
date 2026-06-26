@@ -58,8 +58,6 @@ set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(gRPC_INSTALL OFF CACHE BOOL "" FORCE)
 set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 
-sudo chown -R $USER:$USER /path/to/your/folder
-FetchContent_MakeAvailable(ftxui)
 
 # --- Subdirectories ---
 
