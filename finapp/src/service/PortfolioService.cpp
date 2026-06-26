@@ -181,7 +181,7 @@ void PortfolioService::save(const Portfolio& portfolio, Timestamp timestampMs) {
 
 TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, Timestamp startMs, Timestamp endMs,
                                          Timestamp frequencyMs) {
-    return valueSeries(portfolioId, common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs));
+    return valueSeries(portfolioId, ts::common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs));
 }
 
 TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, TimestampsPtr timestamps) {

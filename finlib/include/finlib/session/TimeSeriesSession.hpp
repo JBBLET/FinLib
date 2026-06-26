@@ -18,7 +18,7 @@
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "finlib/session/ITimeSeriesSession.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 using DerivedTransform = std::function<TimeSeries(const TimeSeries&)>;
 using ComputeTransform = std::function<TimeSeries(std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>)>;
@@ -48,7 +48,7 @@ class TimeSeriesSession : public ITimeSeriesSession {
 
     // Named derived transforms
     void addTransform(std::string name, DerivedTransform transform);
-    void addTransform(std::string name, std::vector<std::string> inputs, ComputeTransform transform);
+    void addTransform(std::string name, std::vector<std::string> inputs, ComputeTransform transform) override;
 
     // ITimeSeriesSession — name = "" → source, non-empty → named derived transform
     std::shared_ptr<const TimeSeries> seriesPtr(const std::string& name) override;
@@ -100,4 +100,4 @@ class TimeSeriesSession : public ITimeSeriesSession {
     void extendRange_(Timestamp newStartMs, Timestamp newEndMs);
 };
 
-}  // namespace analysis
+}  // namespace ts::analysis

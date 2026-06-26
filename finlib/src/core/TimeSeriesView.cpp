@@ -13,7 +13,7 @@
 #include "finlib/core/TimeSeries.hpp"
 
 using std::vector;
-
+namespace ts {
 TimeSeriesView::TimeSeriesView(std::shared_ptr<const TimeSeries> src, size_t start, size_t len, int lag)
     : source_(std::move(src)), begin_(start), length_(len), valueLag_(lag) {
     if (static_cast<int>(begin_) - valueLag_ < 0 || (begin_ + length_ - valueLag_) > source_->size()) {
@@ -148,3 +148,4 @@ RegularityCheck TimeSeriesView::checkRegularity(double tolerance) const {
     }
     return cachedRegularityCheck_.value();
 }
+}  // namespace ts

@@ -15,7 +15,7 @@
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 // ---------------------------------------------------------------------------
 // Constructors
@@ -220,8 +220,11 @@ void TimeSeriesSession::buildDerived_(const std::string& name) const {
     std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> inputMap;
     inputMap.reserve(leaf.inputs.size());
     for (const auto& dep : leaf.inputs) {
-        if (dep == "source") {
-            inputMap.emplace("source", source_);
+        if (dep == "source" || dep.empty()) {
+            // The source series is addressable both as the explicit "source" token and
+            // as "" (the primary-series naming convention from ITimeSeriesSession), so a
+            // caller can use one name for a series' input, view, and customAnalysis key.
+            inputMap.emplace(dep, source_);
         } else {
             if (derivedCaches_.find(dep) == derivedCaches_.end()) {
                 buildDerived_(dep);
@@ -232,4 +235,4 @@ void TimeSeriesSession::buildDerived_(const std::string& name) const {
     derivedCaches_[name] = std::make_shared<const TimeSeries>(leaf.transform(std::move(inputMap)));
 }
 
-}  // namespace analysis
+}  // namespace ts::analysis

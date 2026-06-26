@@ -14,10 +14,13 @@
 #include <vector>
 
 #include "finapp/data/providers/interfaces/IAssetProviders.hpp"
-#include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/interfaces/ITimeSeriesLoader.hpp"
+
+using ts::ITimeSeriesLoader;
+using ts::LoaderCapabilities;
+using ts::TimeSeries;
 
 namespace finapp::test {
 

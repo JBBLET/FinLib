@@ -17,7 +17,7 @@
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/session/ITimeSeriesSession.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 // TODO(JBBLET) Add AlignmentPolicy (Intersection / Union) support for sessions that do not share a
 //       timestamp grid. Currently assumes all sessions were constructed with the same shared
@@ -65,7 +65,7 @@ class MultiTimeSeriesSession : public ITimeSeriesSession {
     // Cross-series transforms — results are cached and invalidated on setRange / setFrequency.
     // No inputs = implicitly depends on all current sessions (snapshot at registration time).
     void addTransform(std::string name, CrossTransform fn);
-    void addTransform(std::string name, std::vector<std::string> inputs, CrossTransform fn);
+    void addTransform(std::string name, std::vector<std::string> inputs, CrossTransform fn) override;
     void addTransform(SeriesNode node);
 
     std::vector<std::string> sessionNames() const;
@@ -88,4 +88,4 @@ class MultiTimeSeriesSession : public ITimeSeriesSession {
     void invalidate_(const std::string& name);
 };
 
-}  // namespace analysis
+}  // namespace ts::analysis

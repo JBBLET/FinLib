@@ -136,6 +136,31 @@ target_link_libraries(test_portfolio_service
 add_test(NAME PortfolioServiceTest COMMAND test_portfolio_service)
 
 # --------------------
+# Analysis Feature Tests
+# --------------------
+
+add_executable(test_analysis_feature
+    analysis_feature_test.cpp
+)
+
+target_include_directories(test_analysis_feature
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(test_analysis_feature
+    PRIVATE
+        finapp_service
+        finapp_core
+        finlib_core
+        finlib_session
+        finlib_data
+        gtest_main
+)
+
+add_test(NAME AnalysisFeatureTest COMMAND test_analysis_feature)
+
+# --------------------
 # Portfolio Tracking Tests
 # --------------------
 

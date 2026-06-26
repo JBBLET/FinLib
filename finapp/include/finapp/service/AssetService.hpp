@@ -14,11 +14,18 @@
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
 
+using ts::InterpolationStrategy;
+using ts::TimeSeries;
+using ts::Timestamp;
+using ts::Timestamps;
+using ts::TimestampsPtr;
+using ts::analysis::TimeSeriesSession;
+
 namespace finapp {
 
 class AssetService {
  public:
-    AssetService(std::shared_ptr<TimeSeriesService> timeSeriesService,
+    AssetService(std::shared_ptr<ts::TimeSeriesService> timeSeriesService,
                  std::unordered_map<finance::AssetType, std::shared_ptr<IAssetRepository>> IAssetRepositoryMap,
                  std::unordered_map<finance::AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap,
                  finapp::logging::ILogger* logger = nullptr);
@@ -38,12 +45,12 @@ class AssetService {
     // implementation
     double loadValueAtTs(const finance::AssetId& assetId, const Timestamp& timestamp);
 
-    std::shared_ptr<::analysis::TimeSeriesSession> createSession(const finance::AssetId& id, Timestamp startMs,
-                                                                 Timestamp endMs, Timestamp freqMs);
-    std::shared_ptr<::analysis::TimeSeriesSession> createSession(const finance::AssetId& id, TimestampsPtr timestamps);
+    std::shared_ptr<TimeSeriesSession> createSession(const finance::AssetId& id, Timestamp startMs, Timestamp endMs,
+                                                     Timestamp freqMs);
+    std::shared_ptr<TimeSeriesSession> createSession(const finance::AssetId& id, TimestampsPtr timestamps);
 
  private:
-    std::shared_ptr<TimeSeriesService> timeSeriesService_;
+    std::shared_ptr<ts::TimeSeriesService> timeSeriesService_;
     std::unordered_map<finance::AssetType, std::shared_ptr<IAssetRepository>> IAssetRepositoryMap_;
     std::unordered_map<finance::AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap_;
     std::unordered_map<finance::AssetId, std::shared_ptr<const finance::IAsset>> cachedAssets_;

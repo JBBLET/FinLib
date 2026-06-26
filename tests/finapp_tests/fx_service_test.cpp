@@ -15,6 +15,12 @@
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "support/service_test_fakes.hpp"
 
+using ts::CachedTimeSeriesRepository;
+using ts::InMemoryTimeSeriesRepository;
+using ts::InterpolationStrategy;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
+
 namespace {
 
 constexpr int64_t kDay = 86'400'000;
@@ -49,7 +55,7 @@ TEST_F(FXServiceTest, SameCurrencyReturnsConstantOneSeries) {
 }
 
 TEST_F(FXServiceTest, SameCurrencySharedTimestampsReturnsConstantOne) {
-    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
+    auto timestamps = ts::common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
     TimeSeries result = service->load(finance::Currency::EUR, finance::Currency::EUR, timestamps);
     ASSERT_EQ(result.size(), 4);
     for (double v : result.getValues()) {
@@ -89,7 +95,7 @@ TEST_F(FXServiceTest, SharedTimestampOverloadKeepsPointerAlignment) {
     fxRepo->save(finapp::FXInfos{finance::Currency::GBP, finance::Currency::EUR, "GBPEUR"});
     provider->setSeries("GBPEUR", finapp::test::makeFlatSeries("GBPEUR", 0, 6 * kDay, kDay, 1.17));
 
-    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
+    auto timestamps = ts::common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
     TimeSeries a = service->load(finance::Currency::GBP, finance::Currency::EUR, timestamps);
     TimeSeries b = service->load(finance::Currency::GBP, finance::Currency::EUR, timestamps);
 
@@ -106,7 +112,7 @@ TEST_F(FXServiceTest, SharedTimestampsOverloadForUnknownPairRegistersAndAlignsPo
     provider->setSeries("USDJPY=X", finapp::test::makeFlatSeries("USDJPY=X", 0, 6 * kDay, kDay, 155.0));
     ASSERT_FALSE(fxRepo->exists(finance::Currency::USD, finance::Currency::JPY));
 
-    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
+    auto timestamps = ts::common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
     TimeSeries result = service->load(finance::Currency::USD, finance::Currency::JPY, timestamps);
 
     ASSERT_EQ(result.size(), 4);

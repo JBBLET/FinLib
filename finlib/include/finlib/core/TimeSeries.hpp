@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
+namespace ts {
 class TimeSeriesView;
 
 enum class InterpolationStrategy { Linear, Stochastic, Nearest };
@@ -154,3 +155,4 @@ inline std::ostream& operator<<(std::ostream& os, const TimeSeries& obj) {
     os << "]";
     return os;
 }
+}  // namespace ts

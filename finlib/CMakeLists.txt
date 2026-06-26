@@ -19,8 +19,9 @@ target_include_directories(finlib_core
 target_link_libraries(finlib_core
     PUBLIC
         Eigen3::Eigen
+    PRIVATE
+        stdc++exp
 )
-target_compile_features(finlib_core PUBLIC cxx_std_20)
 
 # --------------------
 # Analysis library
@@ -47,6 +48,7 @@ target_link_libraries(finlib_analysis
 add_library(finlib_data
     src/data/CSVRepository.cpp
     src/data/TimeSeriesService.cpp
+    src/data/TimeRange.cpp
 )
 
 target_link_libraries(finlib_data

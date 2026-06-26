@@ -3,8 +3,11 @@
 
 #include <vector>
 
+namespace ts {
 class TimeSeriesView;
+}  // namespace ts
 
+using ts::TimeSeriesView;
 namespace finapp::stats {
 
 // Annualized volatility — assumes the view is already a return series.

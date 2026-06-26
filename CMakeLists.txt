@@ -58,36 +58,13 @@ set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(gRPC_INSTALL OFF CACHE BOOL "" FORCE)
 set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 
-FetchContent_Declare(
-  gRPC
-  GIT_REPOSITORY https://github.com/grpc/grpc
-  GIT_TAG        v1.68.0
-  GIT_SHALLOW    TRUE
-  GIT_PROGRESS   TRUE
-)
-
-FetchContent_MakeAvailable(gRPC)
-include(cmake/GrpcHelpers.cmake)
-
-# FTXUI C++
-set(FTXUI_BUILD_EXAMPLES OFF)
-set(FTXUI_BUILD_DOCS OFF)
-set(FTXUI_BUILD_TESTS OFF)
-set(FTXUI_ENABLE_INSTALL OFF)
-
-FetchContent_Declare(ftxui
-  GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI
-  GIT_TAG v6.1.9  # Replace with a version, tag, or commit hash
-)
-
+sudo chown -R $USER:$USER /path/to/your/folder
 FetchContent_MakeAvailable(ftxui)
 
 # --- Subdirectories ---
 
 add_subdirectory(finlib)  # FinLib — Domain A (generic time series)
 add_subdirectory(finapp)  # FinApp — Domain B (finance application)
-add_subdirectory(finAppImplementation) # Example System using the FinApp into an actual project
-add_subdirectory(finTUI) # Example small UI using a grpc stub in finAppImplementation
 
 if(BUILD_TESTS)
     enable_testing()

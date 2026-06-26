@@ -8,6 +8,7 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
+namespace ts {
 struct LoaderCapabilities {
     Timestamp earliestAvailableMS;
     // Finest frequency the provider can ever offer (used as fallback when tiers is empty).
@@ -57,3 +58,4 @@ class ITimeSeriesLoader {
                             std::optional<Timestamp> requestedFrequency = std::nullopt) const = 0;
     virtual LoaderCapabilities capabilities(const std::string& id) const = 0;
 };
+}  // namespace ts

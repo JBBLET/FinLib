@@ -17,6 +17,14 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
+using ts::InterpolationStrategy;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
+using ts::Timestamp;
+using ts::Timestamps;
+using ts::TimestampsPtr;
+using ts::analysis::TimeSeriesSession;
+
 namespace finapp {
 
 class PortfolioService {

@@ -2,7 +2,7 @@
 #pragma once
 #include <string>
 
-namespace logging {
+namespace ts::logging {
 
 enum class Level { Debug, Info, Warning, Error };
 
@@ -32,4 +32,4 @@ class ILogger {
     virtual void write(Level lvl, const std::string& msg) = 0;
 };
 
-}  // namespace logging
+}  // namespace ts::logging

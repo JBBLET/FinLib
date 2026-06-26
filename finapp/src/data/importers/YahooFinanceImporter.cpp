@@ -153,7 +153,7 @@ std::vector<finance::Transaction> YahooFinanceImporter::parseStream_(std::istrea
 int64_t YahooFinanceImporter::yyyymmddToMs_(const std::string& s) {
     // "20241125" → "2024-11-25T00:00:00Z" (midnight UTC)
     std::string iso = s.substr(0, 4) + "-" + s.substr(4, 2) + "-" + s.substr(6, 2) + "T00:00:00Z";
-    return common::utils::time::parseIso8601ToMs(iso);
+    return ts::common::utils::time::parseIso8601ToMs(iso);
 }
 
 double YahooFinanceImporter::parseOptionalDouble_(const std::string& s) {

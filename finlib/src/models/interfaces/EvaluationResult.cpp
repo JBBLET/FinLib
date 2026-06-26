@@ -8,7 +8,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <vector>
-
+namespace ts {
 void models::RegressionEvaluation::computeRegressionMetrics(const std::vector<double>& actual,
                                                             const std::vector<double>& prediction,
                                                             const int& numberParameters, const double& sigmaEpsilon) {
@@ -47,3 +47,4 @@ void models::RegressionEvaluation::print() const {
 void models::ClassificationEvaluation::print() const {
     // TODO(JBBLET): implement formatted output
 }
+}  // namespace ts

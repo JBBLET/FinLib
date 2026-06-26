@@ -1,6 +1,7 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -8,9 +9,8 @@
 #include <vector>
 
 #include "finapp/common/Exception.hpp"
-#include "finapp/finance/analysis/FinanceMetrics.hpp"
+#include "finapp/finance/analysis/AnalysisFeature.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
-#include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
@@ -21,7 +21,7 @@ namespace finance::analysis {
 // Construction
 // ---------------------------------------------------------------------------
 PortfolioAnalysis::PortfolioAnalysis(const finance::Portfolio& portfolio,
-                                     std::unique_ptr<::analysis::MultiTimeSeriesSession> session,
+                                     std::unique_ptr<MultiTimeSeriesSession> session,
                                      std::vector<std::shared_ptr<IAssetAnalysis>> assetAnalyses,
                                      std::unordered_map<std::string, double> navWeights, NavMode navMode)
     : session_{std::move(session)}, assetAnalyses_{std::move(assetAnalyses)}, navMode_{navMode} {
@@ -76,21 +76,39 @@ PortfolioAnalysis::PortfolioAnalysis(const finance::Portfolio& portfolio,
                                });
     }
 
-    navTotalReturnHandle_ =
-        session_->customAnalysis("nav").addMetric("nav", "totalReturn", finapp::metrics::totalReturn());
+    activeNavSession_ = session_.get();
+    activeBase_ = "nav";
+}
+
+// ---------------------------------------------------------------------------
+// Feature installation
+// ---------------------------------------------------------------------------
+void PortfolioAnalysis::applyInstallers_() {
+    derivedSeries_.clear();
+    metrics_.clear();
+    for (const auto& installer : installers_) {
+        FeatureBindings bindings = installer(*activeNavSession_, activeBase_);
+        derivedSeries_.insert(derivedSeries_.end(), bindings.derivedSeries.begin(), bindings.derivedSeries.end());
+        for (auto& m : bindings.metrics) metrics_.push_back(std::move(m));
+    }
+}
+
+void PortfolioAnalysis::installFeature(const FeatureInstaller& installer) {
+    installers_.push_back(installer);
+    FeatureBindings bindings = installer(*activeNavSession_, activeBase_);
+    derivedSeries_.insert(derivedSeries_.end(), bindings.derivedSeries.begin(), bindings.derivedSeries.end());
+    for (auto& m : bindings.metrics) metrics_.push_back(std::move(m));
 }
 
 // ---------------------------------------------------------------------------
 // Range / frequency
 // ---------------------------------------------------------------------------
 void PortfolioAnalysis::setRange(int64_t startMs, int64_t endMs) {
-    precomputedNavAnalysis_.reset();
     session_->setRange(startMs, endMs);
     if (navSession_) navSession_->setRange(startMs, endMs);
 }
 
 void PortfolioAnalysis::setFrequency(int64_t freqMs) {
-    precomputedNavAnalysis_.reset();
     session_->setFrequency(freqMs);
     if (navSession_) navSession_->setFrequency(freqMs);
 }
@@ -99,37 +117,42 @@ void PortfolioAnalysis::setFrequency(int64_t freqMs) {
 // Precomputed NAV override
 // ---------------------------------------------------------------------------
 void PortfolioAnalysis::setNavTimeSeries(std::shared_ptr<const TimeSeries> nav) {
-    navSession_ = std::make_unique<::analysis::TimeSeriesSession>(std::move(nav));
-    precomputedNavAnalysis_.reset();
+    navSession_ = std::make_unique<TimeSeriesSession>(std::move(nav));
+    // The override's source IS the NAV — addressed as the primary series, "".
+    activeNavSession_ = navSession_.get();
+    activeBase_ = "";
+    applyInstallers_();
 }
 
 // ---------------------------------------------------------------------------
-// Portfolio-level analytics
+// Uniform per-series access
 // ---------------------------------------------------------------------------
-TimeSeriesView PortfolioAnalysis::navSeries() {
-    if (navSession_) return navSession_->sourceView();
-    return session_->seriesView("nav");
+std::string PortfolioAnalysis::resolveName_(const std::string& name) const {
+    return name == "nav" ? activeBase_ : name;
 }
 
-const ::analysis::TimeSeriesAnalysis& PortfolioAnalysis::navAnalysis() {
-    if (navSession_) {
-        if (!precomputedNavAnalysis_.has_value()) precomputedNavAnalysis_ = ::analysis::TimeSeriesAnalysis(navSeries());
-        return precomputedNavAnalysis_.value();
-    }
-    return session_->seriesAnalysis("nav");
+std::vector<std::string> PortfolioAnalysis::seriesNames() const {
+    std::vector<std::string> names;
+    names.reserve(1 + derivedSeries_.size());
+    names.push_back("nav");
+    names.insert(names.end(), derivedSeries_.begin(), derivedSeries_.end());
+    return names;
 }
 
-const ::analysis::TimeSeriesAnalysis& PortfolioAnalysis::returnAnalysis() {
-    if (navSession_) {
-        if (!precomputedNavAnalysis_.has_value()) precomputedNavAnalysis_ = ::analysis::TimeSeriesAnalysis(navSeries());
-        return precomputedNavAnalysis_.value();
-    }
-    return session_->seriesAnalysis("nav");
+TimeSeriesView PortfolioAnalysis::seriesView(const std::string& name) {
+    return activeNavSession_->seriesView(resolveName_(name));
 }
 
-::analysis::CustomTimeSeriesAnalysis& PortfolioAnalysis::navCustomAnalysis() {
-    if (navSession_) return navSession_->customAnalysis("");
-    return session_->customAnalysis("nav");
+const TimeSeriesAnalysis& PortfolioAnalysis::seriesAnalysis(const std::string& name) {
+    return activeNavSession_->seriesAnalysis(resolveName_(name));
+}
+
+CustomTimeSeriesAnalysis& PortfolioAnalysis::customAnalysis(const std::string& name) {
+    return activeNavSession_->customAnalysis(resolveName_(name));
+}
+
+std::vector<std::pair<std::string, double>> PortfolioAnalysis::scalarMetrics() {
+    return computeMetricsOfType<double>(*activeNavSession_, metrics_);
 }
 
 // ---------------------------------------------------------------------------

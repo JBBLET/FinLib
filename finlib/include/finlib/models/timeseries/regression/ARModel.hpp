@@ -10,7 +10,7 @@
 #include "Eigen/Dense"
 #include "finlib/models/interfaces/BaseRegressionModel.hpp"
 
-namespace models::regression {
+namespace ts::models::regression {
 
 class ARModel : public BaseRegressionModel {
  public:
@@ -77,4 +77,4 @@ class ARModel : public BaseRegressionModel {
     void leastSquareSolver_(const Eigen::MatrixXd& X, const Eigen::VectorXd& Y);
     void levinsonDurbinSolver_();
 };
-}  // namespace models::regression
+}  // namespace ts::models::regression

@@ -16,6 +16,8 @@
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/models/interfaces/IRegressionModel.hpp"
 
+namespace ts {
+
 std::vector<ModelSession::PredictionEntry> ModelSession::forecast(size_t steps) {
     Timestamp nextPredictedTimeStamp = lastActualTimeStamp_ + deltaT_;
     Eigen::VectorXd tempWindow = window_;
@@ -135,3 +137,4 @@ void ModelSession::flush_() {
     }
     writeBuffer_.clear();
 }
+}  // namespace ts

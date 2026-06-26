@@ -19,7 +19,7 @@
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
-
+namespace ts {
 CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* logger)
     : directory_(std::move(directory)), logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
     std::filesystem::create_directories(directory_);
@@ -288,3 +288,4 @@ void CSVRepository::writeMeta_(const CoverageInfo& cov) const {
     file << "source=" << cov.source << "\n";
     file << "lastUpdatedMs=" << cov.lastUpdatedMs << "\n";
 }
+}  // namespace ts

@@ -9,10 +9,17 @@
 
 #include "TestMockTimeSeries.hpp"
 #include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
+#include "finlib/analysis/MetricHandle.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/session/MultiTimeSeriesSession.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
+
+using ts::TimeSeriesView;
+using ts::analysis::CustomTimeSeriesAnalysis;
+using ts::analysis::MultiTimeSeriesSession;
+using ts::analysis::ParameterizedMetricFn;
+using ts::analysis::TimeSeriesSession;
 
 static double viewSum(TimeSeriesView v) {
     double s = 0.0;
@@ -27,12 +34,12 @@ static double viewSum(TimeSeriesView v) {
 class TimeSeriesSessionTest : public TimeSeriesMocks {
  protected:
     std::shared_ptr<TimeSeries> ts_;
-    std::unique_ptr<analysis::TimeSeriesSession> session_;
+    std::unique_ptr<TimeSeriesSession> session_;
 
     void SetUp() override {
         TimeSeriesMocks::SetUp();
         ts_ = simpleSeries;
-        session_ = std::make_unique<analysis::TimeSeriesSession>(ts_);
+        session_ = std::make_unique<TimeSeriesSession>(ts_);
     }
 };
 
@@ -129,16 +136,16 @@ TEST_F(TimeSeriesSessionTest, CustomAnalysisOnDerivedComputesSum) {
 class MultiTimeSeriesSessionTest : public TimeSeriesMocks {
  protected:
     std::shared_ptr<TimeSeries> tsA_, tsB_;
-    std::shared_ptr<analysis::TimeSeriesSession> sessionA_, sessionB_;
-    std::unique_ptr<analysis::MultiTimeSeriesSession> multi_;
+    std::shared_ptr<TimeSeriesSession> sessionA_, sessionB_;
+    std::unique_ptr<MultiTimeSeriesSession> multi_;
 
     void SetUp() override {
         TimeSeriesMocks::SetUp();
         tsA_ = simpleSeries;
         tsB_ = decadeSeries;
-        sessionA_ = std::make_shared<analysis::TimeSeriesSession>(tsA_);
-        sessionB_ = std::make_shared<analysis::TimeSeriesSession>(tsB_);
-        multi_ = std::make_unique<analysis::MultiTimeSeriesSession>();
+        sessionA_ = std::make_shared<TimeSeriesSession>(tsA_);
+        sessionB_ = std::make_shared<TimeSeriesSession>(tsB_);
+        multi_ = std::make_unique<MultiTimeSeriesSession>();
         multi_->addSession("A", sessionA_);
         multi_->addSession("B", sessionB_);
     }
@@ -204,6 +211,36 @@ TEST_F(MultiTimeSeriesSessionTest, ScalarMultiplyCrossTransform) {
     EXPECT_DOUBLE_EQ(v[4], 25.0);
 }
 
+// Mirrors the portfolio NAV -> log/simple-return pattern: a derived cross-transform
+// whose input is itself another cross-transform ("sum"), exercising the
+// cross-transform-as-input resolution in buildAligned_.
+TEST_F(MultiTimeSeriesSessionTest, ChainedCrossTransformDerivesReturnsFromCrossTransform) {
+    multi_->addTransform(
+        "sum", {"A", "B"},
+        [](const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>& m) { return *m.at("A") + *m.at("B"); });
+    multi_->addTransform(
+        "return", {"sum"}, [](const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>& m) {
+            const auto& vals = m.at("sum")->getValues();
+            const auto ts = m.at("sum")->getTimestamps();
+            std::vector<double> r;
+            for (size_t i = 1; i < vals.size(); ++i) r.push_back((vals[i] - vals[i - 1]) / vals[i - 1]);
+            auto rt = std::make_shared<std::vector<int64_t>>(ts.begin() + 1, ts.end());
+            return TimeSeries("ret", std::move(rt), std::move(r));
+        });
+
+    // sum = {11,22,33,44,55}; simple returns = {1.0, 0.5, 1/3, 0.25}
+    auto v = multi_->seriesView("return");
+    ASSERT_EQ(v.size(), 4u);
+    EXPECT_DOUBLE_EQ(v[0], 1.0);
+    EXPECT_DOUBLE_EQ(v[1], 0.5);
+    EXPECT_DOUBLE_EQ(v[3], 0.25);
+
+    // Analysis on the chained series is defined (4 points -> kurtosis available).
+    const auto& a = multi_->seriesAnalysis("return");
+    EXPECT_TRUE(a.standardDeviation().has_value());
+    EXPECT_TRUE(a.kurtosis().has_value());
+}
+
 TEST_F(MultiTimeSeriesSessionTest, CustomAnalysisOnCrossTransform) {
     multi_->addTransform(
         "sum", {"A", "B"}, [](const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>& m) {
@@ -237,13 +274,13 @@ class CustomTimeSeriesAnalysisTest : public TimeSeriesMocks {
 };
 
 TEST_F(CustomTimeSeriesAnalysisTest, SingleSeriesSumMetric) {
-    analysis::CustomTimeSeriesAnalysis ca("A", tsA_->view());
+    CustomTimeSeriesAnalysis ca("A", tsA_->view());
     auto h = ca.addMetric<double>("A", "sum", [](TimeSeriesView v) { return viewSum(v); });
     EXPECT_DOUBLE_EQ(ca.compute(h), 15.0);
 }
 
 TEST_F(CustomTimeSeriesAnalysisTest, ScalarMultiplyMetric) {
-    analysis::CustomTimeSeriesAnalysis ca("A", tsA_->view());
+    CustomTimeSeriesAnalysis ca("A", tsA_->view());
     auto h = ca.addMetric<double>("A", "scaledSum", [](TimeSeriesView v) {
         double s = 0.0;
         for (size_t i = 0; i < v.size(); ++i) s += v[i] * 3.0;
@@ -253,7 +290,7 @@ TEST_F(CustomTimeSeriesAnalysisTest, ScalarMultiplyMetric) {
 }
 
 TEST_F(CustomTimeSeriesAnalysisTest, MetricResultIsCached) {
-    analysis::CustomTimeSeriesAnalysis ca("A", tsA_->view());
+    CustomTimeSeriesAnalysis ca("A", tsA_->view());
     int callCount = 0;
     auto h = ca.addMetric<double>("A", "sum", [&callCount](TimeSeriesView v) {
         ++callCount;
@@ -265,7 +302,7 @@ TEST_F(CustomTimeSeriesAnalysisTest, MetricResultIsCached) {
 }
 
 TEST_F(CustomTimeSeriesAnalysisTest, InvalidateCacheForcesRecompute) {
-    analysis::CustomTimeSeriesAnalysis ca("A", tsA_->view());
+    CustomTimeSeriesAnalysis ca("A", tsA_->view());
     int callCount = 0;
     auto h = ca.addMetric<double>("A", "sum", [&callCount](TimeSeriesView v) {
         ++callCount;
@@ -279,7 +316,7 @@ TEST_F(CustomTimeSeriesAnalysisTest, InvalidateCacheForcesRecompute) {
 
 TEST_F(CustomTimeSeriesAnalysisTest, MultiSeriesSumMetric) {
     std::unordered_map<std::string, TimeSeriesView> views{{"A", tsA_->view()}, {"B", tsB_->view()}};
-    analysis::CustomTimeSeriesAnalysis ca(std::move(views));
+    CustomTimeSeriesAnalysis ca(std::move(views));
     auto h =
         ca.addMetric<double>({"A", "B"}, "crossSum", [](const std::unordered_map<std::string, TimeSeriesView>& vs) {
             return viewSum(vs.at("A")) + viewSum(vs.at("B"));
@@ -289,7 +326,7 @@ TEST_F(CustomTimeSeriesAnalysisTest, MultiSeriesSumMetric) {
 }
 
 TEST_F(CustomTimeSeriesAnalysisTest, RebindUpdatesResult) {
-    analysis::CustomTimeSeriesAnalysis ca("A", tsA_->view());
+    CustomTimeSeriesAnalysis ca("A", tsA_->view());
     auto h = ca.addMetric<double>("A", "sum", [](TimeSeriesView v) { return viewSum(v); });
     EXPECT_DOUBLE_EQ(ca.compute(h), 15.0);
 
@@ -299,15 +336,15 @@ TEST_F(CustomTimeSeriesAnalysisTest, RebindUpdatesResult) {
 }
 
 TEST_F(CustomTimeSeriesAnalysisTest, AddMetricForUnknownSeriesThrows) {
-    analysis::CustomTimeSeriesAnalysis ca("A", tsA_->view());
+    CustomTimeSeriesAnalysis ca("A", tsA_->view());
     EXPECT_THROW(ca.addMetric<double>("unknown", "sum", [](TimeSeriesView v) { return viewSum(v); }),
                  std::invalid_argument);
 }
 
 TEST_F(CustomTimeSeriesAnalysisTest, ParameterizedMetricScalesSum) {
-    analysis::CustomTimeSeriesAnalysis ca("A", tsA_->view());
+    CustomTimeSeriesAnalysis ca("A", tsA_->view());
     auto h = ca.addMetric<double, double>(
-        "A", "scaledSum", analysis::ParameterizedMetricFn<double, double>{[](TimeSeriesView v, const double& factor) {
+        "A", "scaledSum", ParameterizedMetricFn<double, double>{[](TimeSeriesView v, const double& factor) {
             return viewSum(v) * factor;
         }});
     EXPECT_DOUBLE_EQ(ca.compute(h, 2.0), 30.0);

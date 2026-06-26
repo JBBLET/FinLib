@@ -9,7 +9,7 @@
 
 #include "finlib/core/TimeSeriesView.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 inline std::string joinStrings(std::vector<std::string> arr, std::string sep) {
     if (arr.empty()) return "";
@@ -57,4 +57,4 @@ class ParameterizedMetricHandle {
     std::string metricName_;
 };
 
-}  // namespace analysis
+}  // namespace ts::analysis

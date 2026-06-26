@@ -21,7 +21,7 @@ using std::future;
 using std::invalid_argument;
 using std::sqrt;
 using std::vector;
-
+namespace ts {
 // ---------------------------------------------------------------------------
 // Private Helpers
 // ---------------------------------------------------------------------------
@@ -302,3 +302,4 @@ TimeSeries TimeSeries::resampling(TimestampsPtr targetTimestamps, InterpolationS
     result.isSynthetic_ = true;
     return result;
 }
+}  // namespace ts

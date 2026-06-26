@@ -14,7 +14,7 @@
 #include "finlib/core/TimeSeriesView.hpp"
 using std::size_t;
 
-namespace analysis::stats {
+namespace ts::analysis::stats {
 
 double mean(const TimeSeriesView& view) {
     if (view.size() == 0) return 0.0;
@@ -239,10 +239,10 @@ Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t maxLag) {
     }
     return R;
 }
-}  //  namespace analysis::stats
+}  // namespace ts::analysis::stats
 //
-namespace analysis::hypothesisTesting {
+namespace ts::analysis::hypothesisTesting {
 
 double PvalueFromTStatistic(double tStat) { return std::erfc(std::abs(tStat) / std::sqrt(2.0)); }
 
-}  // namespace analysis::hypothesisTesting
+}  // namespace ts::analysis::hypothesisTesting

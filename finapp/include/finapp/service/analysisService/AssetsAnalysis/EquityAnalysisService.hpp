@@ -17,7 +17,7 @@ class EquityAnalysisService : public IAssetAnalysisService {
 
     std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysisFromSession(
         std::shared_ptr<const finance::IAsset> asset,  //
-        std::shared_ptr<::analysis::TimeSeriesSession> session) override;
+        std::shared_ptr<ts::analysis::TimeSeriesSession> session) override;
 
  private:
     std::shared_ptr<AssetService> assetService_;

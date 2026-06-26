@@ -13,9 +13,8 @@
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YfinanceUtils.hpp"
 #include "finlib/common/utils/TimeUtils.hpp"
-#include "finlib/core/TimeSeries.hpp"
 
-using common::utils::time::msToStringDate;
+using ts::common::utils::time::msToStringDate;
 
 namespace py = pybind11;
 
@@ -41,7 +40,7 @@ LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) con
 }
 
 TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts,
-                                   std::optional<Timestamp> requestedFrequency) const {
+                                  std::optional<Timestamp> requestedFrequency) const {
     constexpr int64_t kDayMs = 86'400'000LL;
     // Use explicitly requested frequency when provided; otherwise auto-detect from range.
     const Timestamp freqMs = requestedFrequency.value_or(capabilities(symbol).frequencyForRange(end_ts - start_ts));

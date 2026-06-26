@@ -10,7 +10,10 @@
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/service/AssetService.hpp"
 #include "finapp/service/analysisService/IAssetAnalysisService.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
+#include "finlib/common/FinlibTypes.hpp"
+
+using ts::Timestamp;
+using ts::TimestampsPtr;
 
 namespace finapp {
 
@@ -31,7 +34,7 @@ class AssetAnalysisService {
     // Session-reuse factory — wraps an existing session without fetching.
     std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysisFromSession(
         const finance::AssetId& assetId,  //
-        std::shared_ptr<::analysis::TimeSeriesSession> session);
+        std::shared_ptr<ts::analysis::TimeSeriesSession> session);
 
  private:
     std::shared_ptr<AssetService> assetService_;

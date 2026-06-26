@@ -15,7 +15,7 @@
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/models/interfaces/IRegressionModel.hpp"
 #include "finlib/session/AppContext.hpp"
-
+namespace ts {
 class ModelSession {
     AppContext& context_;
 
@@ -78,3 +78,4 @@ class ModelSession {
     size_t nextToFill_ = 0;
     void flush_();
 };
+}  // namespace ts

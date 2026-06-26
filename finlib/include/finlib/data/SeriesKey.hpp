@@ -6,17 +6,20 @@
 
 #include "finlib/common/FinlibTypes.hpp"
 
+namespace ts {
+
 struct SeriesKey {
     std::string SeriesId;
     Timestamp frequencyInMs;
     bool operator==(const SeriesKey&) const = default;
 };
+}  // namespace ts
 template <>
-struct std::hash<SeriesKey> {
-    std::size_t operator()(const SeriesKey& key) const {
+struct std::hash<ts::SeriesKey> {
+    std::size_t operator()(const ts::SeriesKey& key) const {
         std::size_t result = 12;
         result = result * 17 + std::hash<std::string>()(key.SeriesId);
-        result = result * 17 + std::hash<Timestamp>()(key.frequencyInMs);
+        result = result * 17 + std::hash<ts::Timestamp>()(key.frequencyInMs);
         return result;
     }
 };

@@ -7,7 +7,7 @@
 
 #include "finlib/common/FinlibTypes.hpp"
 
-namespace common::utils::time {
+namespace ts::common::utils::time {
 
 Timestamp parseIso8601ToMs(const std::string& input) {
     // Only accept YYYY-MM-DDTHH:MM:SS[.mmm](Z | ±HH:MM) format
@@ -81,4 +81,4 @@ std::string msToStringDate(Timestamp ms) {
 
     return std::format("{:%Y-%m-%d}", ymd);
 }
-}  // namespace common::utils::time
+}  // namespace ts::common::utils::time

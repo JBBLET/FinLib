@@ -7,9 +7,12 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "finlib/core/TimeSeries.hpp"
+
+using ts::TimeSeries;
 
 // Builds a TimeSeries with values at 1000ms steps starting at t=1000.
 inline std::shared_ptr<TimeSeries> makeSeries(std::string id, std::vector<double> vals) {

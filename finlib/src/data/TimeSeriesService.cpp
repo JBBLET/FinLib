@@ -20,7 +20,7 @@
 
 namespace {
 // Remove NaN entries from a series so they are never stored in or returned from the cache.
-TimeSeries stripNaN(TimeSeries ts) {
+ts::TimeSeries stripNaN(ts::TimeSeries ts) {
     const auto& stamps = ts.getTimestamps();
     const auto& vals = ts.getValues();
     std::vector<int64_t> cleanTs;
@@ -33,10 +33,10 @@ TimeSeries stripNaN(TimeSeries ts) {
             cleanVals.push_back(vals[i]);
         }
     }
-    return TimeSeries(ts.getId(), std::move(cleanTs), std::move(cleanVals));
+    return ts::TimeSeries(ts.getId(), std::move(cleanTs), std::move(cleanVals));
 }
 }  // namespace
-
+namespace ts {
 TimeSeriesService::TimeSeriesService(std::shared_ptr<CachedTimeSeriesRepository> cache,
                                      std::shared_ptr<ITimeSeriesLoader> provider, logging::ILogger* logger)
     : cache_(std::move(cache)),
@@ -341,7 +341,8 @@ double TimeSeriesService::getSinglePoint(const std::string& id, Timestamp ts) {
                                            ": provider empty, cache look-back");
                     return v;
                 }
-            } catch (...) {}
+            } catch (...) {
+            }
         }
         throw std::runtime_error("TimeSeriesService::getSinglePoint: provider returned no data for '" + id + "'");
     }
@@ -416,3 +417,4 @@ void TimeSeriesService::fetchAndMergeGaps_(const SeriesKey& key, const std::vect
         }
     }
 }
+}  // namespace ts

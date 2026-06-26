@@ -19,6 +19,11 @@
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "support/service_test_fakes.hpp"
 
+using ts::CachedTimeSeriesRepository;
+using ts::InMemoryTimeSeriesRepository;
+using ts::InterpolationStrategy;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
 namespace {
 
 constexpr int64_t kDay = 86'400'000;
@@ -128,14 +133,14 @@ TEST_F(AssetServiceTest, LoadTimeSeriesValueSharedTimestampsForEquity) {
     equityRepo->save(aapl);
     provider->setSeries("AAPL", finapp::test::makeFlatSeries("AAPL", 0, 6 * kDay, kDay, 175.0));
 
-    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
+    auto timestamps = ts::common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
     TimeSeries series = service->loadTimeSeriesValue(finance::AssetId{finance::AssetType::Equity, "AAPL"}, timestamps);
     ASSERT_EQ(series.size(), 4);
     EXPECT_EQ(series.getSharedTimestamps().get(), timestamps.get());
 }
 
 TEST_F(AssetServiceTest, LoadTimeSeriesValueSharedTimestampsForCash) {
-    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
+    auto timestamps = ts::common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
     TimeSeries series = service->loadTimeSeriesValue(finance::AssetId{finance::AssetType::Cash, "USD"}, timestamps);
     ASSERT_EQ(series.size(), 4);
     EXPECT_EQ(series.getSharedTimestamps().get(), timestamps.get());

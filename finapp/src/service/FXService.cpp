@@ -32,7 +32,7 @@ FXService::FXService(std::shared_ptr<TimeSeriesService> timeSeriesService,
 TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, Timestamp fromMs,
                            Timestamp endMs, Timestamp frequencyMs, InterpolationStrategy strategy) {
     if (baseCurrency == quoteCurrency) {
-        return common::utils::timeSeries::generateConstantTimeSeries(
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(
             makePairId_(baseCurrency, quoteCurrency), fromMs, endMs, frequencyMs, 1.0);
     }
 
@@ -46,7 +46,7 @@ TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCu
     }
 
     if (baseCurrency == quoteCurrency) {
-        return common::utils::timeSeries::generateConstantTimeSeries(
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(
             makePairId_(baseCurrency, quoteCurrency), std::move(timestamps), 1.0);
     }
 
@@ -62,17 +62,16 @@ double FXService::loadSingleFxAtTs(const Currency& baseCurrency, const Currency&
     return timeSeriesService_->getSinglePoint(seriesId, ts);
 }
 
-std::shared_ptr<::analysis::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
-                                                                        Timestamp startMs, Timestamp endMs,
-                                                                        Timestamp frequencyMs) {
-    return std::make_shared<::analysis::TimeSeriesSession>(
+std::shared_ptr<::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
+                                                              Timestamp startMs, Timestamp endMs,
+                                                              Timestamp frequencyMs) {
+    return std::make_shared<::TimeSeriesSession>(
         timeSeriesService_, makePairId_(base, quote), startMs, endMs, frequencyMs);
 }
 
-std::shared_ptr<::analysis::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
-                                                                        TimestampsPtr timestamps) {
-    return std::make_shared<::analysis::TimeSeriesSession>(
-        timeSeriesService_, makePairId_(base, quote), std::move(timestamps));
+std::shared_ptr<::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
+                                                              TimestampsPtr timestamps) {
+    return std::make_shared<::TimeSeriesSession>(timeSeriesService_, makePairId_(base, quote), std::move(timestamps));
 }
 // ---------------------------------------------------------------------------
 // Private helpers

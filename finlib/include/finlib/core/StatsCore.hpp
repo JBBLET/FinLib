@@ -3,9 +3,10 @@
 
 #include <Eigen/Dense>
 #include <vector>
+namespace ts {
 class TimeSeriesView;
-
-namespace analysis::stats {
+}
+namespace ts::analysis::stats {
 
 // Standard
 enum class VarianceType { Population, Sample };
@@ -24,9 +25,9 @@ std::vector<double> autocovariances(const TimeSeriesView& view, size_t max_lag);
 
 Eigen::MatrixXd toeplitz(const TimeSeriesView& view, size_t max_lag);
 Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t max_lag);
-}  // namespace analysis::stats
+}  // namespace ts::analysis::stats
 
-namespace analysis::hypothesisTesting {
+namespace ts::analysis::hypothesisTesting {
 // Test for guaussian distribution, Trend, seasonality and so on
 struct HypothesisTestResult {
     double statistic;
@@ -39,4 +40,4 @@ HypothesisTestResult breuschPagan(const TimeSeriesView&);
 HypothesisTestResult breuschGodfrey(const TimeSeriesView&);
 
 double PvalueFromTStatistic(double tStat);
-}  // namespace analysis::hypothesisTesting
+}  // namespace ts::analysis::hypothesisTesting

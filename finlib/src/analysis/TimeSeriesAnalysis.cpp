@@ -8,48 +8,71 @@
 
 #include "finlib/core/StatsCore.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 double TimeSeriesAnalysis::mean() const {
     if (!cachedMean_) {
-        cachedMean_ = analysis::stats::mean(view_);
+        cachedMean_ = stats::mean(view_);
     }
     return cachedMean_.value();
 }
 
-double TimeSeriesAnalysis::variance(stats::VarianceType type) const {
+std::optional<double> TimeSeriesAnalysis::variance(stats::VarianceType type) const {
+    std::optional<double>* cache = nullptr;
     if (type == stats::VarianceType::Sample) {
-        if (!cachedVarianceSample_) {
-            cachedVarianceSample_ = analysis::stats::varianceFast(view_, type);
-        }
-        return cachedVarianceSample_.value();
+        cache = &cachedVarianceSample_;
     } else if (type == stats::VarianceType::Population) {
-        if (!cachedVariancePopulation_) {
-            cachedVariancePopulation_ = analysis::stats::varianceFast(view_, type);
-        }
-        return cachedVariancePopulation_.value();
+        cache = &cachedVariancePopulation_;
     } else {
         throw std::invalid_argument("Invalid Variance type");
     }
+
+    if (!*cache) {
+        try {
+            double v = ts::analysis::stats::varianceFast(view_, type);
+            if (!std::isfinite(v)) return std::nullopt;
+            *cache = v;
+        } catch (const std::exception&) {
+            // Too few observations to define the variance.
+            return std::nullopt;
+        }
+    }
+    return *cache;
 }
 
-double TimeSeriesAnalysis::standardDeviation() const {
-    double standardDeviation = std::sqrt(variance(stats::VarianceType::Population));
-    return standardDeviation;
+std::optional<double> TimeSeriesAnalysis::standardDeviation() const {
+    auto var = variance(stats::VarianceType::Population);
+    if (!var) return std::nullopt;
+    double sd = std::sqrt(*var);
+    if (!std::isfinite(sd)) return std::nullopt;
+    return sd;
 }
 
-double TimeSeriesAnalysis::skewness() const {
+std::optional<double> TimeSeriesAnalysis::skewness() const {
     if (!cachedSkewness_) {
-        cachedSkewness_ = analysis::stats::skewness(view_);
+        try {
+            double v = ts::analysis::stats::skewness(view_);
+            if (!std::isfinite(v)) return std::nullopt;
+            cachedSkewness_ = v;
+        } catch (const std::exception&) {
+            return std::nullopt;
+        }
     }
-    return cachedSkewness_.value();
+    return cachedSkewness_;
 }
 
-double TimeSeriesAnalysis::kurtosis() const {
+std::optional<double> TimeSeriesAnalysis::kurtosis() const {
     if (!cachedKurtosis_) {
-        cachedKurtosis_ = analysis::stats::kurtosis(view_);
+        try {
+            double v = ts::analysis::stats::kurtosis(view_);
+            if (!std::isfinite(v)) return std::nullopt;
+            cachedKurtosis_ = v;
+        } catch (const std::exception&) {
+            // Fewer than four observations — kurtosis is undefined.
+            return std::nullopt;
+        }
     }
-    return cachedKurtosis_.value();
+    return cachedKurtosis_;
 }
 
 double TimeSeriesAnalysis::autocorrelation(std::size_t lag) const {
@@ -72,7 +95,7 @@ const std::vector<double>& TimeSeriesAnalysis::acf(std::size_t maxLag) const {
 const std::vector<double>& TimeSeriesAnalysis::autocovariances(size_t maxLag) const {
     if (!cachedAutocovariances_ || cachedAutocovariances_.value().empty() ||
         (cachedAutocovariances_.value().size() - 1) < maxLag) {
-        cachedAutocovariances_ = analysis::stats::autocovariances(view_, maxLag);
+        cachedAutocovariances_ = ts::analysis::stats::autocovariances(view_, maxLag);
     }
     return cachedAutocovariances_.value();
 }
@@ -81,17 +104,17 @@ Eigen::MatrixXd TimeSeriesAnalysis::toeplitz(size_t maxLag) {
     if (!cachedToeplitz_ || (cachedToeplitz_.value().rows() - 1) < maxLag) {
         if (!cachedAutocovariances_ || cachedAutocovariances_.value().empty() ||
             (cachedAutocovariances_.value().size() - 1) < maxLag) {
-            cachedAutocovariances_ = analysis::stats::autocovariances(view_, maxLag);
+            cachedAutocovariances_ = ts::analysis::stats::autocovariances(view_, maxLag);
         }
-        cachedToeplitz_ = analysis::stats::toeplitz(cachedAutocovariances_.value(), maxLag);
+        cachedToeplitz_ = ts::analysis::stats::toeplitz(cachedAutocovariances_.value(), maxLag);
     }
     return cachedToeplitz_.value();
 }
 double TimeSeriesAnalysis::zScore(double value) const {
     double mu = mean();
-    double sigma = standardDeviation();
-    if (sigma < 1e-9) return 0.0;
-    return (value - mu) / sigma;
+    auto sigma = standardDeviation();
+    if (!sigma || *sigma < 1e-9) return 0.0;
+    return (value - mu) / *sigma;
 }
 
 bool TimeSeriesAnalysis::isOutlier(double value, double threshold) const { return std::abs(zScore(value)) > threshold; }
@@ -109,4 +132,4 @@ void TimeSeriesAnalysis::invalidateCache() {
     cachedAutocovariances_.reset();
 }
 
-}  // namespace analysis
+}  // namespace ts::analysis

@@ -15,6 +15,7 @@
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/data/interfaces/ITimeSeriesRepository.hpp"
 
+namespace ts {
 // Minimal in-memory ITimeSeriesRepository. Stores whatever the service saves,
 // reports coverage exactly over what was saved. Does not fetch on load misses.
 class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
@@ -96,3 +97,4 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
         return TimeSeries(ts.getId(), std::move(ots), std::move(ovs));
     }
 };
+}  // namespace ts

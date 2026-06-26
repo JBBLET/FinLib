@@ -8,7 +8,7 @@
 #include "finlib/models/interfaces/EvaluationResult.hpp"
 #include "finlib/models/interfaces/IModel.hpp"
 
-namespace models {
+namespace ts::models {
 
 class IClassificationModel : public virtual IModel {
  public:
@@ -20,4 +20,4 @@ class IClassificationModel : public virtual IModel {
     virtual std::unique_ptr<IClassificationModel> createFresh() const = 0;
 };
 
-}  // namespace models
+}  // namespace ts::models

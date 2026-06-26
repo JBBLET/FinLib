@@ -4,9 +4,12 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <utility>
 
 #include "TestMockTimeSeries.hpp"
 #include "finlib/core/TimeSeries.hpp"
+
+using ts::InterpolationStrategy;
 
 class TimeSeriesResamplingTest : public TimeSeriesMocks {};
 

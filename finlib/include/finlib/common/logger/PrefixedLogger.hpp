@@ -7,7 +7,7 @@
 
 #include "finlib/common/logger/ILogger.hpp"
 
-namespace logging {
+namespace ts::logging {
 
 class PrefixedLogger : public ILogger {
  public:
@@ -27,4 +27,4 @@ class PrefixedLogger : public ILogger {
     std::string prefix_;
 };
 
-}  // namespace logging
+}  // namespace ts::logging

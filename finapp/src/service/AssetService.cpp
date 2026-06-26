@@ -15,8 +15,10 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
+#include "finlib/data/services/TimeSeriesService.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
 
+using ts::TimeSeriesService;
 namespace finapp {
 
 using finance::AssetId;
@@ -28,11 +30,11 @@ namespace {
 // Cash assets have no price series — they are their own numeraire. Return a
 // constant 1.0 series in the cash's denomination; FX conversion is the caller's job.
 TimeSeries constantCashSeries(const AssetId& assetId, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs) {
-    return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, startMs, endMs, frequencyMs, 1.0);
+    return ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, startMs, endMs, frequencyMs, 1.0);
 }
 
 TimeSeries constantCashSeries(const AssetId& assetId, TimestampsPtr timestamps) {
-    return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
+    return ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
 }
 
 }  // namespace
@@ -119,7 +121,8 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, Timestamp s
     auto asset = load(assetId);
     const std::string seriesId = asset->priceSeriesId();
     if (seriesId.empty()) {
-        return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, startMs, endMs, frequencyMs, 1.0);
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(
+            assetId.ticker, startMs, endMs, frequencyMs, 1.0);
     }
     return timeSeriesService_->getResampled(seriesId, startMs, endMs, frequencyMs, strategy);
 }
@@ -136,7 +139,7 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampsP
     auto asset = load(assetId);
     const std::string seriesId = asset->priceSeriesId();
     if (seriesId.empty()) {
-        return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
     }
     return timeSeriesService_->get(seriesId, std::move(timestamps));
 }
@@ -153,17 +156,14 @@ double AssetService::loadValueAtTs(const finance::AssetId& assetId, const Timest
     return timeSeriesService_->getSinglePoint(seriesId, timestamp);
 }
 
-std::shared_ptr<::analysis::TimeSeriesSession> AssetService::createSession(const AssetId& id, Timestamp startMs,
-                                                                           Timestamp endMs, Timestamp frequencyMs) {
+std::shared_ptr<TimeSeriesSession> AssetService::createSession(const AssetId& id, Timestamp startMs, Timestamp endMs,
+                                                               Timestamp frequencyMs) {
     auto asset = load(id);
-    return std::make_shared<::analysis::TimeSeriesSession>(
-        timeSeriesService_, asset->priceSeriesId(), startMs, endMs, frequencyMs);
+    return std::make_shared<TimeSeriesSession>(timeSeriesService_, asset->priceSeriesId(), startMs, endMs, frequencyMs);
 }
 
-std::shared_ptr<::analysis::TimeSeriesSession> AssetService::createSession(const AssetId& id,
-                                                                           TimestampsPtr timestamps) {
+std::shared_ptr<TimeSeriesSession> AssetService::createSession(const AssetId& id, TimestampsPtr timestamps) {
     auto asset = load(id);
-    return std::make_shared<::analysis::TimeSeriesSession>(
-        timeSeriesService_, asset->priceSeriesId(), std::move(timestamps));
+    return std::make_shared<TimeSeriesSession>(timeSeriesService_, asset->priceSeriesId(), std::move(timestamps));
 }
 }  // namespace finapp

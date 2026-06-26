@@ -12,6 +12,15 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
+
+using ts::InterpolationStrategy;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
+using ts::Timestamp;
+using ts::Timestamps;
+using ts::TimestampsPtr;
+using ts::analysis::TimeSeriesSession;
+
 namespace finapp {
 
 class FXService {
@@ -42,13 +51,11 @@ class FXService {
     void registerPair(const finance::Currency& baseCurrency, const finance::Currency& quoteCurrency,
                       const std::string& timeseriesId = "");
 
-    std::shared_ptr<::analysis::TimeSeriesSession> createSession(const finance::Currency& base,
-                                                                 const finance::Currency& quote, Timestamp startMs,
-                                                                 Timestamp endMs, Timestamp freqMs);
+    std::shared_ptr<TimeSeriesSession> createSession(const finance::Currency& base, const finance::Currency& quote,
+                                                     Timestamp startMs, Timestamp endMs, Timestamp freqMs);
 
-    std::shared_ptr<::analysis::TimeSeriesSession> createSession(const finance::Currency& base,
-                                                                 const finance::Currency& quote,
-                                                                 TimestampsPtr timestamps);
+    std::shared_ptr<TimeSeriesSession> createSession(const finance::Currency& base, const finance::Currency& quote,
+                                                     TimestampsPtr timestamps);
 
  private:
     std::shared_ptr<TimeSeriesService> timeSeriesService_;

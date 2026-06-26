@@ -6,6 +6,8 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/data/SeriesKey.hpp"
 
+namespace ts {
+
 struct CoverageInfo {
     SeriesKey key;
     Timestamp coveredFromMs;
@@ -13,3 +15,4 @@ struct CoverageInfo {
     std::string source;
     Timestamp lastUpdatedMs;
 };
+}  // namespace ts

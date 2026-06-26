@@ -6,7 +6,7 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
-namespace common::utils::timeSeries {
+namespace ts::common::utils::timeSeries {
 
 // Builds a regular timestamp grid [beginMs, beginMs + k*frequencyMs, ...] with
 // the largest k such that the tick stays <= endMs. Shared by callers that want
@@ -20,4 +20,4 @@ TimeSeries generateConstantTimeSeries(const std::string& id, Timestamp beginMs, 
 // Constant-valued TimeSeries sharing the caller's timestamp vector.
 TimeSeries generateConstantTimeSeries(const std::string& id, TimestampsPtr timestamps, double value = 1.0);
 
-}  // namespace common::utils::timeSeries
+}  // namespace ts::common::utils::timeSeries

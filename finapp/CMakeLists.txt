@@ -7,6 +7,10 @@
 
 add_library(finapp_core
     src/finance/portfolio/Portfolio.cpp
+    src/finance/portfolio/Transaction.cpp
+    src/finance/common/Currency.cpp
+    src/finance/asset/AssetType.cpp
+    src/common/Exception.cpp
 )
 
 target_include_directories(finapp_core
@@ -17,6 +21,8 @@ target_include_directories(finapp_core
 target_link_libraries(finapp_core
     PUBLIC
         finlib_core
+    PRIVATE
+        stdc++exp
 )
 
 # --------------------
@@ -30,8 +36,11 @@ add_library(finapp_service
     src/service/analysisService/AssetAnalysisService.cpp
     src/service/analysisService/PortfolioAnalysisService.cpp
     src/service/analysisService/EquityAnalysisService.cpp
+    src/finance/analysis/IAssetAnalysis.cpp
     src/finance/analysis/EquityAnalysis.cpp
     src/finance/analysis/PortfolioAnalysis.cpp
+    src/finance/analysis/ReturnFeatures.cpp
+    src/finance/analysis/ReturnTransforms.cpp
     src/finance/stats/FinanceStats.cpp
 )
 

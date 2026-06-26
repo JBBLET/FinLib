@@ -15,7 +15,7 @@
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 MultiTimeSeriesSession::MultiTimeSeriesSession(logging::ILogger* logger)
     : logger_{logging::PrefixedLogger::wrap(logger, "MultiTimeSeriesSession")} {}
@@ -189,4 +189,4 @@ void MultiTimeSeriesSession::invalidate_(const std::string& name) {
         for (const auto& dep : it->second) invalidate_(dep);
 }
 
-}  // namespace analysis
+}  // namespace ts::analysis

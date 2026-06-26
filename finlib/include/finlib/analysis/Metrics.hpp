@@ -8,7 +8,7 @@
 #include "finlib/analysis/MetricHandle.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
-namespace analysis::metrics {
+namespace ts::analysis::metrics {
 
 inline MetricFn<std::vector<double>> movingAverage(size_t window) {
     return [window](TimeSeriesView v) -> std::vector<double> {
@@ -24,4 +24,4 @@ inline MetricFn<std::vector<double>> movingAverage(size_t window) {
     };
 }
 
-}  // namespace analysis::metrics
+}  // namespace ts::analysis::metrics

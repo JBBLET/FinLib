@@ -16,6 +16,11 @@
 
 static constexpr int64_t DAILY_MS = 86400000;
 
+using ts::CoverageInfo;
+using ts::CSVRepository;
+using ts::SeriesKey;
+using ts::TimeSeries;
+
 class CSVRepositoryTest : public ::testing::Test {
  protected:
     std::filesystem::path testDir;

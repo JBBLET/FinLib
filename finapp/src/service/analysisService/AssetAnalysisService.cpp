@@ -50,7 +50,7 @@ std::shared_ptr<finance::analysis::IAssetAnalysis> AssetAnalysisService::createA
 
 std::shared_ptr<finance::analysis::IAssetAnalysis> AssetAnalysisService::createAnalysisFromSession(
     const finance::AssetId& assetId,  //
-    std::shared_ptr<::analysis::TimeSeriesSession> session) {
+    std::shared_ptr<TimeSeriesSession> session) {
     if (logger_) logger_->write(finapp::logging::Level::Debug, "createAnalysisFromSession '" + assetId.ticker + "'");
     auto asset = assetService_->load(assetId);
     auto it = services_.find(assetId.type);

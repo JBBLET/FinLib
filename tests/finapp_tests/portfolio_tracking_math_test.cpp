@@ -23,6 +23,11 @@
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "support/service_test_fakes.hpp"
 
+using ts::CachedTimeSeriesRepository;
+using ts::InMemoryTimeSeriesRepository;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
+
 namespace {
 
 constexpr int64_t kDay = 86'400'000;

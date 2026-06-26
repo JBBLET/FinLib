@@ -29,6 +29,11 @@
 #include "finlib/data/services/TimeSeriesService.hpp"
 #include "support/service_test_fakes.hpp"
 
+using ts::CachedTimeSeriesRepository;
+using ts::InMemoryTimeSeriesRepository;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
+
 namespace {
 
 constexpr int64_t kDay = 86'400'000;
@@ -289,7 +294,7 @@ TEST_F(PortfolioServiceTest, ValueSeriesSharedTimestampsKeepsPointerAlignment) {
         {{finance::Currency::USD, 50.0}}};
     portfolioRepo->saveSnapshot(snap);
 
-    auto timestamps = common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
+    auto timestamps = ts::common::utils::timeSeries::makeRegularTimestamps(0, 3 * kDay, kDay);
     TimeSeries series = service->valueSeries("pf1", timestamps);
     ASSERT_EQ(series.size(), 4);
     EXPECT_EQ(series.getSharedTimestamps().get(), timestamps.get());

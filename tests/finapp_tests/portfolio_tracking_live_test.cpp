@@ -27,6 +27,11 @@
 #include "finlib/data/implementation/InMemoryTimeSeriesRepository.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
 
+using ts::CachedTimeSeriesRepository;
+using ts::InMemoryTimeSeriesRepository;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
+
 namespace {
 
 constexpr int64_t kWeekMs = 7LL * 86'400'000LL;

@@ -9,7 +9,7 @@
 
 #include "finlib/common/FinlibTypes.hpp"
 
-namespace common::utils::timeSeries {
+namespace ts::common::utils::timeSeries {
 
 TimestampsPtr makeRegularTimestamps(Timestamp beginMs, Timestamp endMs, Timestamp frequencyMs) {
     if (frequencyMs <= 0) {
@@ -43,4 +43,4 @@ TimeSeries generateConstantTimeSeries(const std::string& id, TimestampsPtr times
     return TimeSeries(id, std::move(timestamps), std::move(values));
 }
 
-}  // namespace common::utils::timeSeries
+}  // namespace ts::common::utils::timeSeries

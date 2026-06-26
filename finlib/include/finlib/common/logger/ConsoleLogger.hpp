@@ -9,7 +9,7 @@
 
 #include "finlib/common/logger/ILogger.hpp"
 
-namespace logging {
+namespace ts::logging {
 
 class ConsoleLogger : public ILogger {
  public:
@@ -26,4 +26,4 @@ class ConsoleLogger : public ILogger {
     }
 };
 
-}  // namespace logging
+}  // namespace ts::logging

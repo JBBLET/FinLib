@@ -3,6 +3,9 @@
 
 #include <memory>
 #include <vector>
+namespace ts {
 using Timestamp = int64_t;
 using Timestamps = std::vector<Timestamp>;
 using TimestampsPtr = std::shared_ptr<const Timestamps>;
+
+}  // namespace ts

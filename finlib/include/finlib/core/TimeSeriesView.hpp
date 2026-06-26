@@ -10,6 +10,7 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
+namespace ts {
 class TimeSeries;
 
 struct RegularityCheck {
@@ -76,3 +77,4 @@ class TimeSeriesView : public std::enable_shared_from_this<TimeSeriesView> {
     // Check
     RegularityCheck checkRegularity(double tolerance) const;
 };
+}  // namespace ts

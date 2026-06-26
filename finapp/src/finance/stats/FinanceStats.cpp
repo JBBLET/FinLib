@@ -3,7 +3,6 @@
 
 #include <cmath>
 #include <limits>
-#include <stdexcept>
 #include <vector>
 
 #include "finlib/core/StatsCore.hpp"
@@ -12,13 +11,13 @@
 namespace finapp::stats {
 
 double volatility(const TimeSeriesView& returnSeries, double annualizationFactor) {
-    return analysis::stats::standardDeviation(returnSeries) * std::sqrt(annualizationFactor);
+    return ts::analysis::stats::standardDeviation(returnSeries) * std::sqrt(annualizationFactor);
 }
 
 double sharpeRatio(const TimeSeriesView& returnSeries, double annualizationFactor) {
     const double sigma = volatility(returnSeries, annualizationFactor);
     if (sigma == 0.0) return 0.0;
-    return analysis::stats::mean(returnSeries) * std::sqrt(annualizationFactor) / sigma;
+    return ts::analysis::stats::mean(returnSeries) * std::sqrt(annualizationFactor) / sigma;
 }
 
 double totalReturn(const TimeSeriesView& priceSeries) {
@@ -36,8 +35,8 @@ std::vector<std::vector<double>> correlationMatrix(const std::vector<const TimeS
     std::vector<double> means(m);
     std::vector<double> stddevs(m);
     for (size_t i = 0; i < m; ++i) {
-        means[i] = analysis::stats::mean(*views[i]);
-        stddevs[i] = analysis::stats::standardDeviation(*views[i]);
+        means[i] = ts::analysis::stats::mean(*views[i]);
+        stddevs[i] = ts::analysis::stats::standardDeviation(*views[i]);
     }
 
     const size_t n = views[0]->size();

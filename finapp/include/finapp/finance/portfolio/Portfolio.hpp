@@ -13,7 +13,6 @@
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
-#include "finlib/common/FinlibTypes.hpp"
 
 using Timestamp = int64_t;
 

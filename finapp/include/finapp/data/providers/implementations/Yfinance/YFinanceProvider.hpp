@@ -7,11 +7,15 @@
 
 #include "finapp/common/logger/ILogger.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/interfaces/ITimeSeriesLoader.hpp"
 
-namespace finapp {
+using ts::LoaderCapabilities;
+using ts::TimeSeries;
+using ts::Timestamp;
 
-class YFinanceProvider : public ITimeSeriesLoader {
+namespace finapp {
+class YFinanceProvider : public ts::ITimeSeriesLoader {
  public:
     YFinanceProvider(std::string pythonExec, std::string scriptPath, finapp::logging::ILogger* logger = nullptr);
     TimeSeries load(const std::string& name, Timestamp startTimestamp, Timestamp endTimestamp,

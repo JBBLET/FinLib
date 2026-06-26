@@ -7,6 +7,7 @@
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/StatsCore.hpp"
 
+using ts::analysis::TimeSeriesAnalysis;
 class TimeSeriesAnalysisTest : public TimeSeriesMocks {};
 
 // ============================================================
@@ -15,47 +16,47 @@ class TimeSeriesAnalysisTest : public TimeSeriesMocks {};
 
 TEST_F(TimeSeriesAnalysisTest, MeanOfSimpleSeries) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     EXPECT_DOUBLE_EQ(analysis.mean(), 3.0);
 }
 
 TEST_F(TimeSeriesAnalysisTest, MeanOfConstantSeries) {
     auto view = constantSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     EXPECT_DOUBLE_EQ(analysis.mean(), 3.0);
 }
 
 TEST_F(TimeSeriesAnalysisTest, VarianceSampleOfSimpleSeries) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     // Sample variance of {1,2,3,4,5} = 10/4 = 2.5
-    EXPECT_DOUBLE_EQ(analysis.variance(analysis::stats::VarianceType::Sample), 2.5);
+    EXPECT_DOUBLE_EQ(analysis.variance(ts::analysis::stats::VarianceType::Sample).value(), 2.5);
 }
 
 TEST_F(TimeSeriesAnalysisTest, VariancePopulationOfSimpleSeries) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     // Population variance of {1,2,3,4,5} = 10/5 = 2.0
-    EXPECT_DOUBLE_EQ(analysis.variance(analysis::stats::VarianceType::Population), 2.0);
+    EXPECT_DOUBLE_EQ(analysis.variance(ts::analysis::stats::VarianceType::Population).value(), 2.0);
 }
 
 TEST_F(TimeSeriesAnalysisTest, VarianceOfConstantSeriesIsZero) {
     auto view = constantSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
-    EXPECT_DOUBLE_EQ(analysis.variance(analysis::stats::VarianceType::Population), 0.0);
+    EXPECT_DOUBLE_EQ(analysis.variance(ts::analysis::stats::VarianceType::Population).value(), 0.0);
 }
 
 TEST_F(TimeSeriesAnalysisTest, StdDevMatchesSqrtVariance) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
-    double expectedStdDev = std::sqrt(analysis.variance(analysis::stats::VarianceType::Population));
-    EXPECT_DOUBLE_EQ(analysis.standardDeviation(), expectedStdDev);
+    double expectedStdDev = std::sqrt(analysis.variance(ts::analysis::stats::VarianceType::Population).value());
+    EXPECT_DOUBLE_EQ(analysis.standardDeviation().value(), expectedStdDev);
 }
 
 // ============================================================
@@ -64,7 +65,7 @@ TEST_F(TimeSeriesAnalysisTest, StdDevMatchesSqrtVariance) {
 
 TEST_F(TimeSeriesAnalysisTest, MeanIsCached) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     double first = analysis.mean();
     double second = analysis.mean();
@@ -75,23 +76,23 @@ TEST_F(TimeSeriesAnalysisTest, MeanIsCached) {
 
 TEST_F(TimeSeriesAnalysisTest, VarianceBothTypesCachedIndependently) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
-    double sample = analysis.variance(analysis::stats::VarianceType::Sample);
-    double population = analysis.variance(analysis::stats::VarianceType::Population);
+    double sample = analysis.variance(ts::analysis::stats::VarianceType::Sample).value();
+    double population = analysis.variance(ts::analysis::stats::VarianceType::Population).value();
 
     EXPECT_NE(sample, population);
     EXPECT_DOUBLE_EQ(sample, 2.5);
     EXPECT_DOUBLE_EQ(population, 2.0);
 
     // Second call should return same cached values
-    EXPECT_DOUBLE_EQ(analysis.variance(analysis::stats::VarianceType::Sample), sample);
-    EXPECT_DOUBLE_EQ(analysis.variance(analysis::stats::VarianceType::Population), population);
+    EXPECT_DOUBLE_EQ(analysis.variance(ts::analysis::stats::VarianceType::Sample).value(), sample);
+    EXPECT_DOUBLE_EQ(analysis.variance(ts::analysis::stats::VarianceType::Population).value(), population);
 }
 
 TEST_F(TimeSeriesAnalysisTest, InvalidateCacheForcesRecomputation) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     double meanBefore = analysis.mean();
     analysis.invalidateCache();
@@ -106,7 +107,7 @@ TEST_F(TimeSeriesAnalysisTest, InvalidateCacheForcesRecomputation) {
 
 TEST_F(TimeSeriesAnalysisTest, ACFAtLagZeroIsOne) {
     auto view = largerSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     const auto& acfValues = analysis.acf(10);
     EXPECT_NEAR(acfValues[0], 1.0, 1e-10);
@@ -114,7 +115,7 @@ TEST_F(TimeSeriesAnalysisTest, ACFAtLagZeroIsOne) {
 
 TEST_F(TimeSeriesAnalysisTest, ACFValuesAreBetweenMinusOneAndOne) {
     auto view = largerSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     const auto& acfValues = analysis.acf(10);
     for (size_t i = 0; i < acfValues.size(); ++i) {
@@ -125,7 +126,7 @@ TEST_F(TimeSeriesAnalysisTest, ACFValuesAreBetweenMinusOneAndOne) {
 
 TEST_F(TimeSeriesAnalysisTest, ACFCacheGrowsWithLargerLag) {
     auto view = largerSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     const auto& acf5 = analysis.acf(5);
     EXPECT_EQ(acf5.size(), 6);  // lag 0 through 5
@@ -145,7 +146,7 @@ TEST_F(TimeSeriesAnalysisTest, ACFCacheGrowsWithLargerLag) {
 
 TEST_F(TimeSeriesAnalysisTest, AutocovarianceAtLagZeroIsUnnormalizedVariance) {
     auto view = largerSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     const auto& gamma = analysis.autocovariances(5);
     // gamma(0) should equal sum of (x_i - mean)^2 (unnormalized)
@@ -154,7 +155,7 @@ TEST_F(TimeSeriesAnalysisTest, AutocovarianceAtLagZeroIsUnnormalizedVariance) {
 
 TEST_F(TimeSeriesAnalysisTest, AutocovarianceSymmetryWithACF) {
     auto view = largerSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     const auto& gamma = analysis.autocovariances(5);
     const auto& acfValues = analysis.acf(5);
@@ -174,7 +175,7 @@ TEST_F(TimeSeriesAnalysisTest, AutocovarianceSymmetryWithACF) {
 
 TEST_F(TimeSeriesAnalysisTest, ToeplitzMatrixIsSymmetric) {
     auto view = largerSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     auto T = analysis.toeplitz(5);
     EXPECT_EQ(T.rows(), 5);
@@ -189,7 +190,7 @@ TEST_F(TimeSeriesAnalysisTest, ToeplitzMatrixIsSymmetric) {
 
 TEST_F(TimeSeriesAnalysisTest, ToeplitzDiagonalIsGammaZero) {
     auto view = largerSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     const auto& gamma = analysis.autocovariances(5);
     auto T = analysis.toeplitz(5);
@@ -205,14 +206,14 @@ TEST_F(TimeSeriesAnalysisTest, ToeplitzDiagonalIsGammaZero) {
 
 TEST_F(TimeSeriesAnalysisTest, ZScoreOfMeanIsZero) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     EXPECT_NEAR(analysis.zScore(3.0), 0.0, 1e-10);
 }
 
 TEST_F(TimeSeriesAnalysisTest, OutlierDetection) {
     auto view = simpleSeries->view();
-    analysis::TimeSeriesAnalysis analysis(view);
+    TimeSeriesAnalysis analysis(view);
 
     // mean=3.0, std=sqrt(2.0)~=1.414
     // value=3.0 => z=0 => not outlier
@@ -229,8 +230,8 @@ TEST_F(TimeSeriesAnalysisTest, OutlierDetection) {
 TEST_F(TimeSeriesAnalysisTest, VarianceFastAndSlowAgree) {
     auto view = largerSeries->view();
 
-    double fast = analysis::stats::varianceFast(view, analysis::stats::VarianceType::Sample);
-    double slow = analysis::stats::varianceSlow(view, analysis::stats::VarianceType::Sample);
+    double fast = ts::analysis::stats::varianceFast(view, ts::analysis::stats::VarianceType::Sample);
+    double slow = ts::analysis::stats::varianceSlow(view, ts::analysis::stats::VarianceType::Sample);
 
     EXPECT_NEAR(fast, slow, 1e-10);
 }
@@ -238,8 +239,8 @@ TEST_F(TimeSeriesAnalysisTest, VarianceFastAndSlowAgree) {
 TEST_F(TimeSeriesAnalysisTest, VarianceFastAndSlowAgreePopulation) {
     auto view = largerSeries->view();
 
-    double fast = analysis::stats::varianceFast(view, analysis::stats::VarianceType::Population);
-    double slow = analysis::stats::varianceSlow(view, analysis::stats::VarianceType::Population);
+    double fast = ts::analysis::stats::varianceFast(view, ts::analysis::stats::VarianceType::Population);
+    double slow = ts::analysis::stats::varianceSlow(view, ts::analysis::stats::VarianceType::Population);
 
     EXPECT_NEAR(fast, slow, 1e-10);
 }

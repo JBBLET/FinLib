@@ -2,11 +2,9 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/asset/Equity.hpp"
-#include "finlib/analysis/MetricHandle.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
 
 namespace finapp {
@@ -17,17 +15,17 @@ namespace finance::analysis {
 
 class EquityAnalysis : public IAssetAnalysis {
  public:
+    // Starts clean — exposes the raw price series only. Analysis features
+    // (returns, metrics, ...) are installed explicitly via installFeature(),
+    // so they are treated exactly like any client-supplied custom feature.
     EquityAnalysis(std::shared_ptr<const finance::Equity> equity,
-                   std::shared_ptr<::analysis::TimeSeriesSession> session,
+                   std::shared_ptr<ts::analysis::TimeSeriesSession> session,
                    std::shared_ptr<finapp::AssetService> assetService);
 
     ~EquityAnalysis() = default;
 
  private:
     std::shared_ptr<finapp::AssetService> assetService_;
-
-    std::optional<::analysis::MetricHandle<double>> totalReturnHandle_;
-    std::optional<::analysis::MetricHandle<double>> sharpeHandle_;
 };
 
 }  // namespace finance::analysis

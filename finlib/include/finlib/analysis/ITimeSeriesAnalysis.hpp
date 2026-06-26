@@ -4,7 +4,7 @@
 #include "finlib/analysis/MetricHandle.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 // Common interface for single-series and custom analysis objects.
 //
@@ -23,4 +23,4 @@ class ITimeSeriesAnalysis {
     virtual void rebind(TimeSeriesView newView) = 0;
 };
 
-}  // namespace analysis
+}  // namespace ts::analysis

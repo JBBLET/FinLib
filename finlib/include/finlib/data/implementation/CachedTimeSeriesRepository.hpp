@@ -18,6 +18,7 @@
 #include "finlib/data/TimeRange.hpp"
 #include "finlib/data/interfaces/ITimeSeriesRepository.hpp"
 
+namespace ts {
 class CachedTimeSeriesRepository : public ITimeSeriesRepository {
  public:
     explicit CachedTimeSeriesRepository(std::shared_ptr<ITimeSeriesRepository> inner,
@@ -147,3 +148,4 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
         return TimeSeries(full.getId(), std::move(filteredTs), std::move(filteredVals));
     }
 };
+}  // namespace ts

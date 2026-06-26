@@ -14,7 +14,7 @@
 #include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
 class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     struct MetricEntry {
@@ -160,4 +160,4 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     void invalidateCache() override { metricCache_.clear(); }
 };
 
-}  // namespace analysis
+}  // namespace ts::analysis

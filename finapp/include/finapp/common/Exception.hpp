@@ -4,12 +4,12 @@
 #include <stacktrace>
 #include <stdexcept>
 #include <string>
-#include <utility>
+
 namespace finapp {
 
 class Traced {
  public:
-    explicit Traced(std::stacktrace trace = std::stacktrace::current()) : trace_{std::move(trace)} {}
+    Traced();
     const std::stacktrace& trace() const noexcept { return trace_; };
     std::string formattedTrace() const;
 
@@ -19,12 +19,12 @@ class Traced {
 
 class Exception : public std::runtime_error, public Traced {
  public:
-    explicit Exception(std::string msg) : std::runtime_error(std::move(msg)), Traced() {}
+    explicit Exception(std::string msg);
 };
 
 class InvalidArgument : public std::invalid_argument, public Traced {
  public:
-    explicit InvalidArgument(std::string msg) : std::invalid_argument(std::move(msg)), Traced() {}
+    explicit InvalidArgument(std::string msg);
 };
 
 std::string describe(const Traced& e);

@@ -93,7 +93,7 @@ PortfolioAnalysisService::resolveNavWeights_(const finance::Portfolio& portfolio
 
 std::shared_ptr<finance::analysis::PortfolioAnalysis> PortfolioAnalysisService::assemble_(
     const finance::Portfolio& portfolio, std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> analyses) {
-    auto multiSession = std::make_unique<::analysis::MultiTimeSeriesSession>();
+    auto multiSession = std::make_unique<MultiTimeSeriesSession>();
     for (const auto& a : analyses) multiSession->addSession(a->asset()->ticker(), a->sessionPtr());
 
     auto [navMode, navWeights] = resolveNavWeights_(portfolio);

@@ -14,6 +14,8 @@
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"
 #include "finlib/data/interfaces/ITimeSeriesLoader.hpp"
 
+namespace ts {
+
 class TimeSeriesService {
  public:
     TimeSeriesService(std::shared_ptr<CachedTimeSeriesRepository> cache, std::shared_ptr<ITimeSeriesLoader> provider,
@@ -50,3 +52,4 @@ class TimeSeriesService {
 
     void fetchAndMergeGaps_(const SeriesKey& key, const std::vector<TimeRange>& gaps);
 };
+}  // namespace ts

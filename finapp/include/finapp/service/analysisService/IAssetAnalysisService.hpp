@@ -7,6 +7,8 @@
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finlib/session/TimeSeriesSession.hpp"
 
+using ts::analysis::TimeSeriesSession;
+
 namespace finapp {
 
 class IAssetAnalysisService {
@@ -15,6 +17,6 @@ class IAssetAnalysisService {
 
     virtual std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysisFromSession(
         std::shared_ptr<const finance::IAsset> asset,  //
-        std::shared_ptr<::analysis::TimeSeriesSession> session) = 0;
+        std::shared_ptr<TimeSeriesSession> session) = 0;
 };
 }  // namespace finapp

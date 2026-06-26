@@ -1,15 +1,11 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 
-#include <algorithm>
-#include <cctype>
 #include <cstdint>
 #include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "finapp/common/Exception.hpp"
 
 namespace finance {
 enum class Currency : uint8_t { USD, EUR, JPY, KRW, CAD, GBP };
@@ -17,41 +13,12 @@ enum class Currency : uint8_t { USD, EUR, JPY, KRW, CAD, GBP };
 inline const std::vector<Currency> valid_currencies = {
     Currency::USD, Currency::EUR, Currency::JPY, Currency::KRW, Currency::CAD, Currency::GBP};
 
-static std::unordered_map<std::string, Currency> stringToCurrencyMap = {{"USD", Currency::USD},
-                                                                        {"EUR", Currency::EUR},
-                                                                        {"JPY", Currency::JPY},
-                                                                        {"KRW", Currency::KRW},
-                                                                        {"CAD", Currency::CAD},
-                                                                        {"GBP", Currency::GBP}};
+// Canonical ISO code for a currency ("" for an unknown enumerator).
+const std::string toString(Currency c);
 
-inline const std::string toString(Currency c) {
-    switch (c) {
-        case (Currency::USD):
-            return "USD";
-        case (Currency::EUR):
-            return "EUR";
-        case (Currency::JPY):
-            return "JPY";
-        case (Currency::KRW):
-            return "KRW";
-        case (Currency::CAD):
-            return "CAD";
-        case (Currency::GBP):
-            return "GBP";
-        default:
-            return "";
-    }
-}
-inline Currency currencyFromString(const std::string& id) {
-    std::string upperCaseStr = id;
-    std::transform(upperCaseStr.begin(), upperCaseStr.end(), upperCaseStr.begin(), ::toupper);
-    auto it = stringToCurrencyMap.find(upperCaseStr);
-    if (it == stringToCurrencyMap.end()) {
-        throw finapp::InvalidArgument("Unsupported currency code: '" + id +
-                                      "'. Supported: USD, EUR, JPY, KRW, CAD, GBP.");
-    }
-    return it->second;
-}
+// Parses a currency code (case-insensitive). Throws finapp::InvalidArgument on
+// an unsupported code.
+Currency currencyFromString(const std::string& id);
 }  // namespace finance
 
 template <>

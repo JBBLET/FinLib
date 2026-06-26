@@ -14,6 +14,7 @@
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/data/interfaces/ITimeSeriesRepository.hpp"
 
+namespace ts {
 /// Stores time series as CSV files on disk.
 ///
 /// File layout:
@@ -65,3 +66,4 @@ class CSVRepository : public ITimeSeriesRepository {
     static TimeSeries parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId, Timestamp startMs,
                                     Timestamp endMs);
 };
+}  // namespace ts

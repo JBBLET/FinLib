@@ -7,6 +7,8 @@
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
 
+namespace ts {
+
 class ITimeSeriesSaver {
  public:
     ITimeSeriesSaver() = default;
@@ -39,3 +41,4 @@ class ITimeSeriesSaver {
     virtual void doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) = 0;
     virtual void doMerge(const SeriesKey& key, const TimeSeries& ts) = 0;
 };
+}  // namespace ts
