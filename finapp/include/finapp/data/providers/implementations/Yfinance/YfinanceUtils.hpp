@@ -3,6 +3,12 @@
 
 #include <cpython/initconfig.h>
 #include <pybind11/embed.h>  // everything needed for embedding
+#include <pybind11/eval.h>   // pybind11::exec
+
+#include <cstdlib>
+#include <string>
+
+#include "finapp/EmbeddedPythonScripts.hpp"
 
 namespace finapp {
 
@@ -13,15 +19,43 @@ class PythonRuntime {
         static pybind11::scoped_interpreter interpreter = [] {
             PyConfig config;
             PyConfig_InitPythonConfig(&config);
-            PyConfig_SetString(
-                &config, &config.executable, L"/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python");
+            // Resolve the interpreter without baking in a developer-machine path. Precedence:
+            //   FINAPP_PYTHON env → $VIRTUAL_ENV/bin/python env → FINAPP_PYTHON_DEFAULT (set at
+            //   configure time via -DFINAPP_PYTHON=...) → libpython default.
+            // The chosen interpreter determines where pip-installed deps (e.g. yfinance) are found.
+            std::string exe;
+            if (const char* override = std::getenv("FINAPP_PYTHON")) {
+                exe = override;
+            } else if (const char* venv = std::getenv("VIRTUAL_ENV")) {
+                exe = std::string(venv) + "/bin/python";
+            }
+#ifdef FINAPP_PYTHON_DEFAULT
+            if (exe.empty()) exe = FINAPP_PYTHON_DEFAULT;
+#endif
+            if (!exe.empty()) {
+                wchar_t* wexe = Py_DecodeLocale(exe.c_str(), nullptr);
+                PyConfig_SetString(&config, &config.executable, wexe);
+                PyMem_RawFree(wexe);
+            }
             return pybind11::scoped_interpreter{&config};
         }();
-        static bool pathInit = [] {
-            pybind11::module_::import("sys").attr("path").attr("insert")(0, FINAPP_PYTHON_DIR);
+        // Register every embedded script as an in-memory module named by its filename stem, so
+        // pybind11::module_::import("<stem>") works with nothing on disk. Script-agnostic: new
+        // scripts in FINAPP_EMBEDDED_SCRIPTS are picked up automatically.
+        static bool moduleInit = [] {
+            namespace py = pybind11;
+            py::object moduleType = py::module_::import("types").attr("ModuleType");
+            py::dict sysModules = py::module_::import("sys").attr("modules");
+            for (const auto& script : kEmbeddedPythonScripts) {
+                std::string name(script.name);
+                py::object mod = moduleType(name);
+                mod.attr("__file__") = "<embedded:" + name + ">";
+                py::exec(std::string(script.source), mod.attr("__dict__"));
+                sysModules[name.c_str()] = mod;
+            }
             return true;
         }();
-        (void)pathInit;
+        (void)moduleInit;
 
         // Release the GIL after initialization so any C++ thread can acquire it via
         // py::gil_scoped_acquire. Without this, only the initializing thread holds the

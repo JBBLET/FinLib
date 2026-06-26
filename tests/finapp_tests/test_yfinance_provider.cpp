@@ -8,8 +8,7 @@
 #include "finapp/data/providers/implementations/Yfinance/YFinanceProvider.hpp"
 
 TEST(YFinanceProvider, DownloadAAPLLast10Days) {
-    finapp::YFinanceProvider provider("/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python",
-                                      "/home/jbblet/user/Documents/Projects/FinLib/finapp/scripts/YFinanceFetcher.py");
+    finapp::YFinanceProvider provider;
 
     // Use a rolling window in the last 7 days so 1m data is always available.
     constexpr int64_t kDayMs = 86'400'000LL;

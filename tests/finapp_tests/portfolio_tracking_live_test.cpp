@@ -57,8 +57,7 @@ LiveBundle makeLiveBundle(const std::string& testName) {
     // Time-series: live yfinance loader backed by an in-memory cache.
     auto innerRepo = std::make_shared<InMemoryTimeSeriesRepository>();
     auto cachedRepo = std::make_shared<CachedTimeSeriesRepository>(innerRepo);
-    auto tsLoader = std::make_shared<finapp::YFinanceProvider>(
-        "/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python", FINAPP_PYTHON_DIR "/YFinanceFetcher.py");
+    auto tsLoader = std::make_shared<finapp::YFinanceProvider>();
     auto tsService = std::make_shared<TimeSeriesService>(cachedRepo, tsLoader);
 
     // Asset: in-memory repo + live yfinance equity provider to resolve denomination.

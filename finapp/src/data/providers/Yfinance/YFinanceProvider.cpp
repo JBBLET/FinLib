@@ -20,10 +20,8 @@ namespace py = pybind11;
 
 namespace finapp {
 
-YFinanceProvider::YFinanceProvider(std::string pythonExec, std::string scriptPath, finapp::logging::ILogger* logger)
-    : python_(std::move(pythonExec)),
-      scriptPath_(std::move(scriptPath)),
-      logger_{finapp::logging::PrefixedLogger::wrap(logger, "YFinanceProvider")} {}
+YFinanceProvider::YFinanceProvider(finapp::logging::ILogger* logger)
+    : logger_{finapp::logging::PrefixedLogger::wrap(logger, "YFinanceProvider")} {}
 
 LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) const {
     constexpr int64_t kDayMs = 86'400'000LL;

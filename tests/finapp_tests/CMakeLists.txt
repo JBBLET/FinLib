@@ -196,7 +196,6 @@ target_include_directories(test_portfolio_tracking_live
 target_compile_definitions(test_portfolio_tracking_live
     PRIVATE
         FINAPP_TEST_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources"
-        FINAPP_PYTHON_DIR="${CMAKE_SOURCE_DIR}/finapp/scripts"
 )
 
 target_link_libraries(test_portfolio_tracking_live
