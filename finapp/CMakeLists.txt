@@ -76,6 +76,9 @@ target_include_directories(finapp_csv_repository
 target_link_libraries(finapp_csv_repository
     PUBLIC
         finapp_core
+    PRIVATE
+        cpp::csv
+        stdc++exp
 )
 
 # --------------------
@@ -95,6 +98,9 @@ target_link_libraries(finapp_importers
     PUBLIC
         finapp_core
         finlib_core
+    PRIVATE
+        cpp::csv
+        stdc++exp
 )
 
 # --------------------

@@ -3,7 +3,7 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(FinancialTimeSeriesLib VERSION 0.1)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -41,6 +41,16 @@ if(NOT TARGET Eigen3::Eigen)
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE)
     FetchContent_MakeAvailable(Eigen)
+endif()
+
+# CppUtils — header-only CSV reader/writer (target cpp::csv). Pulled from the sibling repo.
+if(NOT TARGET cpp::csv)
+    # Sibling project under active local development — consume the live source tree directly
+    # (SOURCE_DIR uses the working directory as-is, no clone of committed state).
+    FetchContent_Declare(
+        CppUtils
+        SOURCE_DIR /home/jbblet/user/Documents/Projects/C++/CppUtils)
+    FetchContent_MakeAvailable(CppUtils)
 endif()
 
 # Python + pybind11 — needed by finapp_providers' embedded interpreter.

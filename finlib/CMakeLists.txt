@@ -54,6 +54,8 @@ add_library(finlib_data
 target_link_libraries(finlib_data
     PUBLIC
         finlib_core
+    PRIVATE
+        cpp::csv
 )
 
 target_include_directories(finlib_data

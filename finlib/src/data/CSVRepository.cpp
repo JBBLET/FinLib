@@ -5,15 +5,19 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <format>
 #include <fstream>
-#include <iomanip>
 #include <map>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "csv/convert.hpp"
+#include "csv/csvReader.hpp"
+#include "csv/csvReaderAware.hpp"
+#include "csv/csvWriter.hpp"
+#include "csv/csvWriterAware.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -162,45 +166,18 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
         throw std::runtime_error("Cannot open CSV file: " + path.string());
     }
 
-    bool applyFilter = (startMs <= endMs);
+    const bool applyFilter = (startMs <= endMs);
     Timestamps timestamps;
     std::vector<double> values;
-    std::string line;
 
-    auto pushIfValid = [&](Timestamp ts, const std::string& valStr) {
-        double v = std::stod(valStr);
-        if (!std::isnan(v)) {
-            timestamps.push_back(ts);
-            values.push_back(v);
-        }
-    };
-
-    if (std::getline(file, line)) {
-        if (!line.empty() && !std::isalpha(static_cast<unsigned char>(line[0])) && line[0] != '#') {
-            // First line is data, not a header
-            std::istringstream iss(line);
-            std::string tsStr;
-            std::string valStr;
-            if (std::getline(iss, tsStr, ';') && std::getline(iss, valStr, ';')) {
-                Timestamp ts = std::stoll(tsStr);
-                if (!applyFilter || (ts >= startMs && ts <= endMs)) {
-                    pushIfValid(ts, valStr);
-                }
-            }
-        }
-    }
-
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        std::string tsStr;
-        std::string valStr;
-        if (std::getline(iss, tsStr, ';') && std::getline(iss, valStr, ';')) {
-            Timestamp ts = std::stoll(tsStr);
-            if (!applyFilter || (ts >= startMs && ts <= endMs)) {
-                pushIfValid(ts, valStr);
-            }
-        }
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
+    for (const auto& row : reader.readAllMaps()) {
+        const Timestamp ts = csv::convert::parseInt<Timestamp>(row.at("timestamp"));
+        if (applyFilter && (ts < startMs || ts > endMs)) continue;
+        const double v = csv::convert::parseFloat<double>(row.at("value"));
+        if (std::isnan(v)) continue;
+        timestamps.push_back(ts);
+        values.push_back(v);
     }
 
     return TimeSeries(seriesId, std::move(timestamps), std::move(values));
@@ -230,12 +207,12 @@ void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const 
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open CSV file for writing: " + path.string());
     }
-    file << std::setprecision(17);
-    file << "timestamp,value\n";
+    CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"timestamp", "value"}};
     const auto& timestamps = ts.getTimestamps();
     const auto& values = ts.getValues();
     for (size_t i = 0; i < ts.size(); ++i) {
-        file << timestamps[i] << ";" << values[i] << "\n";
+        writer.writeMap(
+            Row{{"timestamp", std::to_string(timestamps[i])}, {"value", std::format("{}", values[i])}}, false);
     }
 }
 

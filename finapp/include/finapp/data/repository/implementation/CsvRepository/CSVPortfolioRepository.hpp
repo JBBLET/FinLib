@@ -64,6 +64,11 @@ class CSVPortfolioRepository : public IPortfolioRepository {
 
     std::optional<finance::PortfolioSnapshot> parseSnapshotCsvFile_(const std::filesystem::path& path) const;
     std::vector<finance::PortfolioSnapshot> parseAllSnapshotRows_(const std::filesystem::path& path) const;
+    /// Builds a snapshot from one index row's fields, loading the referenced .pos/.cash sidecars.
+    finance::PortfolioSnapshot snapshotFromFields_(const std::string& name, const std::string& baseCurrency,
+                                                   const std::string& timestampMs, const std::string& portfolioId,
+                                                   const std::string& positionsId,
+                                                   const std::string& cashBalancesId) const;
     std::vector<finance::SnapshotPosition> parsePositionsSnapshotFile_(const std::filesystem::path& path) const;
     std::unordered_map<finance::Currency, double> parseCashBalanceFile_(const std::filesystem::path& path) const;
     std::vector<finance::Transaction> parseTransactionsCsvFile_(const std::filesystem::path& path,

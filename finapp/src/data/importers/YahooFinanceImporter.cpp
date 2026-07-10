@@ -10,6 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include "csv/csvReader.hpp"
+#include "csv/csvReaderAware.hpp"
 #include "finapp/common/Exception.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -19,21 +21,19 @@
 namespace finapp {
 
 namespace {
-// Yahoo Finance CSV column indices (0-based)
-constexpr int kColSymbol = 0;
-constexpr int kColTradeDate = 9;
-constexpr int kColPurchasePrice = 10;
-constexpr int kColQuantity = 11;
-constexpr int kColCommission = 12;
-constexpr int kColTxType = 16;
-constexpr int kMinCols = 17;
-// Optional column — not included in kMinCols so rows that omit it are still valid.
-// When present and non-empty, its value overrides the settlement currency for that row
-// (both equity buys/sells and $$CASH_TX deposits/withdrawals).
+// Yahoo Finance CSV column names.
+constexpr const char* kColSymbol = "Symbol";
+constexpr const char* kColTradeDate = "Trade Date";
+constexpr const char* kColPurchasePrice = "Purchase Price";
+constexpr const char* kColQuantity = "Quantity";
+constexpr const char* kColCommission = "Commission";
+constexpr const char* kColTxType = "Transaction Type";
+// Optional column. When present and non-empty, its value overrides the settlement currency for
+// that row (both equity buys/sells and $$CASH_TX deposits/withdrawals).
 // Example CSV header: ...,Transaction Type,Currency
 //   $$CASH_TX row:  ...,DEPOSIT,JPY
 //   Equity row:     ...,BUY,USD
-constexpr int kColCurrency = 17;
+constexpr const char* kColCurrency = "Currency";
 }  // namespace
 
 std::vector<finance::Transaction> YahooFinanceImporter::parse(const std::filesystem::path& csvPath,
@@ -57,43 +57,34 @@ std::vector<finance::Transaction> YahooFinanceImporter::parseStream_(std::istrea
                                                    : [&config](const std::string&) { return config.baseCurrency; };
 
     std::vector<finance::Transaction> result;
-    std::string line;
-    std::getline(stream, line);  // skip header
 
-    while (std::getline(stream, line)) {
-        if (line.empty()) continue;
+    CSVReaderHeaderAware reader{CSVReader{stream}};  // default ',' separator
+    const auto& headers = reader.headers();
+    const bool hasCurrencyCol = std::ranges::find(headers, kColCurrency) != headers.end();
 
-        std::vector<std::string> cols;
-        cols.reserve(kMinCols);
-        std::istringstream iss(line);
-        std::string cell;
-        while (std::getline(iss, cell, ',')) {
-            cols.push_back(std::move(cell));
-        }
-        // Pad so every index up to kMinCols-1 is safe to access.
-        while (static_cast<int>(cols.size()) < kMinCols) {
-            cols.emplace_back();
-        }
-
-        const std::string& symbol = cols[kColSymbol];
-        const std::string& dateStr = cols[kColTradeDate];
-        const std::string& txType = cols[kColTxType];
+    for (const auto& row : reader.readAllMaps()) {
+        const std::string& symbol = row.at(kColSymbol);
+        const std::string& dateStr = row.at(kColTradeDate);
+        const std::string& txType = row.at(kColTxType);
 
         if (dateStr.size() != 8) continue;  // malformed date — skip
 
         const int64_t timestampMs = yyyymmddToMs_(dateStr);
-        const double quantity = parseOptionalDouble_(cols[kColQuantity]);
-        const double price = parseOptionalDouble_(cols[kColPurchasePrice]);
-        const double fees = parseOptionalDouble_(cols[kColCommission]);
+        const double quantity = parseOptionalDouble_(row.at(kColQuantity));
+        const double price = parseOptionalDouble_(row.at(kColPurchasePrice));
+        const double fees = parseOptionalDouble_(row.at(kColCommission));
 
-        // Resolve the settlement currency: column 17 wins when present and valid;
+        // Resolve the settlement currency: the Currency column wins when present and valid;
         // otherwise fall back to the resolver (equity) or baseCurrency (cash).
         auto readCurrencyCol = [&]() -> std::optional<finance::Currency> {
-            if (static_cast<int>(cols.size()) > kColCurrency && !cols[kColCurrency].empty()) {
-                try {
-                    return finance::currencyFromString(cols[kColCurrency]);
-                } catch (...) {
-                    // Unrecognised string — treat as absent.
+            if (hasCurrencyCol) {
+                const std::string& c = row.at(kColCurrency);
+                if (!c.empty()) {
+                    try {
+                        return finance::currencyFromString(c);
+                    } catch (...) {
+                        // Unrecognised string — treat as absent.
+                    }
                 }
             }
             return std::nullopt;

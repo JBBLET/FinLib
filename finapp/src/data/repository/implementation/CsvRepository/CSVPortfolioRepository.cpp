@@ -16,6 +16,11 @@
 #include <utility>
 #include <vector>
 
+#include "csv/convert.hpp"
+#include "csv/csvReader.hpp"
+#include "csv/csvReaderAware.hpp"
+#include "csv/csvWriter.hpp"
+#include "csv/csvWriterAware.hpp"
 #include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
@@ -33,6 +38,54 @@ using finance::SnapshotPosition;
 using finance::Transaction;
 using finance::transactionTypeFromString;
 namespace finapp {
+
+namespace {
+// Column order for the ';'-separated transaction log and snapshot index.
+const std::vector<std::string> kTransactionHeader = {"id",
+                                                     "timestampMs",
+                                                     "type",
+                                                     "asset_type",
+                                                     "asset_ticker",
+                                                     "quantity",
+                                                     "price_per_unit",
+                                                     "fees",
+                                                     "settlement_currency"};
+const std::vector<std::string> kSnapshotHeader = {
+    "name", "baseCurrency", "timestampMs", "portfolioID", "positions_id", "cashBalances_id"};
+
+Row transactionToRow(const Transaction& t) {
+    return Row{{"id", t.id},
+               {"timestampMs", std::to_string(t.timestampsMs)},
+               {"type", toString(t.type)},
+               {"asset_type", assetTypeToString(t.assetType)},
+               {"asset_ticker", t.assetTicker},
+               {"quantity", std::to_string(t.quantity)},
+               {"price_per_unit", std::to_string(t.pricePerUnit)},
+               {"fees", std::to_string(t.fees)},
+               {"settlement_currency", toString(t.settlementCurrency)}};
+}
+
+// Serializes a transaction as an ordered record matching kTransactionHeader.
+std::vector<std::string> transactionToRecord(const Transaction& t) {
+    Row row = transactionToRow(t);
+    std::vector<std::string> record;
+    record.reserve(kTransactionHeader.size());
+    for (const auto& col : kTransactionHeader) record.push_back(row.at(col));
+    return record;
+}
+
+Transaction transactionFromRow(const Row& r) {
+    return Transaction{r.at("id"),
+                       csv::convert::parseInt<int64_t>(r.at("timestampMs")),
+                       transactionTypeFromString(r.at("type")),
+                       assetTypeFromString(r.at("asset_type")),
+                       r.at("asset_ticker"),
+                       csv::convert::parseFloat<double>(r.at("quantity")),
+                       csv::convert::parseFloat<double>(r.at("price_per_unit")),
+                       csv::convert::parseFloat<double>(r.at("fees")),
+                       currencyFromString(r.at("settlement_currency"))};
+}
+}  // namespace
 
 CSVPortfolioRepository::CSVPortfolioRepository(std::filesystem::path directory, finapp::logging::ILogger* logger)
     : directory_{std::move(directory)},
@@ -226,23 +279,16 @@ void CSVPortfolioRepository::replaceSnapshotsFrom(const std::string& portfolioId
     std::filesystem::create_directories(snapshotPath.parent_path());
 
     // Single read pass: keep rows before the cut-off, delete .pos/.cash of trimmed rows.
-    std::vector<std::string> keptRows;
+    std::vector<Row> keptRows;
     if (std::filesystem::exists(snapshotPath) && std::filesystem::file_size(snapshotPath) > 0) {
         std::ifstream inFile(snapshotPath);
         if (!inFile.is_open())
             throw finapp::Exception("Cannot open snapshot CSV for reading: " + snapshotPath.string());
-        std::string line;
-        std::getline(inFile, line);  // skip header
-        while (std::getline(inFile, line)) {
-            if (line.empty()) continue;
-            std::istringstream iss(line);
-            std::string name, baseCurrency, timestampMsStr, portId, positionsId, cashBalancesId;
-            if (!std::getline(iss, name, ';') || !std::getline(iss, baseCurrency, ';') ||
-                !std::getline(iss, timestampMsStr, ';') || !std::getline(iss, portId, ';') ||
-                !std::getline(iss, positionsId, ';'))
-                continue;
-            std::getline(iss, cashBalancesId);
-            if (std::stoll(timestampMsStr) >= fromTimestampMs) {
+        CSVReaderHeaderAware reader{CSVReader{inFile, ';'}};
+        for (auto& row : reader.readAllMaps()) {
+            if (csv::convert::parseInt<int64_t>(row.at("timestampMs")) >= fromTimestampMs) {
+                const auto& positionsId = row.at("positions_id");
+                const auto& cashBalancesId = row.at("cashBalances_id");
                 if (!positionsId.empty()) {
                     auto p = positionFilePath_(positionsId);
                     if (std::filesystem::exists(p)) std::filesystem::remove(p);
@@ -252,29 +298,33 @@ void CSVPortfolioRepository::replaceSnapshotsFrom(const std::string& portfolioId
                     if (std::filesystem::exists(p)) std::filesystem::remove(p);
                 }
             } else {
-                keptRows.push_back(line);
+                keptRows.push_back(std::move(row));
             }
         }
     }
 
     // Write all .pos/.cash files for new snapshots and build their CSV rows.
-    std::vector<std::string> newRows;
+    std::vector<Row> newRows;
     newRows.reserve(newSnapshots.size());
     for (const auto& snap : newSnapshots) {
         std::string positionsId;
         std::string cashBalancesId;
         if (!snap.positions.empty()) positionsId = writeSnapshotPositionsFile_(snap);
         if (!snap.cashBalances.empty()) cashBalancesId = writeCashBalancesFile_(snap);
-        newRows.push_back(snap.name + ";" + toString(snap.baseCurrency) + ";" + std::to_string(snap.timestampMs) + ";" +
-                          snap.portfolioId + ";" + positionsId + ";" + cashBalancesId);
+        newRows.push_back(Row{{"name", snap.name},
+                              {"baseCurrency", toString(snap.baseCurrency)},
+                              {"timestampMs", std::to_string(snap.timestampMs)},
+                              {"portfolioID", snap.portfolioId},
+                              {"positions_id", positionsId},
+                              {"cashBalances_id", cashBalancesId}});
     }
 
     // Single write pass: header + surviving rows + new rows.
     std::ofstream outFile(snapshotPath, std::ios::trunc);
     if (!outFile.is_open()) throw finapp::Exception("Cannot open snapshot CSV for writing: " + snapshotPath.string());
-    outFile << "name,baseCurrency,timestampMs,portfolioID,positions_id,cashBalances_id\n";
-    for (const auto& row : keptRows) outFile << row << '\n';
-    for (const auto& row : newRows) outFile << row << '\n';
+    CSVWriterHeaderAware writer{CSVWriter{outFile, ';'}, kSnapshotHeader};
+    writer.writeAllMaps(keptRows, false);
+    writer.writeAllMaps(newRows, false);
 }
 
 void CSVPortfolioRepository::trimSnapshotRowsFrom_(const std::string& portfolioId, int64_t fromTimestampMs) {
@@ -320,12 +370,9 @@ void CSVPortfolioRepository::writeFullTransactionsCsv_(const std::filesystem::pa
     if (!file.is_open()) {
         throw finapp::Exception("Cannot open CSV File of Transactions for writing: " + path.string());
     }
-    file << "id,timestampMs,type,asset_type,asset_ticker,quantity,price_per_unit,fees,settlement_currency\n";
+    CSVWriterHeaderAware writer{CSVWriter{file, ';'}, kTransactionHeader};
     for (const Transaction& transaction : transactions) {
-        file << transaction.id << ";" << std::to_string(transaction.timestampsMs) << ";" << toString(transaction.type)
-             << ";" << assetTypeToString(transaction.assetType) << ";" << transaction.assetTicker << ";"
-             << std::to_string(transaction.quantity) << ";" << std::to_string(transaction.pricePerUnit) << ";"
-             << std::to_string(transaction.fees) << ";" << toString(transaction.settlementCurrency) << "\n";
+        writer.writeMap(transactionToRow(transaction), false);
     }
 }
 
@@ -335,55 +382,49 @@ void CSVPortfolioRepository::appendTransactionsCsv_(const std::filesystem::path&
     if (!file.is_open()) {
         throw finapp::Exception("Cannot open CSV File of Transactions for writing: " + path.string());
     }
+    // Append only — the header already exists, so use the low-level writer without re-emitting it.
+    CSVWriter writer{file, ';'};
     for (const Transaction& transaction : transactions) {
-        file << transaction.id << ";" << std::to_string(transaction.timestampsMs) << ";" << toString(transaction.type)
-             << ";" << assetTypeToString(transaction.assetType) << ";" << transaction.assetTicker << ";"
-             << std::to_string(transaction.quantity) << ";" << std::to_string(transaction.pricePerUnit) << ";"
-             << std::to_string(transaction.fees) << ";" << toString(transaction.settlementCurrency) << "\n";
+        writer.writeNext(transactionToRecord(transaction), false);
     }
 }
+PortfolioSnapshot CSVPortfolioRepository::snapshotFromFields_(const std::string& name, const std::string& baseCurrency,
+                                                             const std::string& timestampMs,
+                                                             const std::string& portfolioId,
+                                                             const std::string& positionsId,
+                                                             const std::string& cashBalancesId) const {
+    std::vector<SnapshotPosition> positions;
+    std::unordered_map<Currency, double> cashBalance;
+    if (!positionsId.empty()) {
+        positions = parsePositionsSnapshotFile_(positionFilePath_(positionsId));
+    }
+    if (!cashBalancesId.empty()) {
+        cashBalance = parseCashBalanceFile_(cashBalanceFilePath_(cashBalancesId));
+    }
+    return PortfolioSnapshot{name,
+                             currencyFromString(baseCurrency),
+                             csv::convert::parseInt<int64_t>(timestampMs),
+                             portfolioId,
+                             std::move(positions),
+                             std::move(cashBalance)};
+}
+
 std::optional<PortfolioSnapshot> CSVPortfolioRepository::parseSnapshotCsvFile_(
     const std::filesystem::path& path) const {
     std::ifstream file(path);
     if (!file.is_open()) {
         throw finapp::Exception("Could not open the file to parse the snapshot: " + path.string());
     }
-    std::optional<PortfolioSnapshot> output;
-    std::string line, prevLine;
-    std::getline(file, line);
-    prevLine = std::move(line);
-    std::getline(file, line);
-    prevLine = std::move(line);
-    while (getline(file, line)) {
-        prevLine = std::move(line);
-    }
-    if (prevLine.empty()) {
-        return output;
-    }
-    std::istringstream cell(prevLine);
-    std::string name, baseCurrencyString, timestampsMsString, portfolioId, positionsId, cashBalancesId;
-    if (std::getline(cell, name, ';') && std::getline(cell, baseCurrencyString, ';') &&
-        std::getline(cell, timestampsMsString, ';') && std::getline(cell, portfolioId, ';') &&
-        std::getline(cell, positionsId, ';')) {
-        std::getline(cell, cashBalancesId);  // optional — may be empty at EOF
-        std::unordered_map<Currency, double> cashBalance;
-        std::vector<SnapshotPosition> positionsSnapshot;
-        if (!positionsId.empty()) {
-            auto positionsPath = positionFilePath_(positionsId);
-            positionsSnapshot = std::move(parsePositionsSnapshotFile_(positionsPath));
-        }
-        if (!cashBalancesId.empty()) {
-            auto cashbalancePath = cashBalanceFilePath_(cashBalancesId);
-            cashBalance = std::move(parseCashBalanceFile_(cashbalancePath));
-        }
-        output = PortfolioSnapshot{name,
-                                   currencyFromString(baseCurrencyString),
-                                   std::stoll(timestampsMsString),
-                                   portfolioId,
-                                   positionsSnapshot,
-                                   cashBalance};
-    }
-    return output;
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
+    auto rows = reader.readAllMaps();
+    if (rows.empty()) return std::nullopt;
+    const Row& r = rows.back();
+    return snapshotFromFields_(r.at("name"),
+                               r.at("baseCurrency"),
+                               r.at("timestampMs"),
+                               r.at("portfolioID"),
+                               r.at("positions_id"),
+                               r.at("cashBalances_id"));
 }
 
 std::vector<PortfolioSnapshot> CSVPortfolioRepository::parseAllSnapshotRows_(const std::filesystem::path& path) const {
@@ -391,32 +432,15 @@ std::vector<PortfolioSnapshot> CSVPortfolioRepository::parseAllSnapshotRows_(con
     if (!file.is_open()) {
         throw finapp::Exception("Could not open snapshot file: " + path.string());
     }
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     std::vector<PortfolioSnapshot> output;
-    std::string line;
-    std::getline(file, line);  // skip header
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-        std::istringstream cell(line);
-        std::string name, baseCurrencyString, timestampsMsString, portfolioId, positionsId, cashBalancesId;
-        if (!std::getline(cell, name, ';') || !std::getline(cell, baseCurrencyString, ';') ||
-            !std::getline(cell, timestampsMsString, ';') || !std::getline(cell, portfolioId, ';') ||
-            !std::getline(cell, positionsId, ';'))
-            continue;
-        std::getline(cell, cashBalancesId);
-        std::vector<SnapshotPosition> positions;
-        std::unordered_map<Currency, double> cashBalance;
-        if (!positionsId.empty()) {
-            positions = parsePositionsSnapshotFile_(positionFilePath_(positionsId));
-        }
-        if (!cashBalancesId.empty()) {
-            cashBalance = parseCashBalanceFile_(cashBalanceFilePath_(cashBalancesId));
-        }
-        output.push_back(PortfolioSnapshot{name,
-                                           currencyFromString(baseCurrencyString),
-                                           std::stoll(timestampsMsString),
-                                           portfolioId,
-                                           positions,
-                                           cashBalance});
+    for (const auto& r : reader.readAllMaps()) {
+        output.push_back(snapshotFromFields_(r.at("name"),
+                                             r.at("baseCurrency"),
+                                             r.at("timestampMs"),
+                                             r.at("portfolioID"),
+                                             r.at("positions_id"),
+                                             r.at("cashBalances_id")));
     }
     return output;
 }
@@ -484,43 +508,11 @@ std::vector<Transaction> CSVPortfolioRepository::parseTransactionsCsvFile_(const
     if (!file.is_open()) {
         throw finapp::Exception("Could not open the file to parse the Transactions: " + path.string());
     }
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     std::vector<Transaction> output;
-    output.reserve(200);
-    std::string line;
-    std::string idString, timeStampsMsString, transactionTypeString, assetTypeString, assetTicker, quantityString,
-        pricePerUnitString, feesString, settlementCurrencystring;
-    int64_t timestampMs;
-
-    auto parseLine = [&](const std::string& l) -> bool {
-        std::istringstream iss(l);
-        if (!std::getline(iss, idString, ';') || !std::getline(iss, timeStampsMsString, ';')) return false;
-        timestampMs = std::stoll(timeStampsMsString);
-        if (timestampMs < afterTimestamps) return false;
-        if (!std::getline(iss, transactionTypeString, ';') || !std::getline(iss, assetTypeString, ';') ||
-            !std::getline(iss, assetTicker, ';') || !std::getline(iss, quantityString, ';') ||
-            !std::getline(iss, pricePerUnitString, ';') || !std::getline(iss, feesString, ';') ||
-            !std::getline(iss, settlementCurrencystring))
-            return false;
-        output.push_back(Transaction{idString,
-                                     timestampMs,
-                                     transactionTypeFromString(transactionTypeString),
-                                     assetTypeFromString(assetTypeString),
-                                     assetTicker,
-                                     std::stod(quantityString),
-                                     std::stod(pricePerUnitString),
-                                     std::stod(feesString),
-                                     currencyFromString(settlementCurrencystring)});
-        return true;
-    };
-
-    // Skip header; handle files that have no header (first char is a digit).
-    if (std::getline(file, line)) {
-        if (!line.empty() && (std::isdigit(static_cast<unsigned char>(line[0])) || line[0] == '#')) {
-            parseLine(line);
-        }
-    }
-    while (std::getline(file, line)) {
-        if (!line.empty()) parseLine(line);
+    for (const auto& row : reader.readAllMaps()) {
+        if (csv::convert::parseInt<int64_t>(row.at("timestampMs")) < afterTimestamps) continue;
+        output.push_back(transactionFromRow(row));
     }
     return output;
 }

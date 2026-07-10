@@ -12,6 +12,10 @@
 #include <utility>
 #include <vector>
 
+#include "csv/csvReader.hpp"
+#include "csv/csvReaderAware.hpp"
+#include "csv/csvWriter.hpp"
+#include "csv/csvWriterAware.hpp"
 #include "finapp/common/Exception.hpp"
 #include "finapp/finance/asset/Equity.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
@@ -103,9 +107,13 @@ void CSVEquityRepository::writeCsv_(const std::shared_ptr<const Equity>& asset) 
     if (!file.is_open()) {
         throw finapp::Exception("Cannot open CSV file for writing: " + path.string());
     }
-    file << "ticker,name,denomination,exchange,sector\n";
-    file << asset->ticker() + ";" + asset->name() + ";" + toString(asset->denomination()) + ";" + asset->exchange() +
-                ";" + asset->sector() + "\n";
+    CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"ticker", "name", "denomination", "exchange", "sector"}};
+    writer.writeMap(Row{{"ticker", asset->ticker()},
+                        {"name", asset->name()},
+                        {"denomination", toString(asset->denomination())},
+                        {"exchange", asset->exchange()},
+                        {"sector", asset->sector()}},
+                    false);
 }
 
 void CSVEquityRepository::writeAttributes_(const std::shared_ptr<const Equity>& asset) const {
@@ -128,17 +136,14 @@ std::shared_ptr<Equity> CSVEquityRepository::parseCsvFile_(const std::filesystem
     if (!file.is_open()) {
         throw finapp::Exception("Cannot open CSV file: " + path.string());
     }
-    std::string tickerString, name, denomString, exchange, sector;
-    Currency denomination;
-    std::string line;
-    std::getline(file, line);
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        if (std::getline(iss, tickerString, ';') && std::getline(iss, name, ';') &&
-            std::getline(iss, denomString, ';') && std::getline(iss, exchange, ';') && std::getline(iss, sector)) {
-            denomination = currencyFromString(denomString);
-        }
+    std::string name, exchange, sector;
+    Currency denomination{};
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
+    for (const auto& row : reader.readAllMaps()) {
+        name = row.at("name");
+        denomination = currencyFromString(row.at("denomination"));
+        exchange = row.at("exchange");
+        sector = row.at("sector");
     }
     return std::make_shared<Equity>(Equity(ticker, name, denomination, exchange, sector));
 }

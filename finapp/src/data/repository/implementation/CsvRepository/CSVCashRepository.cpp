@@ -5,12 +5,15 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "csv/csvReader.hpp"
+#include "csv/csvReaderAware.hpp"
+#include "csv/csvWriter.hpp"
+#include "csv/csvWriterAware.hpp"
 #include "finapp/common/Exception.hpp"
 #include "finapp/finance/asset/Cash.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
@@ -47,8 +50,8 @@ void CSVCashRepository::writeCsv_(const std::shared_ptr<const Cash>& asset) cons
     if (!file.is_open()) {
         throw finapp::Exception("Cannot open CSV file for writing: " + path.string());
     }
-    file << "ticker,denomination\n";
-    file << asset->ticker() + ";" + toString(asset->denomination()) + "\n";
+    CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"ticker", "denomination"}};
+    writer.writeMap(Row{{"ticker", asset->ticker()}, {"denomination", toString(asset->denomination())}}, false);
 }
 
 std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& ticker) {
@@ -56,16 +59,10 @@ std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::pa
     if (!file.is_open()) {
         throw finapp::Exception("Cannot open CSV file: " + path.string());
     }
-    std::string tickerString, denomString;
-    std::string line;
-    std::getline(file, line);  // skip header
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        if (std::getline(iss, tickerString, ';') && std::getline(iss, denomString)) {
-            Currency denomination = currencyFromString(denomString);
-            return std::make_shared<Cash>(Cash(denomination));
-        }
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
+    for (const auto& row : reader.readAllMaps()) {
+        Currency denomination = currencyFromString(row.at("denomination"));
+        return std::make_shared<Cash>(Cash(denomination));
     }
     throw finapp::Exception("No data found in CSV file: " + path.string());
 }

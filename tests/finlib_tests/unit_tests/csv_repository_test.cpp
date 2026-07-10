@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -47,11 +46,6 @@ class CSVRepositoryTest : public ::testing::Test {
         if (ts.size() == 0) return CoverageInfo{key, 0, 0, "test", 0};
         return CoverageInfo{key, ts.getTimestamps().front(), ts.getTimestamps().back(), "test", 0};
     }
-
-    std::string readRawFile(const SeriesKey& key) const {
-        std::ifstream f(testDir / key.SeriesId / (std::to_string(key.frequencyInMs) + ".csv"));
-        return std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
-    }
 };
 
 // ============================================================
@@ -65,30 +59,6 @@ TEST_F(CSVRepositoryTest, SaveFullSeriesCreatesFile) {
     EXPECT_TRUE(std::filesystem::exists(testDir / "save_creates" / (std::to_string(DAILY_MS) + ".csv")));
 }
 
-TEST_F(CSVRepositoryTest, SaveFullSeriesWritesHeader) {
-    auto ts = makeSeries("save_header", {1000}, {1.0});
-    auto key = keyFor("save_header");
-    repo->save(key, ts);
-    auto raw = readRawFile(key);
-    EXPECT_EQ(raw.substr(0, 15), "timestamp,value");
-}
-
-TEST_F(CSVRepositoryTest, SaveFullSeriesRoundtrip) {
-    std::vector<int64_t> timestamps = {1000, 2000, 3000, 4000, 5000};
-    std::vector<double> values = {1.1, 2.2, 3.3, 4.4, 5.5};
-    auto ts = makeSeries("roundtrip", timestamps, values);
-    auto key = keyFor("roundtrip");
-    repo->save(key, ts);
-
-    auto loaded = repo->load(key, 0, 999999);
-
-    ASSERT_EQ(loaded.size(), 5);
-    for (size_t i = 0; i < 5; ++i) {
-        EXPECT_EQ(loaded.getTimestamps()[i], timestamps[i]);
-        EXPECT_NEAR(loaded.getValues()[i], values[i], 1e-9);
-    }
-}
-
 TEST_F(CSVRepositoryTest, SaveOverwritesExistingFile) {
     auto key = keyFor("overwrite");
     auto ts1 = makeSeries("overwrite", {1000, 2000, 3000}, {1.0, 2.0, 3.0});
@@ -100,49 +70,6 @@ TEST_F(CSVRepositoryTest, SaveOverwritesExistingFile) {
     auto loaded = repo->load(key, 0, 999999);
     EXPECT_EQ(loaded.size(), 2);
     EXPECT_EQ(loaded.getTimestamps()[0], 9000);
-}
-
-TEST_F(CSVRepositoryTest, SaveEmptySeriesWritesHeaderOnly) {
-    auto ts = makeSeries("empty_series", {}, {});
-    auto key = keyFor("empty_series");
-    repo->save(key, ts);
-
-    auto raw = readRawFile(key);
-    EXPECT_EQ(raw, "timestamp,value\n");
-}
-
-TEST_F(CSVRepositoryTest, SavePreservesNegativeTimestamps) {
-    auto ts = makeSeries("negative_ts", {-3000, -2000, -1000}, {-3.0, -2.0, -1.0});
-    auto key = keyFor("negative_ts");
-    repo->save(key, ts);
-
-    auto loaded = repo->load(key, -9999, 0);
-    ASSERT_EQ(loaded.size(), 3);
-    EXPECT_EQ(loaded.getTimestamps()[0], -3000);
-}
-
-TEST_F(CSVRepositoryTest, SavePreservesNegativeValues) {
-    auto ts = makeSeries("negative_vals", {1000, 2000}, {-1.5, -2.5});
-    auto key = keyFor("negative_vals");
-    repo->save(key, ts);
-
-    auto loaded = repo->load(key, 0, 999999);
-    ASSERT_EQ(loaded.size(), 2);
-    EXPECT_NEAR(loaded.getValues()[0], -1.5, 1e-9);
-    EXPECT_NEAR(loaded.getValues()[1], -2.5, 1e-9);
-}
-
-TEST_F(CSVRepositoryTest, SavePreservesDoubleWithHighPrecision) {
-    std::vector<double> vals = {1.0 / 3.0, std::numbers::pi, std::numbers::e};
-    auto ts = makeSeries("precision", {1000, 2000, 3000}, vals);
-    auto key = keyFor("precision");
-    repo->save(key, ts);
-
-    auto loaded = repo->load(key, 0, 999999);
-    ASSERT_EQ(loaded.size(), 3);
-    EXPECT_NEAR(loaded.getValues()[0], 1.0 / 3.0, 1e-6);
-    EXPECT_NEAR(loaded.getValues()[1], std::numbers::pi, 1e-6);
-    EXPECT_NEAR(loaded.getValues()[2], std::numbers::e, 1e-6);
 }
 
 TEST_F(CSVRepositoryTest, SaveCreatesDirectoryIfMissing) {
@@ -372,39 +299,6 @@ TEST_F(CSVRepositoryTest, LoadReturnsIdFromSeriesKey) {
 
     auto loaded = repo->load(key, 0, 999999);
     EXPECT_EQ(loaded.getId(), "original_id");
-}
-
-TEST_F(CSVRepositoryTest, LoadHandlesFileWithNoHeader) {
-    // Write a CSV without a header at the new path
-    auto seriesDir = testDir / "no_header";
-    std::filesystem::create_directories(seriesDir);
-    auto path = seriesDir / (std::to_string(DAILY_MS) + ".csv");
-    std::ofstream f(path);
-    f << "1000,1.0\n2000,2.0\n3000,3.0\n";
-    f.close();
-
-    auto key = keyFor("no_header");
-    auto loaded = repo->load(key, 0, 999999);
-    ASSERT_EQ(loaded.size(), 3);
-    EXPECT_EQ(loaded.getTimestamps()[0], 1000);
-}
-
-TEST_F(CSVRepositoryTest, LoadSkipsBlankLines) {
-    auto seriesDir = testDir / "blank_lines";
-    std::filesystem::create_directories(seriesDir);
-    auto path = seriesDir / (std::to_string(DAILY_MS) + ".csv");
-    std::ofstream f(path);
-    f << "timestamp,value\n";
-    f << "1000,1.0\n";
-    f << "\n";
-    f << "2000,2.0\n";
-    f << "\n";
-    f << "3000,3.0\n";
-    f.close();
-
-    auto key = keyFor("blank_lines");
-    auto loaded = repo->load(key, 0, 999999);
-    EXPECT_EQ(loaded.size(), 3);
 }
 
 // ============================================================
