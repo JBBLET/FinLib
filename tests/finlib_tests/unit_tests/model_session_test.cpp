@@ -276,8 +276,7 @@ TEST_F(CSVRepositoryTest, SaveAndLoadFullTimeSeries) {
     TimeSeries original("test_save_load", ts, vals);
 
     SeriesKey key{"test_save_load", 1000};
-    CoverageInfo cov{key, 1000, 5000, "test", 0};
-    repo->save(key, original, cov);
+    repo->save(key, original);
 
     auto loaded = repo->load("test_save_load", 0, 10000);
     EXPECT_EQ(loaded.size(), 5);
@@ -296,8 +295,7 @@ TEST_F(CSVRepositoryTest, LoadWithTimestampRange) {
     TimeSeries original("test_range", ts, vals);
 
     SeriesKey key{"test_range", 1000};
-    CoverageInfo cov{key, 1000, 5000, "test", 0};
-    repo->save(key, original, cov);
+    repo->save(key, original);
 
     auto loaded = repo->load("test_range", 2000, 4000);
     EXPECT_EQ(loaded.size(), 3);  // timestamps 2000, 3000, 4000
@@ -315,8 +313,7 @@ TEST_F(CSVRepositoryTest, MergeAppendsPoints) {
     TimeSeries original("test_append", ts, vals);
 
     SeriesKey key{"test_append", 1000};
-    CoverageInfo cov{key, 1000, 3000, "test", 0};
-    repo->save(key, original, cov);
+    repo->save(key, original);
 
     // Merge new points
     std::vector<int64_t> newTs = {4000, 5000};
@@ -345,8 +342,7 @@ TEST_F(CSVRepositoryTest, SaveCreatesDirectory) {
     TimeSeries series("test_nested", ts, vals);
 
     SeriesKey key{"test_nested", 1000};
-    CoverageInfo cov{key, 1000, 1000, "test", 0};
-    EXPECT_NO_THROW(nestedRepo.save(key, series, cov));
+    EXPECT_NO_THROW(nestedRepo.save(key, series));
     // Directory layout: <dir>/<seriesId>/<frequencyMs>.csv
     EXPECT_TRUE(std::filesystem::exists(nestedDir / "test_nested" / "1000.csv"));
 }

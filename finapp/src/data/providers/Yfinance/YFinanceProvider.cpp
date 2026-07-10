@@ -25,14 +25,13 @@ YFinanceProvider::YFinanceProvider(finapp::logging::ILogger* logger)
 
 LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) const {
     constexpr int64_t kDayMs = 86'400'000LL;
-    // Tiers sorted by maxRangeMs ascending; the last entry catches all longer ranges.
+    constexpr int64_t kIntradayKey = 60'000LL;
     return LoaderCapabilities{
-        0LL,       // earliestAvailableMS (~1970 for daily, rolling window for intraday)
-        60'000LL,  // finestFrequencyMs: 1 minute (fallback if tiers is empty)
+        0LL,           // earliestAvailableMS (~1970 for daily, rolling window for intraday)
+        kIntradayKey,  // finestFrequencyMs
         {
-            {7 * kDayMs, 60'000LL},                               // ≤7d  → 1m
-            {60 * kDayMs, 300'000LL},                             // ≤60d → 5m
-            {std::numeric_limits<int64_t>::max(), 86'400'000LL},  // unlimited → 1d
+            {60 * kDayMs, kIntradayKey},                    // ≤60d  → intraday bucket
+            {std::numeric_limits<int64_t>::max(), kDayMs},  // beyond → daily bucket
         },
     };
 }
@@ -40,15 +39,15 @@ LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) con
 TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, int64_t end_ts,
                                   std::optional<Timestamp> requestedFrequency) const {
     constexpr int64_t kDayMs = 86'400'000LL;
-    // Use explicitly requested frequency when provided; otherwise auto-detect from range.
-    const Timestamp freqMs = requestedFrequency.value_or(capabilities(symbol).frequencyForRange(end_ts - start_ts));
+    const int64_t rangeMs = end_ts - start_ts;
+    const Timestamp freqMs = requestedFrequency.value_or(capabilities(symbol).frequencyForRange(rangeMs));
     std::string interval;
-    if (freqMs <= 60'000LL)
-        interval = "1m";
-    else if (freqMs <= 300'000LL)
-        interval = "5m";
-    else
+    if (freqMs >= kDayMs)
         interval = "1d";
+    else if (rangeMs <= 7 * kDayMs)
+        interval = "1m";
+    else
+        interval = "5m";
 
     if (logger_)
         logger_->write(finapp::logging::Level::Info,
@@ -60,12 +59,10 @@ TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, i
     py::module_ yfinanceTool = py::module_::import("YFinanceFetcher");
 
     std::string start = msToStringDate(start_ts);
-    // yfinance end is exclusive — advance by one day so end_ts's calendar day is included.
     std::string end = msToStringDate(end_ts + kDayMs);
 
     py::dict result = yfinanceTool.attr("fetch_ohlcv")(symbol, start, end, interval);
     auto timestamps = result["timestamps_ms"].cast<std::vector<int64_t>>();
-    // "close" is split- and dividend-adjusted (yfinance auto_adjust=True default).
     auto closes = result["close"].cast<std::vector<double>>();
     if (logger_)
         logger_->write(finapp::logging::Level::Info,

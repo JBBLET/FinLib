@@ -3,6 +3,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 
 #include "finapp/finance/asset/AssetType.hpp"
@@ -38,6 +39,8 @@ struct Transaction {
     double pricePerUnit;
     double fees;
     Currency settlementCurrency;
+    std::optional<Currency> usedCurrency;
+    std::optional<double> paymentprice;
     bool operator==(const Transaction& other) const { return id == other.id; }
 };
 }  // namespace finance

@@ -6,6 +6,7 @@
 #include <functional>
 #include <future>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <random>
@@ -52,6 +53,9 @@ double applyStrategy(InterpolationStrategy strategy, std::mt19937& gen, Timestam
     if (strategy == InterpolationStrategy::Nearest) {
         return (target - t1 < t2 - target) ? v1 : v2;
     }
+    if (strategy == InterpolationStrategy::Latest) {
+        return v1;
+    }
     return v1;
 }
 
@@ -83,6 +87,11 @@ vector<double> TimeSeries::partialWalk(const Timestamps& targetTimestamps, size_
         int64_t currentTarget = targetTimestamps[startIndex + i];
         while (dataIndex < (originalSize - 1) && span[dataIndex + 1] <= currentTarget) {
             dataIndex++;
+        }
+        if (strategy == InterpolationStrategy::Exact) {
+            newValues[i] =
+                (span[dataIndex] == currentTarget) ? values_[dataIndex] : std::numeric_limits<double>::quiet_NaN();
+            continue;
         }
         if (currentTarget <= span[0]) {
             newValues[i] = values_[0];
@@ -116,6 +125,8 @@ void TimeSeries::verifyAlignment_(const TimeSeries& other) const {
 // ---------------------------------------------------------------------------
 // constructor
 // ---------------------------------------------------------------------------
+TimeSeries::TimeSeries() : id_{""}, timestamps_{nullptr}, values_{} {}
+
 TimeSeries::TimeSeries(std::string id, Timestamps ts, std::vector<double> vals)
     : id_(id), timestamps_(std::make_shared<const Timestamps>(std::move(ts))), values_(std::move(vals)) {
     if (timestamps_->size() != values_.size()) {

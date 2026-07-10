@@ -1,13 +1,11 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
-//
-// Verifies the AnalysisFeature layer carries the full generality of
-// CustomTimeSeriesAnalysis — not just scalar doubles, but arbitrary return
-// types and parameterized metrics — and that type-filtered retrieval works.
 #include <gtest/gtest.h>
 
 #include <cstdint>
 #include <memory>
+#include <print>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "finapp/finance/analysis/AnalysisFeature.hpp"
@@ -21,8 +19,8 @@ using finance::analysis::computeMetricsOfType;
 using finance::analysis::FeatureBindings;
 using finance::analysis::FeatureInstaller;
 using finance::analysis::logReturnFeature;
-using finance::analysis::retainMetric;
 using finance::analysis::RetainedMetric;
+using finance::analysis::retainMetric;
 using ts::TimeSeries;
 using ts::TimeSeriesView;
 using ts::analysis::ParameterizedMetricFn;
@@ -47,8 +45,8 @@ FeatureInstaller customMetricsFeature() {
     return [](ts::analysis::ITimeSeriesSession& session, const std::string& base) {
         FeatureBindings bindings;
 
-        auto vectorHandle = session.customAnalysis(base).addMetric<std::vector<double>>(
-            base, "identity", [](TimeSeriesView v) {
+        auto vectorHandle =
+            session.customAnalysis(base).addMetric<std::vector<double>>(base, "identity", [](TimeSeriesView v) {
                 std::vector<double> out;
                 out.reserve(v.size());
                 for (size_t i = 0; i < v.size(); ++i) out.push_back(v[i]);
@@ -103,6 +101,9 @@ TEST(AnalysisFeatureTest, TypeFilteringSeparatesScalarsFromOtherResults) {
     for (auto& m : customMetricsFeature()(*session, base).metrics) metrics.push_back(std::move(m));
 
     auto scalars = computeMetricsOfType<double>(*session, metrics);
+    for (auto const& scalar : scalars) {
+        std::print("Metric {}: {}", scalar.first, scalar.second);
+    }
     auto vectors = computeMetricsOfType<std::vector<double>>(*session, metrics);
 
     // The vector metric never leaks into the scalar view.

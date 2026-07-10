@@ -145,8 +145,12 @@ void Portfolio::applyBuy_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Buy) {
         throw finapp::Exception("The Transaction is not a Buy transaction");
     }
-    double totalCost = transaction.quantity * transaction.pricePerUnit + transaction.fees;
-    cashBalances_[transaction.settlementCurrency] -= totalCost;
+    if (transaction.usedCurrency.has_value()) {
+        cashBalances_[transaction.usedCurrency.value()] -= transaction.paymentprice.value();
+    } else {
+        double totalCost = transaction.quantity * transaction.pricePerUnit + transaction.fees;
+        cashBalances_[transaction.settlementCurrency] -= totalCost;
+    }
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
         positions_[positionIndex].quantity += transaction.quantity;

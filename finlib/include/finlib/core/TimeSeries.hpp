@@ -9,7 +9,6 @@
 #include <memory>
 #include <optional>
 #include <span>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -18,7 +17,7 @@
 namespace ts {
 class TimeSeriesView;
 
-enum class InterpolationStrategy { Linear, Stochastic, Nearest };
+enum class InterpolationStrategy { Linear, Stochastic, Nearest, Exact, Latest };
 
 class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
  private:
@@ -35,6 +34,7 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 
  public:
     // Constructor
+    TimeSeries();
     TimeSeries(std::string id, Timestamps ts, std::vector<double> vals);
     TimeSeries(std::string id, TimestampsPtr ts, std::vector<double> vals);
     TimeSeries(std::string id, TimestampsPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals);

@@ -1,6 +1,7 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,34 +22,37 @@ class TimeSeriesService {
     TimeSeriesService(std::shared_ptr<CachedTimeSeriesRepository> cache, std::shared_ptr<ITimeSeriesLoader> provider,
                       logging::ILogger* logger = nullptr);
 
-    // Returns raw cache/provider data at native trading-day timestamps.
-    // Gaps are NOT filled — use getResampled for that.
-    TimeSeries get(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp requestedFrequencyMs);
+    TimeSeries getRaw(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp coarsestMs = INT64_MAX);
 
-    // Returns raw data without resampling — supports non-regular time series
-    TimeSeries getRaw(const std::string& id, Timestamp startMs, Timestamp endMs);
+    TimeSeries getAligned(const std::string& id, TimestampsPtr grid);
 
-    // Overload taking a caller-owned, regularly-spaced timestamp grid. The returned
-    // TimeSeries shares the same TimestampPtr, so multiple series fetched on the same
-    // grid stay pointer-aligned for downstream operators.
-    TimeSeries get(const std::string& id, TimestampsPtr timestamps);
+    TimeSeries getFilled(const std::string& id, TimestampsPtr grid,
+                         InterpolationStrategy strategy = InterpolationStrategy::Nearest);
+    TimeSeries getFilled(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp freqMs,
+                         InterpolationStrategy strategy = InterpolationStrategy::Nearest);
 
-    // Like get(), but always returns a regularly-spaced series covering [startMs, endMs]
-    // at requestedFrequencyMs intervals.  Missing points are filled via the chosen InterpolationStrategy (default:
-    // Nearest).
-    TimeSeries getResampled(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp requestedFrequencyMs,
-                            InterpolationStrategy strategy = InterpolationStrategy::Nearest);
-
-    // Fetch a single point at ts
+    // ---- Spot ----
     double getSinglePoint(const std::string& id, Timestamp ts);
+    double getSinglePointOrThrow(const std::string& id, Timestamp ts);
+
+    // ---- transitional shims (build a regular grid, then extract) ----
+    TimeSeries get(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp freqMs);
+    TimeSeries getResampled(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp freqMs,
+                            InterpolationStrategy strategy = InterpolationStrategy::Nearest);
+    TimeSeries get(const std::string& id, TimestampsPtr grid);
 
  private:
     std::shared_ptr<CachedTimeSeriesRepository> cache_;
     std::shared_ptr<ITimeSeriesLoader> provider_;
     std::unique_ptr<logging::ILogger> logger_;
 
-    std::optional<SeriesKey> findLocalCoveringKey_(const std::string& id, Timestamp startMs, Timestamp endMs,
-                                                   Timestamp maxFrequencyMs) const;
+    TimeSeries loadBucket_(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp coarsestMs,
+                           bool finestFirst);
+
+    std::optional<SeriesKey> selectBucket_(const std::string& id, Timestamp startMs, Timestamp endMs,
+                                           Timestamp coarsestMs, bool finestFirst) const;
+
+    double singlePoint_(const std::string& id, Timestamp ts, bool requireExact);
 
     void fetchAndMergeGaps_(const SeriesKey& key, const std::vector<TimeRange>& gaps);
 };

@@ -32,7 +32,7 @@ class CSVRepository : public ITimeSeriesRepository {
 
     // --- ITimeSeriesSaver (via doSave/doMerge) ---
  protected:
-    void doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& coverage) override;
+    void doSave(const SeriesKey& key, const TimeSeries& ts) override;
     void doMerge(const SeriesKey& key, const TimeSeries& newData) override;
 
  public:

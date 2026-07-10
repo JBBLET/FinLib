@@ -2,6 +2,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -19,5 +20,8 @@ TimeSeries generateConstantTimeSeries(const std::string& id, Timestamp beginMs, 
 
 // Constant-valued TimeSeries sharing the caller's timestamp vector.
 TimeSeries generateConstantTimeSeries(const std::string& id, TimestampsPtr timestamps, double value = 1.0);
+
+TimeSeries generateStepSeries(const std::string& id, std::vector<std::pair<Timestamp, double>> breakpoints,
+                              TimestampsPtr grid, double fillBefore = 0.0);
 
 }  // namespace ts::common::utils::timeSeries

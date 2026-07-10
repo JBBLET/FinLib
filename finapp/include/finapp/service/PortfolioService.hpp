@@ -4,11 +4,13 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 #include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
+#include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
@@ -91,6 +93,12 @@ class PortfolioService {
     // Shared-timestamp overload — asset/FX series stay pointer-aligned on the caller's grid.
     TimeSeries valueSeries(const std::string& portfolioId, TimestampsPtr timestamps);
 
+    std::unordered_map<finance::AssetId, TimeSeries> weightsSeries(const std::string& portfolioId,
+                                                                   TimestampsPtr timestamps);
+
+    std::unordered_map<finance::AssetId, TimeSeries> weightsSeries(const std::string& portfolioId, Timestamp startMs,
+                                                                   Timestamp endMs, Timestamp frequencyMs);
+
  private:
     std::shared_ptr<IPortfolioRepository> portfolioRepository_;
     std::shared_ptr<AssetService> assetService_;
@@ -106,5 +114,8 @@ class PortfolioService {
 
     finance::PortfolioOverviewAtTs computePortfolioSnapshotAtSpecificTs_(const finance::PortfolioSnapshot& snapshot,
                                                                          Timestamp ts);
+
+    std::unordered_map<finance::AssetId, TimeSeries> quantitySeries_(const std::string& portfolioId,
+                                                                     TimestampsPtr timestamps);
 };
 }  // namespace finapp

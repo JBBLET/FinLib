@@ -1,13 +1,17 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/core/TimeSeries.hpp"
 
 namespace ts::common::utils::timeSeries {
 
@@ -43,4 +47,36 @@ TimeSeries generateConstantTimeSeries(const std::string& id, TimestampsPtr times
     return TimeSeries(id, std::move(timestamps), std::move(values));
 }
 
+TimeSeries generateStepSeries(const std::string& id, std::vector<std::pair<Timestamp, double>> breakpoints,
+                              TimestampsPtr grid, double fillBefore) {
+    if (!std::is_sorted(breakpoints.begin(),
+                        breakpoints.end(),
+                        [](const std::pair<Timestamp, double>& a, const std::pair<Timestamp, double>& b) {
+                            return a.first < b.first;
+                        })) {
+        std::sort(breakpoints.begin(),
+                  breakpoints.end(),
+                  [](const std::pair<Timestamp, double>& a, const std::pair<Timestamp, double>& b) {
+                      return a.first < b.first;
+                  });
+    }
+    std::unordered_set<Timestamp> seen;
+    auto newBegin =
+        std::remove_if(breakpoints.rbegin(), breakpoints.rend(), [&seen](const std::pair<Timestamp, double>& tsPair) {
+            return !seen.insert(tsPair.first).second;
+        });
+    breakpoints.erase(breakpoints.begin(), newBegin.base());
+
+    std::vector<Timestamp> breakpointsTs(breakpoints.size() + 1);
+    breakpointsTs.front() = grid->front();
+    std::vector<double> values(breakpoints.size() + 1);
+    values.front() = fillBefore;
+    size_t count = 1;
+    std::ranges::for_each(breakpoints, [&breakpointsTs, &values, &count](const auto& pair) {
+        breakpointsTs[count] = pair.first;
+        values[count] = pair.second;
+        count++;
+    });
+    return TimeSeries{id, std::move(breakpointsTs), std::move(values)}.resampling(grid, InterpolationStrategy::Latest);
+}
 }  // namespace ts::common::utils::timeSeries

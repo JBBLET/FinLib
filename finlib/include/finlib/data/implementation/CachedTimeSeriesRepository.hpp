@@ -37,14 +37,15 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
     // --- ITimeSeriesSaver (via doSave/doMerge) ---
 
  protected:
-    void doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) override {
+    void doSave(const SeriesKey& key, const TimeSeries& ts) override {
         if (logger_)
             logger_->write(logging::Level::Debug,
                            "save: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms " +
                                std::to_string(ts.size()) + " points");
-        inner_->save(key, ts, cov);
+        inner_->save(key, ts);
         cache_.insert_or_assign(key, ts);
-        coverageCache_.insert_or_assign(key, cov);
+        auto cov = inner_->coverage(key);  // coverage is computed by the inner repo from the data
+        if (cov) coverageCache_.insert_or_assign(key, *cov);
     }
 
     void doMerge(const SeriesKey& key, const TimeSeries& newData) override {
@@ -91,8 +92,9 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
             return cache_.at(key);
         }
         if (logger_)
-            logger_->write(logging::Level::Debug,
-                           "disk load: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms");
+            logger_->write(
+                logging::Level::Debug,
+                "No Cache hit full load:'" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms");
         TimeSeries ts = inner_->load(key);
         auto cov = inner_->coverage(key);
         cache_.insert_or_assign(key, ts);
@@ -112,9 +114,9 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
             }
         }
         if (logger_)
-            logger_->write(
-                logging::Level::Debug,
-                "disk load: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms [range]");
+            logger_->write(logging::Level::Debug,
+                           "No Cache hit full load:'" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) +
+                               "ms [range]");
         TimeSeries full = inner_->load(key);
         auto cov = inner_->coverage(key);
         cache_.insert_or_assign(key, full);

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <algorithm>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -16,8 +17,8 @@
 #include "finlib/data/interfaces/ITimeSeriesRepository.hpp"
 
 namespace ts {
-// Minimal in-memory ITimeSeriesRepository. Stores whatever the service saves,
-// reports coverage exactly over what was saved. Does not fetch on load misses.
+// Minimal in-memory ITimeSeriesRepository. Stores whatever the service saves; coverage is computed
+// from the stored timestamps (the extent). Does not fetch on load misses.
 class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
  public:
     TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs,
@@ -37,9 +38,10 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
     bool exists(const SeriesKey& key) const override { return data_.contains(key); }
 
     std::optional<CoverageInfo> coverage(const SeriesKey& key) const override {
-        auto it = coverage_.find(key);
-        if (it == coverage_.end()) return std::nullopt;
-        return it->second;
+        auto it = data_.find(key);
+        if (it == data_.end() || it->second.size() == 0) return std::nullopt;
+        const auto stamps = it->second.getTimestamps();
+        return CoverageInfo{key, stamps.front(), stamps.back(), "computed", 0};
     }
 
     std::vector<Timestamp> availableFrequencies(const std::string& id) const override {
@@ -63,22 +65,35 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
     }
 
  private:
-    void doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) override {
-        data_.insert_or_assign(key, ts);
-        coverage_.insert_or_assign(key, cov);
-    }
+    void doSave(const SeriesKey& key, const TimeSeries& ts) override { data_.insert_or_assign(key, ts); }
 
+    // Real union: combine existing + new points, dedupe by timestamp (new wins), keep sorted.
     void doMerge(const SeriesKey& key, const TimeSeries& newData) override {
+        if (newData.size() == 0) return;
+
+        std::map<Timestamp, double> combined;
         auto it = data_.find(key);
-        if (it == data_.end()) {
-            data_.emplace(key, newData);
-            return;
+        if (it != data_.end()) {
+            const auto stamps = it->second.getTimestamps();
+            const auto& vals = it->second.getValues();
+            for (size_t i = 0; i < it->second.size(); ++i) combined[stamps[i]] = vals[i];
         }
-        it->second = newData;
+        const auto newStamps = newData.getTimestamps();
+        const auto& newVals = newData.getValues();
+        for (size_t i = 0; i < newData.size(); ++i) combined[newStamps[i]] = newVals[i];
+
+        Timestamps mergedTs;
+        std::vector<double> mergedVals;
+        mergedTs.reserve(combined.size());
+        mergedVals.reserve(combined.size());
+        for (const auto& [t, v] : combined) {
+            mergedTs.push_back(t);
+            mergedVals.push_back(v);
+        }
+        data_.insert_or_assign(key, TimeSeries(key.SeriesId, std::move(mergedTs), std::move(mergedVals)));
     }
 
     std::unordered_map<SeriesKey, TimeSeries> data_;
-    std::unordered_map<SeriesKey, CoverageInfo> coverage_;
 
     static TimeSeries filter_(const TimeSeries& ts, Timestamp startMs, Timestamp endMs) {
         const auto& timestamps = ts.getTimestamps();

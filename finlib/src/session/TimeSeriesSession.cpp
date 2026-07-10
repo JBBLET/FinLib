@@ -29,7 +29,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
       endMs_{endMs},
       frequencyMs_{frequencyMs},
       logger_{logging::PrefixedLogger::wrap(logger, "TimeSeriesSession")} {
-    source_ = std::make_shared<const TimeSeries>(service_->get(seriesId_, startMs_, endMs_, frequencyMs));
+    source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, startMs_, endMs_, frequencyMs));
     if (logger_)
         logger_->write(logging::Level::Info,
                        "loaded '" + seriesId_ + "' [" + std::to_string(startMs_) + ".." + std::to_string(endMs_) +
@@ -43,7 +43,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
       logger_{logging::PrefixedLogger::wrap(logger, "TimeSeriesSession")} {
     startMs_ = timestampsMs->front();
     endMs_ = timestampsMs->back();
-    source_ = std::make_shared<const TimeSeries>(service_->get(seriesId_, timestampsMs));
+    source_ = std::make_shared<const TimeSeries>(service_->getAligned(seriesId_, timestampsMs));
     if (logger_)
         logger_->write(logging::Level::Info,
                        "loaded '" + seriesId_ + "' [" + std::to_string(startMs_) + ".." + std::to_string(endMs_) +
@@ -77,7 +77,7 @@ void TimeSeriesSession::setFrequency(Timestamp newFrequencyMs) {
     if (!service_) throw std::logic_error("Cannot change frequency on a computed TimeSeriesSession");
     if (logger_) logger_->write(logging::Level::Debug, "setFrequency " + std::to_string(newFrequencyMs) + "ms");
     frequencyMs_ = newFrequencyMs;
-    source_ = std::make_shared<const TimeSeries>(service_->get(seriesId_, startMs_, endMs_, newFrequencyMs));
+    source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, startMs_, endMs_, newFrequencyMs));
     invalidateAllCache_();
 }
 
@@ -183,9 +183,14 @@ void TimeSeriesSession::extendRange_(Timestamp newStartMs, Timestamp newEndMs) {
                        "extendRange_ [" + std::to_string(newStartMs) + ".." + std::to_string(newEndMs) + "]");
     if (frequencyMs_.has_value()) {
         source_ =
-            std::make_shared<const TimeSeries>(service_->get(seriesId_, newStartMs, newEndMs, frequencyMs_.value()));
+            std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, newStartMs, newEndMs, frequencyMs_.value()));
     } else {
-        source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, newStartMs, newEndMs));
+        // Grid-built session with no fixed frequency: refetch native data, capping the bucket
+        // resolution at the current source's spacing.
+        const auto sp = source_->getTimestamps();
+        Timestamp freq = (sp.size() >= 2) ? (sp[1] - sp[0]) : 86'400'000LL;
+        if (freq <= 0) freq = 86'400'000LL;
+        source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, newStartMs, newEndMs, freq));
     }
 }
 
