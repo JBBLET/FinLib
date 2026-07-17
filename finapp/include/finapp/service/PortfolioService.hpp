@@ -87,11 +87,21 @@ class PortfolioService {
     // Compute the Overview at a specific Timestamp in a single Passage.
     finance::PortfolioOverviewAtTs computeOverviewAtTs(const std::string& portfolioId, Timestamp ts);
 
-    // Derived TimeSeries over a range
-    TimeSeries valueSeries(const std::string& portfolioId, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs);
+    // Computiation of TimeSeries
+    finance::PortfolioSeries valueAndWeightSeries(const std::string& id, TimestampsPtr timestamps);
 
-    // Shared-timestamp overload — asset/FX series stay pointer-aligned on the caller's grid.
+    finance::PortfolioSeries valueAndWeightSeries(const std::string& id, Timestamp startMs, Timestamp endMs,
+                                                  Timestamp frequencyMs);
+
+    std::unordered_map<finance::AssetId, TimeSeries> quantitySeries(const std::string& portfolioId,
+                                                                    TimestampsPtr timestamps);
+
+    std::unordered_map<finance::AssetId, TimeSeries> quantitySeries(const std::string& portfolioId, Timestamp startMs,
+                                                                    Timestamp endMs, Timestamp frequencyMs);
+
     TimeSeries valueSeries(const std::string& portfolioId, TimestampsPtr timestamps);
+
+    TimeSeries valueSeries(const std::string& portfolioId, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs);
 
     std::unordered_map<finance::AssetId, TimeSeries> weightsSeries(const std::string& portfolioId,
                                                                    TimestampsPtr timestamps);
@@ -107,15 +117,9 @@ class PortfolioService {
 
     void recomputeAndCache_(const finance::Portfolio& portfolio, Timestamp fromMs, Timestamp toMs,
                             Timestamp frequencyMs);
-    // Trims all snapshots at or after fromTimestampMs, then replays every transaction in the
-    // log that follows the last surviving snapshot, saving a fresh snapshot after each one.
-    // Call after any mutation (add / delete) to keep the snapshot chain correct.
     void rebuildSnapshotsFrom_(const std::string& portfolioId, Timestamp fromTimestampMs);
 
     finance::PortfolioOverviewAtTs computePortfolioSnapshotAtSpecificTs_(const finance::PortfolioSnapshot& snapshot,
                                                                          Timestamp ts);
-
-    std::unordered_map<finance::AssetId, TimeSeries> quantitySeries_(const std::string& portfolioId,
-                                                                     TimestampsPtr timestamps);
 };
 }  // namespace finapp

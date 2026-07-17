@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -56,6 +58,26 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
         });
         if (upper == vec.begin()) return std::nullopt;
         return *std::prev(upper);
+    }
+
+    std::vector<finance::PortfolioSnapshot> loadSnapshotsCovering(const std::string& portfolioId, Timestamp ts1,
+                                                                  Timestamp ts2) const override {
+        auto all = loadAllSnapshots(portfolioId);
+        if (all.empty()) return {};
+        std::sort(all.begin(), all.end(), [](const finance::PortfolioSnapshot& a, const finance::PortfolioSnapshot& b) {
+            return a.timestampMs < b.timestampMs;
+        });
+        auto upper =
+            std::upper_bound(all.begin(), all.end(), ts1, [](Timestamp t, const finance::PortfolioSnapshot& s) {
+                return t < s.timestampMs;
+            });
+        auto start = (upper == all.begin()) ? all.begin() : std::prev(upper);
+        std::span<finance::PortfolioSnapshot> snapshotsFromTs1{start, all.end()};
+        auto filtered_snapshots =
+            snapshotsFromTs1 | std::views::filter([ts2](const finance::PortfolioSnapshot& snapshot) {
+                return snapshot.timestampMs <= ts2;
+            });
+        return std::vector<finance::PortfolioSnapshot>(filtered_snapshots.begin(), filtered_snapshots.end());
     }
 
     void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,

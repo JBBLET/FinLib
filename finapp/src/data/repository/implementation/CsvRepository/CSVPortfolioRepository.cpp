@@ -8,7 +8,9 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -131,6 +133,26 @@ std::optional<PortfolioSnapshot> CSVPortfolioRepository::loadClosestSnapshot(con
         all.begin(), all.end(), ts, [](Timestamp t, const PortfolioSnapshot& s) { return t < s.timestampMs; });
     if (upper == all.begin()) return std::nullopt;
     return *std::prev(upper);
+}
+
+std::vector<finance::PortfolioSnapshot> CSVPortfolioRepository::loadSnapshotsCovering(const std::string& portfolioId,
+                                                                                      Timestamp ts1,
+                                                                                      Timestamp ts2) const {
+    auto path = csvSnapshotPath_(portfolioId);
+    if (!std::filesystem::exists(path)) return {};
+    auto all = parseAllSnapshotRows_(path);
+    if (all.empty()) return {};
+    std::sort(all.begin(), all.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
+        return a.timestampMs < b.timestampMs;
+    });
+    auto upper = std::upper_bound(
+        all.begin(), all.end(), ts1, [](Timestamp t, const PortfolioSnapshot& s) { return t < s.timestampMs; });
+    auto start = (upper == all.begin()) ? all.begin() : std::prev(upper);
+    std::span<finance::PortfolioSnapshot> snapshotsFromTs1{start, all.end()};
+    auto filtered_snapshots = snapshotsFromTs1 | std::views::filter([ts2](const PortfolioSnapshot& snapshot) {
+                                  return snapshot.timestampMs <= ts2;
+                              });
+    return std::vector<finance::PortfolioSnapshot>(filtered_snapshots.begin(), filtered_snapshots.end());
 }
 
 void CSVPortfolioRepository::appendTransactions(const std::string& portfolioID,
@@ -389,10 +411,10 @@ void CSVPortfolioRepository::appendTransactionsCsv_(const std::filesystem::path&
     }
 }
 PortfolioSnapshot CSVPortfolioRepository::snapshotFromFields_(const std::string& name, const std::string& baseCurrency,
-                                                             const std::string& timestampMs,
-                                                             const std::string& portfolioId,
-                                                             const std::string& positionsId,
-                                                             const std::string& cashBalancesId) const {
+                                                              const std::string& timestampMs,
+                                                              const std::string& portfolioId,
+                                                              const std::string& positionsId,
+                                                              const std::string& cashBalancesId) const {
     std::vector<SnapshotPosition> positions;
     std::unordered_map<Currency, double> cashBalance;
     if (!positionsId.empty()) {

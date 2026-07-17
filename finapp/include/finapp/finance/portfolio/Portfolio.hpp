@@ -13,6 +13,8 @@
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
+#include "finlib/common/FinlibTypes.hpp"
+#include "finlib/core/TimeSeries.hpp"
 
 using Timestamp = int64_t;
 
@@ -21,6 +23,10 @@ namespace finance {
 struct TargetAllocation {
     AssetId assetId;
     double weight;  // [0.0, 1.0], must sum to 1.0 across all allocations
+};
+struct PortfolioSeries {
+    ts::TimeSeries total;
+    std::unordered_map<finance::AssetId, ts::TimeSeries> weights;
 };
 
 class Portfolio {
@@ -53,6 +59,14 @@ class Portfolio {
     // Persistence
     PortfolioSnapshot snapshot(int64_t timestampMs) const;
     void restoreFromSnapshot(const PortfolioSnapshot& snapshot);
+
+    // Computations
+    PortfolioSeries valueAndWeightSeries(ts::TimestampsPtr grid,
+                                         const std::unordered_map<finance::AssetId, ts::TimeSeries>& priceInBase,
+                                         const std::unordered_map<finance::Currency, ts::TimeSeries>& fxToBase) const;
+    ts::TimeSeries valueSeries(ts::TimestampsPtr grid,
+                               const std::unordered_map<finance::AssetId, ts::TimeSeries>& priceInBase,
+                               const std::unordered_map<finance::Currency, ts::TimeSeries>& fxToBase) const;
 
  private:
     Portfolio(std::string id, std::string name, Currency baseCurrency)

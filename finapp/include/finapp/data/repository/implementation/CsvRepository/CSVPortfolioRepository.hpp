@@ -21,6 +21,7 @@ namespace finapp {
 class CSVPortfolioRepository : public IPortfolioRepository {
  public:
     explicit CSVPortfolioRepository(std::filesystem::path directory, finapp::logging::ILogger* logger = nullptr);
+    //  Snapshot
     void saveSnapshot(const finance::PortfolioSnapshot& snapshot) override;
     std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolio) const override;
     std::vector<finance::PortfolioSnapshot> loadAllSnapshots(const std::string& portfolioId) const override;
@@ -28,10 +29,15 @@ class CSVPortfolioRepository : public IPortfolioRepository {
                                                                   const Timestamp& ts) const override;
     void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                               const std::vector<finance::PortfolioSnapshot>& newSnapshots) override;
+
+    std::vector<finance::PortfolioSnapshot> loadSnapshotsCovering(const std::string& portfolioId, Timestamp ts1,
+                                                                  Timestamp ts2) const override;
+    //  Transaction
     void appendTransactions(const std::string& portfolioId,
                             const std::vector<finance::Transaction>& transactions) override;
     std::vector<finance::Transaction> loadTransactions(const std::string& portfolioId,
                                                        int64_t afterTimestamps) const override;
+    //  Portfolio
     std::vector<std::string> listPortfolioIds() const override;
     bool exists(const std::string& portfolioID) const override;
     void deletePortfolio(const std::string& portfolioId) override;

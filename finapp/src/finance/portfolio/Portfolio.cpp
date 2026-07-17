@@ -11,9 +11,13 @@
 #include <vector>
 
 #include "finapp/common/Exception.hpp"
+#include "finapp/finance/asset/AssetType.hpp"
+#include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
+#include "finlib/common/utils/TimeSeriesUtils.hpp"
+#include "finlib/core/TimeSeries.hpp"
 
 namespace finance {
 // TODO(JBBLET) add extra transaction check such as Dividend on a bond does not make sense
@@ -113,6 +117,47 @@ PortfolioSnapshot Portfolio::snapshot(Timestamp timestampsMs) const {
     return PortfolioSnapshot{name_, baseCurrency_, timestampsMs, id_, positions_, cashBalances_};
 }
 
+// Computations
+PortfolioSeries Portfolio::valueAndWeightSeries(
+    ts::TimestampsPtr grid, const std::unordered_map<finance::AssetId, ts::TimeSeries>& priceInBase,
+    const std::unordered_map<finance::Currency, ts::TimeSeries>& fxToBase) const {
+    ts::TimeSeries total = ts::common::utils::timeSeries::generateConstantTimeSeries(id_ + "_value", grid, 0.0);
+    std::unordered_map<finance::AssetId, ts::TimeSeries> assetValues = {};
+    assetValues.reserve(positions_.size() + cashBalances_.size());
+    for (const auto& pos : positions_) {
+        if (pos.quantity == 0.0) continue;
+        auto pv = priceInBase.at(pos.assetId) * pos.quantity;
+        assetValues[pos.assetId] = pv;
+        total += pv;
+    }
+    for (const auto& [currency, amount] : cashBalances_) {
+        auto cashVal = fxToBase.at(currency) * amount;
+        total += cashVal;
+        assetValues[AssetId{AssetType::Cash, toString(currency)}] = cashVal;
+    }
+    std::unordered_map<finance::AssetId, ts::TimeSeries> weights{};
+    weights.reserve(assetValues.size());
+    for (const auto& [assetId, timeSeries] : assetValues) {
+        weights[assetId] = timeSeries / total;
+    }
+    return {total, weights};
+}
+
+ts::TimeSeries Portfolio::valueSeries(ts::TimestampsPtr grid,
+                                      const std::unordered_map<finance::AssetId, ts::TimeSeries>& priceInBase,
+                                      const std::unordered_map<finance::Currency, ts::TimeSeries>& fxToBase) const {
+    ts::TimeSeries total = ts::common::utils::timeSeries::generateConstantTimeSeries(id_ + "_value", grid, 0.0);
+    for (const auto& pos : positions_) {
+        if (pos.quantity == 0.0) continue;
+        auto pv = priceInBase.at(pos.assetId) * pos.quantity;
+        total += pv;
+    }
+    for (const auto& [currency, amount] : cashBalances_) {
+        auto cashVal = fxToBase.at(currency) * amount;
+        total += cashVal;
+    }
+    return total;
+}
 void Portfolio::apply(const Transaction& transaction) {
     if (transaction.timestampsMs < lastTransactionMs_) {
         throw finapp::Exception("The Transaction is outdated relative to the Portfolio");
