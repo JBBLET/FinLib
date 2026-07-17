@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -67,10 +68,20 @@ TimeSeries generateStepSeries(const std::string& id, std::vector<std::pair<Times
         });
     breakpoints.erase(breakpoints.begin(), newBegin.base());
 
+    const Timestamp gridStart = grid->front();
+
+    auto firstAfterStart = std::upper_bound(
+        breakpoints.begin(), breakpoints.end(), gridStart, [](Timestamp t, const std::pair<Timestamp, double>& bp) {
+            return t < bp.first;
+        });
+    const double initialValue =
+        (firstAfterStart == breakpoints.begin()) ? fillBefore : std::prev(firstAfterStart)->second;
+    breakpoints.erase(breakpoints.begin(), firstAfterStart);
+
     std::vector<Timestamp> breakpointsTs(breakpoints.size() + 1);
-    breakpointsTs.front() = grid->front();
+    breakpointsTs.front() = gridStart;
     std::vector<double> values(breakpoints.size() + 1);
-    values.front() = fillBefore;
+    values.front() = initialValue;
     size_t count = 1;
     std::ranges::for_each(breakpoints, [&breakpointsTs, &values, &count](const auto& pair) {
         breakpointsTs[count] = pair.first;
@@ -78,5 +89,11 @@ TimeSeries generateStepSeries(const std::string& id, std::vector<std::pair<Times
         count++;
     });
     return TimeSeries{id, std::move(breakpointsTs), std::move(values)}.resampling(grid, InterpolationStrategy::Latest);
+}
+
+TimeSeries makeSegmentMask(TimestampsPtr grid, Timestamp ts1, Timestamp ts2) {
+    auto breakpoints = std::vector<std::pair<Timestamp, double>>{{ts1, 1.0}};
+    if (ts2 != std::numeric_limits<Timestamp>::max()) breakpoints.push_back({ts2, 0.0});
+    return generateStepSeries("mask", breakpoints, grid, 0.0);
 }
 }  // namespace ts::common::utils::timeSeries
