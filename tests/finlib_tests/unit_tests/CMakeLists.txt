@@ -18,6 +18,10 @@ add_executable(time_series_analysis_test
     time_series_analysis_test.cpp
 )
 
+add_executable(time_series_utils_test
+    time_series_utils_test.cpp
+)
+
 add_executable(csv_repository_test
     csv_repository_test.cpp
 )
@@ -45,6 +49,12 @@ target_link_libraries(operation_test
 )
 
 target_link_libraries(time_series_stats_test
+    PRIVATE
+        finlib_core
+        gtest_main
+)
+
+target_link_libraries(time_series_utils_test
     PRIVATE
         finlib_core
         gtest_main
@@ -90,6 +100,11 @@ add_test(
 add_test(
     NAME TimeSeriesStatsTest
     COMMAND time_series_stats_test
+)
+
+add_test(
+    NAME TimeSeriesUtilsTest
+    COMMAND time_series_utils_test
 )
 
 add_test(
@@ -143,6 +158,7 @@ set_tests_properties(
     TimeSeriesOperationTest
     TimeSeriesViewTest
     TimeSeriesStatsTest
+    TimeSeriesUtilsTest
     TimeSeriesAnalysisTest
     ARModelTest
     ModelSessionTest

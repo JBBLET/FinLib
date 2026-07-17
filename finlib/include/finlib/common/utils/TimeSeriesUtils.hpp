@@ -24,4 +24,5 @@ TimeSeries generateConstantTimeSeries(const std::string& id, TimestampsPtr times
 TimeSeries generateStepSeries(const std::string& id, std::vector<std::pair<Timestamp, double>> breakpoints,
                               TimestampsPtr grid, double fillBefore = 0.0);
 
+TimeSeries makeSegmentMask(TimestampsPtr grid, Timestamp ts1, Timestamp ts2);
 }  // namespace ts::common::utils::timeSeries
