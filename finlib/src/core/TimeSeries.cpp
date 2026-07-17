@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <format>
 #include <functional>
 #include <future>
 #include <iterator>
@@ -15,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Exception.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -23,6 +26,7 @@ using std::invalid_argument;
 using std::sqrt;
 using std::vector;
 namespace ts {
+
 // ---------------------------------------------------------------------------
 // Private Helpers
 // ---------------------------------------------------------------------------
@@ -174,16 +178,8 @@ double TimeSeries::latestValue(Timestamp ts) const {
 // ---------------------------------------------------------------------------
 // Operator Overloading
 // ---------------------------------------------------------------------------
-TimeSeries TimeSeries::operator*(const TimeSeries& other) const {
-    verifyAlignment_(other);
-    vector<double> resultValues;
-    resultValues.resize(values_.size());
-    std::transform(
-        values_.begin(), values_.end(), other.values_.begin(), resultValues.begin(), std::multiplies<double>());
 
-    return TimeSeries(id_ + " * " + other.id_, timestamps_, tsOffset_, std::move(resultValues));
-}
-
+// Operator *
 TimeSeries& TimeSeries::operator*=(const TimeSeries& other) {
     verifyAlignment_(other);
     for (size_t i = 0; i < values_.size(); ++i) {
@@ -192,11 +188,12 @@ TimeSeries& TimeSeries::operator*=(const TimeSeries& other) {
     return *this;
 }
 
-TimeSeries TimeSeries::operator*(double scalar) const {
-    TimeSeries result = *this;
-    result *= scalar;
-    return result;
+TimeSeries TimeSeries::operator*(const TimeSeries& other) const {
+    TimeSeries temp = TimeSeries{*this};
+    temp *= other;
+    return temp;
 }
+
 TimeSeries& TimeSeries::operator*=(double scalar) {
     for (double& v : values_) {
         v *= scalar;
@@ -204,14 +201,43 @@ TimeSeries& TimeSeries::operator*=(double scalar) {
     return *this;
 }
 
-TimeSeries TimeSeries::operator+(const TimeSeries& other) const {
-    verifyAlignment_(other);
-    vector<double> resultValues;
-    resultValues.resize(values_.size());
-    std::transform(values_.begin(), values_.end(), other.values_.begin(), resultValues.begin(), std::plus<double>());
-    return TimeSeries(id_ + " + " + other.id_, timestamps_, tsOffset_, std::move(resultValues));
+TimeSeries TimeSeries::operator*(double scalar) const {
+    TimeSeries temp = TimeSeries{*this};
+    temp *= scalar;
+    return temp;
 }
 
+// Operator /
+TimeSeries& TimeSeries::operator/=(const TimeSeries& other) {
+    verifyAlignment_(other);
+    for (size_t i = 0; i < values_.size(); ++i) {
+        other.values_[i] == 0.0 ? values_[i] = 0.0 : values_[i] /= other.values_[i];
+    }
+    return *this;
+}
+
+TimeSeries TimeSeries::operator/(const TimeSeries& other) const {
+    TimeSeries temp = TimeSeries{*this};
+    temp /= other;
+    return temp;
+}
+
+TimeSeries& TimeSeries::operator/=(double scalar) {
+    if (scalar == 0.0) throw Exception(std::format("Division by 0 of TimeSeries {}", id_));
+    for (double& v : values_) {
+        v /= scalar;
+    }
+    return *this;
+}
+
+TimeSeries TimeSeries::operator/(double scalar) const {
+    if (scalar == 0.0) throw Exception(std::format("Division by 0 of TimeSeries {}", id_));
+    TimeSeries temp = TimeSeries{*this};
+    temp /= scalar;
+    return temp;
+}
+
+// Operator +
 TimeSeries& TimeSeries::operator+=(const TimeSeries& other) {
     verifyAlignment_(other);
     for (size_t i = 0; i < values_.size(); ++i) {
@@ -219,18 +245,46 @@ TimeSeries& TimeSeries::operator+=(const TimeSeries& other) {
     }
     return *this;
 }
-
-TimeSeries TimeSeries::operator+(double scalar) const {
-    TimeSeries result = *this;
-    result += scalar;
-    return result;
+TimeSeries TimeSeries::operator+(const TimeSeries& other) const {
+    TimeSeries temp = TimeSeries{*this};
+    temp += other;
+    return temp;
 }
-
 TimeSeries& TimeSeries::operator+=(double scalar) {
     for (double& v : values_) {
         v += scalar;
     }
     return *this;
+}
+TimeSeries TimeSeries::operator+(double scalar) const {
+    TimeSeries temp = TimeSeries{*this};
+    temp += scalar;
+    return temp;
+}
+
+// Operator -
+TimeSeries& TimeSeries::operator-=(const TimeSeries& other) {
+    verifyAlignment_(other);
+    for (size_t i = 0; i < values_.size(); ++i) {
+        values_[i] -= other.values_[i];
+    }
+    return *this;
+}
+TimeSeries TimeSeries::operator-(const TimeSeries& other) const {
+    TimeSeries temp = TimeSeries{*this};
+    temp -= other;
+    return temp;
+}
+TimeSeries& TimeSeries::operator-=(double scalar) {
+    for (double& v : values_) {
+        v -= scalar;
+    }
+    return *this;
+}
+TimeSeries TimeSeries::operator-(double scalar) const {
+    TimeSeries temp = TimeSeries{*this};
+    temp -= scalar;
+    return temp;
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ add_library(finlib_core
     src/core/TimeSeries.cpp
     src/core/TimeSeriesView.cpp
     src/core/StatsCore.cpp
+    src/common/Exception.cpp
     src/utils/TimeUtils.cpp
     src/utils/TimeSeriesUtils.cpp
 )

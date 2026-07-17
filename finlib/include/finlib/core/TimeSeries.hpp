@@ -93,10 +93,21 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimeSeries operator*(double scalar) const;
     TimeSeries& operator*=(double scalar);
 
+    TimeSeries operator/(const TimeSeries& other) const;
+    TimeSeries& operator/=(const TimeSeries& other);
+    TimeSeries operator/(double scalar) const;
+    TimeSeries& operator/=(double scalar);
+
     TimeSeries operator+(const TimeSeries& other) const;
     TimeSeries& operator+=(const TimeSeries& other);
     TimeSeries operator+(double scalar) const;
     TimeSeries& operator+=(double scalar);
+
+    TimeSeries operator-(const TimeSeries& other) const;
+    TimeSeries& operator-=(const TimeSeries& other);
+    TimeSeries operator-(double scalar) const;
+    TimeSeries& operator-=(double scalar);
+
     friend std::ostream& operator<<(std::ostream& os, const TimeSeries& obj);
 
     // Transformation Method
