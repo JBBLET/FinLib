@@ -211,8 +211,8 @@ void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const 
     const auto& timestamps = ts.getTimestamps();
     const auto& values = ts.getValues();
     for (size_t i = 0; i < ts.size(); ++i) {
-        writer.writeMap(
-            Row{{"timestamp", std::to_string(timestamps[i])}, {"value", std::format("{}", values[i])}}, false);
+        writer.writeMap(Row{{"timestamp", std::to_string(timestamps[i])}, {"value", std::format("{}", values[i])}},
+                        false);
     }
 }
 

@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "csv/convert.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
 #include "finapp/common/Exception.hpp"
@@ -150,7 +151,7 @@ int64_t YahooFinanceImporter::yyyymmddToMs_(const std::string& s) {
 double YahooFinanceImporter::parseOptionalDouble_(const std::string& s) {
     if (s.empty()) return 0.0;
     try {
-        return std::stod(s);
+        return csv::convert::parseFloat<double>(s);
     } catch (...) {
         return 0.0;
     }
