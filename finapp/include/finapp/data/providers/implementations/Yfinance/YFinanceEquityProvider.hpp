@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/providers/interfaces/IAssetProviders.hpp"
 
 namespace finapp {
@@ -12,7 +13,7 @@ namespace finapp {
 // Implements IAssetProvider; inject into AssetService for AssetType::Equity.
 class YFinanceEquityProvider : public IAssetProvider {
  public:
-    YFinanceEquityProvider() = default;
+    explicit YFinanceEquityProvider(finapp::logging::ILogger* logger = nullptr);
 
     // Returns a heap-allocated Equity built from yf.Ticker(ticker).info.
     // Throws std::out_of_range if yfinance returns an unsupported currency code.
@@ -22,6 +23,9 @@ class YFinanceEquityProvider : public IAssetProvider {
     // Returns true if yfinance can resolve the ticker to a named security.
     // Makes a network call — do not call in a hot path.
     bool exists(const std::string& ticker) const override;
+
+ private:
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 };
 
 }  // namespace finapp

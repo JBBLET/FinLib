@@ -6,7 +6,7 @@
 
 #include "Eigen/Dense"
 
-namespace models {
+namespace ts::models {
 
 struct RegressionEvaluation {
     std::optional<double> mse;
@@ -33,4 +33,4 @@ struct ClassificationEvaluation {
     void print() const;
 };
 
-}  // namespace models
+}  // namespace ts::models

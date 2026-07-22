@@ -17,6 +17,10 @@
 // y_t = intercept + phi * y_{t-1} + noise[t]
 // Using deterministic "noise" so tests are reproducible
 
+using ts::TimeSeries;
+using ts::models::RegressionEvaluation;
+using ts::models::regression::ARModel;
+
 static std::shared_ptr<TimeSeries> generateAR1(double phi, double intercept, size_t n, double y0 = 10.0) {
     std::vector<int64_t> ts(n);
     std::vector<double> vals(n);
@@ -91,7 +95,7 @@ class ARModelTest : public ::testing::Test {
 // ============================================================
 
 TEST_F(ARModelTest, OLSSolverRecoversAR1Coefficients) {
-    models::regression::ARModel model(1, models::regression::ARModel::Solver::OLS);
+    ARModel model(1, ARModel::Solver::OLS);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -100,7 +104,7 @@ TEST_F(ARModelTest, OLSSolverRecoversAR1Coefficients) {
 }
 
 TEST_F(ARModelTest, YuleWalkerSolverRecoversAR1Coefficients) {
-    models::regression::ARModel model(1, models::regression::ARModel::Solver::YuleWalker);
+    ARModel model(1, ARModel::Solver::YuleWalker);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -109,7 +113,7 @@ TEST_F(ARModelTest, YuleWalkerSolverRecoversAR1Coefficients) {
 }
 
 TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR1Coefficients) {
-    models::regression::ARModel model(1, models::regression::ARModel::Solver::LevinsonDurbin);
+    ARModel model(1, ARModel::Solver::LevinsonDurbin);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -122,7 +126,7 @@ TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR1Coefficients) {
 // ============================================================
 
 TEST_F(ARModelTest, OLSSolverRecoversAR2Coefficients) {
-    models::regression::ARModel model(2, models::regression::ARModel::Solver::OLS);
+    ARModel model(2, ARModel::Solver::OLS);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -131,7 +135,7 @@ TEST_F(ARModelTest, OLSSolverRecoversAR2Coefficients) {
 }
 
 TEST_F(ARModelTest, YuleWalkerSolverRecoversAR2Coefficients) {
-    models::regression::ARModel model(2, models::regression::ARModel::Solver::YuleWalker);
+    ARModel model(2, ARModel::Solver::YuleWalker);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -140,7 +144,7 @@ TEST_F(ARModelTest, YuleWalkerSolverRecoversAR2Coefficients) {
 }
 
 TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR2Coefficients) {
-    models::regression::ARModel model(2, models::regression::ARModel::Solver::LevinsonDurbin);
+    ARModel model(2, ARModel::Solver::LevinsonDurbin);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -153,7 +157,7 @@ TEST_F(ARModelTest, LevinsonDurbinSolverRecoversAR2Coefficients) {
 // ============================================================
 
 TEST_F(ARModelTest, PredictOneStepThrowsWhenNotFitted) {
-    models::regression::ARModel model(1);
+    ARModel model(1);
     Eigen::VectorXd window(1);
     window << 5.0;
 
@@ -161,7 +165,7 @@ TEST_F(ARModelTest, PredictOneStepThrowsWhenNotFitted) {
 }
 
 TEST_F(ARModelTest, PredictOneStepReturnsFiniteValue) {
-    models::regression::ARModel model(1, models::regression::ARModel::Solver::OLS);
+    ARModel model(1, ARModel::Solver::OLS);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -175,7 +179,7 @@ TEST_F(ARModelTest, PredictOneStepReturnsFiniteValue) {
 }
 
 TEST_F(ARModelTest, PredictOneStepAR2) {
-    models::regression::ARModel model(2, models::regression::ARModel::Solver::OLS);
+    ARModel model(2, ARModel::Solver::OLS);
     auto view = ar2Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -196,7 +200,7 @@ TEST_F(ARModelTest, PredictOneStepAR2) {
 // ============================================================
 
 TEST_F(ARModelTest, EvaluateThrowsWhenNotFitted) {
-    models::regression::ARModel model(1);
+    ARModel model(1);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.1);
 
@@ -205,7 +209,7 @@ TEST_F(ARModelTest, EvaluateThrowsWhenNotFitted) {
 }
 
 TEST_F(ARModelTest, EvaluateProducesValidMetrics) {
-    models::regression::ARModel model(1, models::regression::ARModel::Solver::OLS);
+    ARModel model(1, ARModel::Solver::OLS);
     auto view = ar1Series->view();
     model.setData(view, 0.8, 0.0);
     model.fit();
@@ -238,14 +242,14 @@ TEST_F(ARModelTest, EvaluateProducesValidMetrics) {
 
 TEST_F(ARModelTest, SetDataThrowsOnIrregularData) {
     auto irregular = generateIrregular(200);
-    models::regression::ARModel model(1);
+    ARModel model(1);
     auto view = irregular->view();
 
     EXPECT_THROW(model.setData(view, 0.8, 0.0), std::runtime_error);
 }
 
 TEST_F(ARModelTest, SetDataAcceptsRegularData) {
-    models::regression::ARModel model(1);
+    ARModel model(1);
     auto view = ar1Series->view();
 
     EXPECT_NO_THROW(model.setData(view, 0.8, 0.0));
@@ -258,7 +262,7 @@ TEST_F(ARModelTest, SetDataAcceptsRegularData) {
 TEST_F(ARModelTest, FitThrowsWithInsufficientData) {
     auto small = std::make_shared<TimeSeries>(
         "ThrowInsufficientDataTS", std::vector<int64_t>{1000, 2000, 3000}, std::vector<double>{1.0, 2.0, 3.0});
-    models::regression::ARModel model(5);  // AR(5) on 3 points
+    ARModel model(5);  // AR(5) on 3 points
     auto view = small->view();
     model.setData(view, 1.0, 0.0);
 
@@ -266,15 +270,15 @@ TEST_F(ARModelTest, FitThrowsWithInsufficientData) {
 }
 
 TEST_F(ARModelTest, StationaryCheckReturnsFalseWhenNotFitted) {
-    models::regression::ARModel model(1);
+    ARModel model(1);
     EXPECT_FALSE(model.isStationary());
 }
 
 TEST_F(ARModelTest, NameReturnsCorrectFormat) {
-    models::regression::ARModel model1(1);
+    ARModel model1(1);
     EXPECT_EQ(model1.name(), "AR (1)");
 
-    models::regression::ARModel model5(5);
+    ARModel model5(5);
     EXPECT_EQ(model5.name(), "AR (5)");
 }
 
@@ -286,7 +290,7 @@ TEST(EvaluationResultTest, PerfectPredictionGivesZeroError) {
     std::vector<double> actual = {1.0, 2.0, 3.0, 4.0, 5.0};
     std::vector<double> prediction = {1.0, 2.0, 3.0, 4.0, 5.0};
 
-    models::RegressionEvaluation result;
+    RegressionEvaluation result;
     result.computeRegressionMetrics(actual, prediction, 1, 1.0);
 
     EXPECT_TRUE(result.mse.has_value());
@@ -302,7 +306,7 @@ TEST(EvaluationResultTest, KnownErrorValues) {
     // Each residual = -0.5, squared = 0.25
     // MSE = 0.25, RMSE = 0.5, MAE = 0.5
 
-    models::RegressionEvaluation result;
+    RegressionEvaluation result;
     result.computeRegressionMetrics(actual, prediction, 1, 1.0);
 
     EXPECT_TRUE(result.mse.has_value());
@@ -315,7 +319,7 @@ TEST(EvaluationResultTest, ThrowsOnSizeMismatch) {
     std::vector<double> actual = {1.0, 2.0, 3.0};
     std::vector<double> prediction = {1.0, 2.0};
 
-    models::RegressionEvaluation result;
+    RegressionEvaluation result;
     EXPECT_THROW(result.computeRegressionMetrics(actual, prediction, 1, 1.0), std::runtime_error);
 }
 
@@ -323,7 +327,7 @@ TEST(EvaluationResultTest, ThrowsOnEmptyInput) {
     std::vector<double> actual = {};
     std::vector<double> prediction = {};
 
-    models::RegressionEvaluation result;
+    RegressionEvaluation result;
     EXPECT_THROW(result.computeRegressionMetrics(actual, prediction, 1, 1.0), std::runtime_error);
 }
 

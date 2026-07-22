@@ -14,39 +14,45 @@
 #include "finlib/core/TimeSeriesView.hpp"
 using std::size_t;
 
-namespace analysis::stats {
+namespace ts::analysis::stats {
 
 double mean(const TimeSeriesView& view) {
     if (view.size() == 0) return 0.0;
 
-    double sum = 0.0;
+    int count{0};
+    double sum{0.0};
     const double* first = view.begin();
     const double* last = view.end();
 
     for (; first != last; ++first) {
-        sum += *first;
+        if (std::isfinite(*first)) {
+            sum += *first;
+            count++;
+        }
     }
-
-    return sum / static_cast<double>(view.size());
+    if (count == 0) return 0.0;
+    return sum / static_cast<double>(count);
 }
 
 double varianceFast(const TimeSeriesView& view, VarianceType type) {
     // TODO(JBBLET) Look into the parallel algorithm to at least improve a bit;
     size_t n = view.size();
     if (n == 0) return 0.0;
-
-    double M2 = 0.0, mean = 0.0;
+    double M2{0.0}, mean{0.0};
     const double* first = view.begin();
     const double* last = view.end();
-    size_t count = 0;
+    size_t count{0};
     for (; first != last; ++first) {
-        ++count;
-        double x = *first;
-        double delta = x - mean;
-        mean += delta / count;
-        double delta2 = x - mean;
-        M2 += delta * delta2;
+        if (std::isfinite(*first)) {
+            ++count;
+            double x = *first;
+            double delta = x - mean;
+            mean += delta / count;
+            double delta2 = x - mean;
+            M2 += delta * delta2;
+        }
     }
+    if (count == 0) return 0.0;
     if (type == VarianceType::Sample) {
         if (count < 2) throw std::invalid_argument("Sample variance of a single point is undefined");
         return M2 / (count - 1);
@@ -58,23 +64,27 @@ double varianceFast(const TimeSeriesView& view, VarianceType type) {
 }
 
 double varianceSlow(const TimeSeriesView& view, VarianceType type) {
-    size_t n = view.size();
-    if (n == 0) return 0.0;
+    if (view.size() == 0) return 0.0;
 
-    double avg = mean(view);
-    const double* first = view.begin();
-    const double* last = view.end();
-    double M2 = 0.0;
+    double avg{mean(view)};
+    const double* first{view.begin()};
+    const double* last{view.end()};
+    double M2{0.0};
+    size_t count{0};
 
     for (; first != last; ++first) {
-        M2 += (*first - avg) * (*first - avg);
+        if (std::isfinite(*first)) {
+            M2 += (*first - avg) * (*first - avg);
+            count++;
+        }
     }
+    if (count == 0) return 0.0;
     if (type == VarianceType::Sample) {
-        if (n < 2) throw std::invalid_argument("Sample variance of a single point is undefined");
-        return M2 / (n - 1);
+        if (count < 2) throw std::invalid_argument("Sample variance of a single point is undefined");
+        return M2 / (count - 1);
     }
     if (type == VarianceType::Population) {
-        return (M2 / n);
+        return (M2 / count);
     }
     throw std::invalid_argument("Variance Type undefined");
 }
@@ -85,20 +95,24 @@ double standardDeviation(const TimeSeriesView& view, VarianceType type) {
 }
 
 double skewness(const TimeSeriesView& view) {
-    size_t n = view.size();
-    if (n == 0) return 0.0;
+    if (view.size() == 0) return 0.0;
 
     double avg = mean(view);
     double std = standardDeviation(view, VarianceType::Population);
     const double* first = view.begin();
     const double* last = view.end();
     double M3 = 0.0;
+    size_t count{0};
     for (; first != last; ++first) {
-        double z = (*first - avg) / std;
-        double z2 = z * z;
-        M3 += z2 * z;
+        if (std::isfinite(*first)) {
+            double z = (*first - avg) / std;
+            double z2 = z * z;
+            M3 += z2 * z;
+            count++;
+        }
     }
-    return M3 / n;
+    if (count == 0) return 0.0;
+    return M3 / count;
 }
 
 double kurtosis(const TimeSeriesView& view) {
@@ -239,10 +253,10 @@ Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t maxLag) {
     }
     return R;
 }
-}  //  namespace analysis::stats
+}  // namespace ts::analysis::stats
 //
-namespace analysis::hypothesisTesting {
+namespace ts::analysis::hypothesisTesting {
 
 double PvalueFromTStatistic(double tStat) { return std::erfc(std::abs(tStat) / std::sqrt(2.0)); }
 
-}  // namespace analysis::hypothesisTesting
+}  // namespace ts::analysis::hypothesisTesting

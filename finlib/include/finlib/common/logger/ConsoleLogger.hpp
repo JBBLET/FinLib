@@ -9,7 +9,7 @@
 
 #include "finlib/common/logger/ILogger.hpp"
 
-namespace logging {
+namespace ts::logging {
 
 class ConsoleLogger : public ILogger {
  public:
@@ -20,10 +20,10 @@ class ConsoleLogger : public ILogger {
         std::tm tm{};
         localtime_r(&t, &tm);
         std::ostringstream oss;
-        oss << '[' << std::put_time(&tm, "%H:%M:%S") << '.' << std::setw(3) << std::setfill('0') << ms.count()
-            << "][" << to_string(lvl) << "] " << msg << '\n';
+        oss << '[' << std::put_time(&tm, "%H:%M:%S") << '.' << std::setw(3) << std::setfill('0') << ms.count() << "]["
+            << to_string(lvl) << "] " << msg << '\n';
         std::cout << oss.str() << std::flush;
     }
 };
 
-}  // namespace logging
+}  // namespace ts::logging

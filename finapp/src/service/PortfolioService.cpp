@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <random>
@@ -16,13 +17,15 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
-#include "finapp/finance/asset/IAsset.hpp"
+#include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
@@ -30,18 +33,13 @@ namespace finapp {
 
 using finance::AssetId;
 using finance::Currency;
-using finance::IAsset;
 using finance::Portfolio;
 using finance::PortfolioSnapshot;
 using finance::SnapshotPosition;
-using finance::TargetAllocation;
 using finance::Transaction;
-using finance::TransactionType;
 
 namespace {
-constexpr int64_t kDefaultSpotFrequencyMs = 86'400'000;
-// Look back up to 7 calendar days so weekend/holiday requests return the last trading day.
-constexpr int64_t kSpotLookbackMs = 7LL * 86'400'000LL;
+constexpr Timestamp kDefaultSpotFrequencyMs = 86'400'000;
 
 std::string cashKey(Currency c) { return "CASH:" + toString(c); }
 
@@ -67,9 +65,9 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 // ---------------------------------------------------------------------------
 
 Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency,
-                                      int64_t timestampMs) {
+                                      Timestamp timestampMs) {
     if (portfolioRepository_->exists(portfolioId)) {
-        throw std::runtime_error("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
+        throw finapp::Exception("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
     }
     if (logger_)
         logger_->write(finapp::logging::Level::Info,
@@ -81,7 +79,7 @@ Portfolio PortfolioService::createNew(const std::string& portfolioId, const std:
 
 void PortfolioService::deletePortfolio(const std::string& portfolioId) {
     if (!portfolioRepository_->exists(portfolioId)) {
-        throw std::runtime_error("PortfolioService::deletePortfolio: portfolio '" + portfolioId + "' does not exist.");
+        throw finapp::Exception("PortfolioService::deletePortfolio: portfolio '" + portfolioId + "' does not exist.");
     }
     if (logger_) logger_->write(finapp::logging::Level::Info, "deletePortfolio: id='" + portfolioId + "'");
     portfolioRepository_->deletePortfolio(portfolioId);
@@ -91,7 +89,7 @@ Portfolio PortfolioService::load(const std::string& portfolioId) {
     if (logger_) logger_->write(finapp::logging::Level::Debug, "load: id='" + portfolioId + "'");
     auto snapshotOpt = portfolioRepository_->loadLatestSnapshot(portfolioId);
     if (!snapshotOpt.has_value()) {
-        throw std::runtime_error("PortfolioService::load: no snapshot found for portfolio " + portfolioId);
+        throw finapp::Exception("PortfolioService::load: no snapshot found for portfolio " + portfolioId);
     }
     const PortfolioSnapshot& snapshot = *snapshotOpt;
 
@@ -111,348 +109,335 @@ Portfolio PortfolioService::load(const std::string& portfolioId) {
         .build();
 }
 
-void PortfolioService::save(const Portfolio& portfolio, int64_t timestampMs) {
+void PortfolioService::save(const Portfolio& portfolio, Timestamp timestampMs) {
     portfolioRepository_->saveSnapshot(portfolio.snapshot(timestampMs));
 }
 
-double PortfolioService::totalValue(const Portfolio& portfolio, int64_t timestampMs) {
-    const Currency base = portfolio.baseCurrency();
-    double total = 0.0;
-
-    for (const SnapshotPosition& pos : portfolio.positions()) {
-        if (pos.quantity == 0.0) continue;
-
-        auto asset = assetService_->load(pos.assetId);
-        const Currency denom = asset->denomination();
-
-        // getResampled (via AssetService) handles weekends/holidays via Nearest — no manual lookback needed.
-        const double price =
-            assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
-                .getValues()
-                .back();
-
-        double fx = 1.0;
-        if (denom != base) {
-            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
-        }
-        total += pos.quantity * price * fx;
-    }
-
-    for (const auto& [currency, amount] : portfolio.cashBalances()) {
-        if (currency == base) {
-            total += amount;
-            continue;
-        }
-        const double fx =
-            fxService_->load(currency, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
-        total += amount * fx;
-    }
-
-    return total;
-}
-
-std::unordered_map<std::string, double> PortfolioService::weights(const Portfolio& portfolio, int64_t timestampMs) {
-    const Currency base = portfolio.baseCurrency();
-    std::unordered_map<std::string, double> valueByKey;
-    double total = 0.0;
-
-    for (const SnapshotPosition& pos : portfolio.positions()) {
-        if (pos.quantity == 0.0) continue;
-
-        auto asset = assetService_->load(pos.assetId);
-        const Currency denom = asset->denomination();
-
-        const double price =
-            assetService_->loadTimeSeriesValue(pos.assetId, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
-                .getValues()
-                .back();
-        double fx = 1.0;
-        if (denom != base) {
-            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
-        }
-        const double value = pos.quantity * price * fx;
-        valueByKey[pos.assetId.ticker] = value;
-        total += value;
-    }
-
-    for (const auto& [currency, amount] : portfolio.cashBalances()) {
-        double fx = 1.0;
-        if (currency != base) {
-            fx = fxService_->load(currency, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
-        }
-        const double value = amount * fx;
-        valueByKey[cashKey(currency)] = value;
-        total += value;
-    }
-
-    std::unordered_map<std::string, double> result;
-    result.reserve(valueByKey.size());
-    if (total <= 0.0) {
-        // Degenerate portfolio — return zero weights rather than NaN.
-        for (const auto& [key, _] : valueByKey) result[key] = 0.0;
-        return result;
-    }
-    for (const auto& [key, value] : valueByKey) {
-        result[key] = value / total;
-    }
-    return result;
-}
-
-std::vector<Transaction> PortfolioService::rebalance(const Portfolio& portfolio, int64_t timestampMs) {
-    const auto& targets = portfolio.targetAllocations();
-    if (targets.empty()) {
-        return {};
-    }
-    const Currency base = portfolio.baseCurrency();
-    const double total = totalValue(portfolio, timestampMs);
-
-    // Index current positions by ticker for O(1) delta lookup.
-    std::unordered_map<std::string, const SnapshotPosition*> currentByTicker;
-    currentByTicker.reserve(portfolio.positions().size());
-    for (const SnapshotPosition& pos : portfolio.positions()) {
-        currentByTicker[pos.assetId.ticker] = &pos;
-    }
-
-    std::vector<Transaction> transactions;
-    transactions.reserve(targets.size());
-
-    for (const TargetAllocation& target : targets) {
-        auto asset = assetService_->load(target.assetId);
-        const Currency denom = asset->denomination();
-
-        const double price =
-            assetService_->loadTimeSeriesValue(target.assetId, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
-                .getValues()
-                .back();
-        double fx = 1.0;
-        if (denom != base) {
-            fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
-        }
-
-        // Current value in base currency.
-        double currentValueBase = 0.0;
-        if (auto it = currentByTicker.find(target.assetId.ticker); it != currentByTicker.end()) {
-            currentValueBase = it->second->quantity * price * fx;
-        }
-        const double targetValueBase = target.weight * total;
-        const double deltaValueBase = targetValueBase - currentValueBase;
-
-        // Convert delta back into asset-denomination quantity.
-        if (price <= 0.0 || fx <= 0.0) {
-            throw std::runtime_error("PortfolioService::rebalance: non-positive price/fx for " + target.assetId.ticker);
-        }
-        const double deltaQuantity = deltaValueBase / (price * fx);
-        if (deltaQuantity == 0.0) continue;
-
-        Transaction tx{};
-        tx.timestampsMs = timestampMs;
-        tx.type = deltaQuantity > 0.0 ? TransactionType::Buy : TransactionType::Sell;
-        tx.assetType = target.assetId.type;
-        tx.assetTicker = target.assetId.ticker;
-        tx.quantity = std::abs(deltaQuantity);
-        tx.pricePerUnit = price;
-        tx.fees = 0.0;
-        tx.settlementCurrency = denom;
-        transactions.push_back(tx);
-    }
-
-    return transactions;
-}
+// std::vector<Transaction> PortfolioService::rebalance(const Portfolio& portfolio, Timestamp timestampMs) {
+//     const auto& targets = portfolio.targetAllocations();
+//     if (targets.empty()) {
+//         return {};
+//     }
+//     const Currency base = portfolio.baseCurrency();
+//     const double total = totalValue(portfolio, timestampMs);
+//
+//     // Index current positions by ticker for O(1) delta lookup.
+//     std::unordered_map<std::string, const SnapshotPosition*> currentByTicker;
+//     currentByTicker.reserve(portfolio.positions().size());
+//     for (const SnapshotPosition& pos : portfolio.positions()) {
+//         currentByTicker[pos.assetId.ticker] = &pos;
+//     }
+//
+//     std::vector<Transaction> transactions;
+//     transactions.reserve(targets.size());
+//
+//     for (const TargetAllocation& target : targets) {
+//         auto asset = assetService_->load(target.assetId);
+//         const Currency denom = asset->denomination();
+//
+//         const double price =
+//             assetService_->loadTimeSeriesValue(target.assetId, timestampMs, timestampMs, kDefaultSpotFrequencyMs)
+//                 .getValues()
+//                 .back();
+//         double fx = 1.0;
+//         if (denom != base) {
+//             fx = fxService_->load(denom, base, timestampMs, timestampMs, kDefaultSpotFrequencyMs).getValues().back();
+//         }
+//
+//         // Current value in base currency.
+//         double currentValueBase = 0.0;
+//         if (auto it = currentByTicker.find(target.assetId.ticker); it != currentByTicker.end()) {
+//             currentValueBase = it->second->quantity * price * fx;
+//         }
+//         const double targetValueBase = target.weight * total;
+//         const double deltaValueBase = targetValueBase - currentValueBase;
+//
+//         // Convert delta back into asset-denomination quantity.
+//         if (price <= 0.0 || fx <= 0.0) {
+//             throw finapp::Exception("PortfolioService::rebalance: non-positive price/fx for " +
+//             target.assetId.ticker);
+//         }
+//         const double deltaQuantity = deltaValueBase / (price * fx);
+//         if (deltaQuantity == 0.0) continue;
+//
+//         Transaction tx{};
+//         tx.timestampsMs = timestampMs;
+//         tx.type = deltaQuantity > 0.0 ? TransactionType::Buy : TransactionType::Sell;
+//         tx.assetType = target.assetId.type;
+//         tx.assetTicker = target.assetId.ticker;
+//         tx.quantity = std::abs(deltaQuantity);
+//         tx.pricePerUnit = price;
+//         tx.fees = 0.0;
+//         tx.settlementCurrency = denom;
+//         transactions.push_back(tx);
+//     }
+//
+//     return transactions;
+// }
 
 // ---------------------------------------------------------------------------
 // Derived TimeSeries over a range
 // ---------------------------------------------------------------------------
-
-TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, int64_t startMs, int64_t endMs,
-                                         int64_t frequencyMs) {
-    return valueSeries(portfolioId, common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs));
-}
-
-std::unordered_map<std::string, TimeSeries> PortfolioService::weightSeries(const std::string& portfolioId,
-                                                                           int64_t startMs, int64_t endMs,
-                                                                           int64_t frequencyMs) {
-    return weightSeries(portfolioId, common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs));
-}
-
-TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, TimestampPtr timestamps) {
+//
+// This computes both total value and weight series it do so by processing segment between transactions
+// via masks if the number of transactions grow need to change
+finance::PortfolioSeries PortfolioService::valueAndWeightSeries(const std::string& portfolioId,
+                                                                TimestampsPtr timestamps) {
     if (!timestamps || timestamps->empty()) {
-        throw std::invalid_argument("PortfolioService::valueSeries: timestamps must be non-empty.");
+        throw finapp::InvalidArgument("PortfolioService::valueSeries: timestamps must be non-empty.");
     }
-
-    auto allSnapshots = portfolioRepository_->loadAllSnapshots(portfolioId);
-    if (allSnapshots.empty()) {
-        throw std::runtime_error("PortfolioService::valueSeries: no snapshot for portfolio " + portfolioId);
+    auto snapshots = portfolioRepository_->loadSnapshotsCovering(portfolioId, timestamps->front(), timestamps->back());
+    if (snapshots.empty()) {
+        return {ts::common::utils::timeSeries::generateConstantTimeSeries(portfolioId + "_totalValue", timestamps, 0.0),
+                {}};
     }
-    std::sort(allSnapshots.begin(), allSnapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
+    std::sort(snapshots.begin(), snapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
         return a.timestampMs < b.timestampMs;
     });
-    const Currency base = allSnapshots.front().baseCurrency;
+    auto baseCurrency = snapshots.front().baseCurrency;
 
     // Collect every asset and currency that appears in any snapshot.
     std::unordered_set<AssetId> uniqueAssetIds;
     std::unordered_set<Currency> uniqueCurrencies;
-    for (const PortfolioSnapshot& snap : allSnapshots) {
+
+    for (const PortfolioSnapshot& snap : snapshots) {
         for (const SnapshotPosition& pos : snap.positions) uniqueAssetIds.insert(pos.assetId);
         for (const auto& [c, _] : snap.cashBalances) uniqueCurrencies.insert(c);
     }
 
-    struct AssetData {
-        std::shared_ptr<const IAsset> asset;
-        TimeSeries prices;
-    };
-    std::unordered_map<AssetId, AssetData> assetData;
-    assetData.reserve(uniqueAssetIds.size());
+    std::unordered_map<finance::Currency, TimeSeries> fxCache;
+    std::unordered_map<AssetId, TimeSeries> priceInBase;
+
+    priceInBase.reserve(uniqueAssetIds.size() + uniqueCurrencies.size());
+    for (Currency c : uniqueCurrencies) {
+        fxCache[c] = (c != baseCurrency)
+                         ? fxService_->load(c, baseCurrency, timestamps)
+                         : ts::common::utils::timeSeries::generateConstantTimeSeries("fx", timestamps, 1.0);
+    }
+
     for (const AssetId& aid : uniqueAssetIds) {
         auto asset = assetService_->load(aid);
-        uniqueCurrencies.insert(asset->denomination());
-        assetData.emplace(aid, AssetData{std::move(asset), assetService_->loadTimeSeriesValue(aid, timestamps)});
-    }
-
-    std::unordered_map<Currency, TimeSeries> fxSeries;
-    fxSeries.reserve(uniqueCurrencies.size());
-    for (Currency c : uniqueCurrencies) {
-        if (c != base) fxSeries.emplace(c, fxService_->load(c, base, timestamps));
-    }
-
-    // Snapshot timestamps for binary search.
-    std::vector<int64_t> snapTs;
-    snapTs.reserve(allSnapshots.size());
-    for (const PortfolioSnapshot& snap : allSnapshots) snapTs.push_back(snap.timestampMs);
-
-    const auto& ts = *timestamps;
-    std::vector<double> values(ts.size(), 0.0);
-
-    for (size_t i = 0; i < ts.size(); ++i) {
-        const int64_t tick = ts[i];
-        // Last snapshot with timestampMs <= tick.
-        auto it = std::upper_bound(snapTs.begin(), snapTs.end(), tick);
-        if (it == snapTs.begin()) continue;
-        --it;
-        const PortfolioSnapshot& snap = allSnapshots[static_cast<size_t>(it - snapTs.begin())];
-
-        double total = 0.0;
-        for (const SnapshotPosition& pos : snap.positions) {
-            auto dataIt = assetData.find(pos.assetId);
-            if (dataIt == assetData.end()) continue;
-            const double price = dataIt->second.prices.getValues()[i];
-            const Currency denom = dataIt->second.asset->denomination();
-            double fx = (denom != base) ? fxSeries.at(denom).getValues()[i] : 1.0;
-            total += pos.quantity * price * fx;
+        auto assetDenom = asset->denomination();
+        if (assetDenom == baseCurrency) {
+            priceInBase.emplace(aid, assetService_->loadTimeSeriesValue(aid, timestamps));
+        } else {
+            auto [iterator, notPreviouslyPresent] = uniqueCurrencies.insert(assetDenom);
+            if (notPreviouslyPresent) {
+                fxCache.emplace(assetDenom, fxService_->load(assetDenom, baseCurrency, timestamps));
+            }
+            auto price = assetService_->loadTimeSeriesValue(aid, timestamps) * fxCache.at(assetDenom);
+            priceInBase.emplace(aid, price);
         }
-        for (const auto& [currency, amount] : snap.cashBalances) {
-            double fx = (currency != base) ? fxSeries.at(currency).getValues()[i] : 1.0;
-            total += amount * fx;
+    }
+    auto totalAccumulation =
+        ts::common::utils::timeSeries::generateConstantTimeSeries(portfolioId + "_value", timestamps, 0.0);
+    std::unordered_map<AssetId, TimeSeries> weightAccumulation;
+    for (size_t i = 0; i < snapshots.size(); i++) {
+        auto tsSnapshot = snapshots[i].timestampMs;
+        auto nextTs = (i + 1 < snapshots.size()) ? snapshots[i + 1].timestampMs : +std::numeric_limits<int64_t>::max();
+        auto portfolioSegment =
+            Portfolio::Builder(portfolioId, snapshots[i].name, baseCurrency).fromSnapshot(snapshots[i]).build();
+        auto segmentSeries = portfolioSegment.valueAndWeightSeries(timestamps, priceInBase, fxCache);
+        auto mask = ts::common::utils::timeSeries::makeSegmentMask(timestamps, tsSnapshot, nextTs);
+        totalAccumulation += segmentSeries.total * mask;
+
+        for (const auto& [assetId, weightSeries] : segmentSeries.weights) {
+            if (!weightAccumulation.contains(assetId)) {
+                weightAccumulation[assetId] =
+                    ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, timestamps, 0.0);
+            }
+            weightAccumulation[assetId] += weightSeries * mask;
         }
-        values[i] = total;
     }
 
-    return TimeSeries(portfolioId + "_value", std::move(timestamps), std::move(values));
+    return {totalAccumulation, weightAccumulation};
 }
 
-std::unordered_map<std::string, TimeSeries> PortfolioService::weightSeries(const std::string& portfolioId,
-                                                                           TimestampPtr timestamps) {
-    if (!timestamps || timestamps->empty()) {
-        throw std::invalid_argument("PortfolioService::weightSeries: timestamps must be non-empty.");
-    }
+finance::PortfolioSeries PortfolioService::valueAndWeightSeries(const std::string& portfolioId, Timestamp startMs,
+                                                                Timestamp endMs, Timestamp frequencyMs) {
+    return valueAndWeightSeries(portfolioId,
+                                ts::common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs));
+}
 
-    auto allSnapshots = portfolioRepository_->loadAllSnapshots(portfolioId);
-    if (allSnapshots.empty()) {
-        throw std::runtime_error("PortfolioService::weightSeries: no snapshot for portfolio " + portfolioId);
+std::unordered_map<AssetId, TimeSeries> PortfolioService::quantitySeries(const std::string& portfolioId,
+                                                                         TimestampsPtr timestamps) {
+    if (!timestamps || timestamps->empty()) {
+        throw finapp::InvalidArgument("PortfolioService::valueSeries: timestamps must be non-empty.");
     }
-    std::sort(allSnapshots.begin(), allSnapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
+    if (!std::is_sorted(timestamps->begin(), timestamps->end())) {
+        throw finapp::InvalidArgument("Timestamps must be sorted");
+    }
+    auto snapshots = portfolioRepository_->loadSnapshotsCovering(portfolioId, timestamps->front(), timestamps->back());
+    if (snapshots.empty()) {
+        throw finapp::Exception("PortfolioService::valueSeries: no snapshot for portfolio " + portfolioId);
+    }
+    std::sort(snapshots.begin(), snapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
         return a.timestampMs < b.timestampMs;
     });
-    const Currency base = allSnapshots.front().baseCurrency;
 
+    // Reserve space for maps
     std::unordered_set<AssetId> uniqueAssetIds;
     std::unordered_set<Currency> uniqueCurrencies;
-    for (const PortfolioSnapshot& snap : allSnapshots) {
+    for (const PortfolioSnapshot& snap : snapshots) {
         for (const SnapshotPosition& pos : snap.positions) uniqueAssetIds.insert(pos.assetId);
         for (const auto& [c, _] : snap.cashBalances) uniqueCurrencies.insert(c);
     }
 
-    struct AssetData {
-        std::shared_ptr<const IAsset> asset;
-        TimeSeries prices;
-    };
-    std::unordered_map<AssetId, AssetData> assetData;
-    assetData.reserve(uniqueAssetIds.size());
-    for (const AssetId& aid : uniqueAssetIds) {
-        auto asset = assetService_->load(aid);
-        uniqueCurrencies.insert(asset->denomination());
-        assetData.emplace(aid, AssetData{std::move(asset), assetService_->loadTimeSeriesValue(aid, timestamps)});
-    }
-
-    std::unordered_map<Currency, TimeSeries> fxSeries;
-    fxSeries.reserve(uniqueCurrencies.size());
-    for (Currency c : uniqueCurrencies) {
-        if (c != base) fxSeries.emplace(c, fxService_->load(c, base, timestamps));
-    }
-
-    std::vector<int64_t> snapTs;
-    snapTs.reserve(allSnapshots.size());
-    for (const PortfolioSnapshot& snap : allSnapshots) snapTs.push_back(snap.timestampMs);
-
-    const auto& ts = *timestamps;
-    std::unordered_map<std::string, std::vector<double>> valuesByKey;
-    std::vector<double> totals(ts.size(), 0.0);
-
-    auto ensureKey = [&](const std::string& key) -> std::vector<double>& {
-        auto [it, _] = valuesByKey.try_emplace(key, ts.size(), 0.0);
-        return it->second;
-    };
-
-    for (size_t i = 0; i < ts.size(); ++i) {
-        const int64_t tick = ts[i];
-        auto it = std::upper_bound(snapTs.begin(), snapTs.end(), tick);
-        if (it == snapTs.begin()) continue;
-        --it;
-        const PortfolioSnapshot& snap = allSnapshots[static_cast<size_t>(it - snapTs.begin())];
-
-        double total = 0.0;
+    std::unordered_map<AssetId, std::vector<std::pair<Timestamp, double>>> assetQuantities;
+    assetQuantities.reserve(uniqueAssetIds.size());
+    std::unordered_map<Currency, std::vector<std::pair<Timestamp, double>>> cashQuantities;
+    cashQuantities.reserve(uniqueCurrencies.size());
+    for (const PortfolioSnapshot& snap : snapshots) {
         for (const SnapshotPosition& pos : snap.positions) {
-            auto dataIt = assetData.find(pos.assetId);
-            if (dataIt == assetData.end()) continue;
-            const double price = dataIt->second.prices.getValues()[i];
-            const Currency denom = dataIt->second.asset->denomination();
-            double fx = (denom != base) ? fxSeries.at(denom).getValues()[i] : 1.0;
-            const double value = pos.quantity * price * fx;
-            ensureKey(pos.assetId.ticker)[i] = value;
-            total += value;
+            assetQuantities[pos.assetId].reserve(snapshots.size());
         }
-        for (const auto& [currency, amount] : snap.cashBalances) {
-            double fx = (currency != base) ? fxSeries.at(currency).getValues()[i] : 1.0;
-            const double value = amount * fx;
-            ensureKey(cashKey(currency))[i] = value;
-            total += value;
+        for (const auto& [currency, balance] : snap.cashBalances) {
+            cashQuantities[currency].reserve(snapshots.size());
         }
-        totals[i] = total;
     }
 
-    std::unordered_map<std::string, TimeSeries> result;
-    result.reserve(valuesByKey.size());
-    for (auto& [key, valueVec] : valuesByKey) {
-        for (size_t i = 0; i < valueVec.size(); ++i) {
-            valueVec[i] = totals[i] > 0.0 ? valueVec[i] / totals[i] : 0.0;
+    for (const PortfolioSnapshot& snap : snapshots) {
+        auto ts = std::lower_bound(timestamps->begin(), timestamps->end(), snap.timestampMs);
+        if (ts != timestamps->end()) {
+            for (const auto& assetId : uniqueAssetIds) {
+                assetQuantities.at(assetId).push_back({*ts, 0.0});
+            }
+            for (const auto& currency : uniqueCurrencies) {
+                cashQuantities.at(currency).push_back({*ts, 0.0});
+            }
+            for (const SnapshotPosition& pos : snap.positions) {
+                assetQuantities.at(pos.assetId).back() = {*ts, pos.quantity};
+            }
+            for (const auto& [currency, balance] : snap.cashBalances) {
+                cashQuantities.at(currency).back() = {*ts, balance};
+            }
+        } else {
+            break;
         }
-        result.emplace(key, TimeSeries(portfolioId + "_weight_" + key, timestamps, std::move(valueVec)));
     }
-    return result;
+
+    std::unordered_map<AssetId, TimeSeries> output;
+    output.reserve(assetQuantities.size());
+    for (const auto& [assetId, quantities] : assetQuantities) {
+        output[assetId] =
+            ts::common::utils::timeSeries::generateStepSeries(assetId.ticker + "_quantity", quantities, timestamps);
+    }
+    for (const auto& [currency, quantities] : cashQuantities) {
+        output[AssetId{finance::AssetType::Cash, finance::toString(currency)}] =
+            ts::common::utils::timeSeries::generateStepSeries(
+                finance::toString(currency) + "_quantity", quantities, timestamps);
+    }
+    return output;
 }
 
+std::unordered_map<AssetId, TimeSeries> PortfolioService::quantitySeries(const std::string& portfolioId,
+                                                                         Timestamp startMs, Timestamp endMs,
+                                                                         Timestamp frequencyMs) {
+    return quantitySeries(portfolioId,
+                          ts::common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs));
+}
+
+TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, TimestampsPtr timestamps) {
+    if (!timestamps || timestamps->empty()) {
+        throw finapp::InvalidArgument("PortfolioService::valueSeries: timestamps must be non-empty.");
+    }
+    auto snapshots = portfolioRepository_->loadSnapshotsCovering(portfolioId, timestamps->front(), timestamps->back());
+    if (snapshots.empty()) {
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(portfolioId + "_totalValue", timestamps, 0.0);
+    }
+    std::sort(snapshots.begin(), snapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
+        return a.timestampMs < b.timestampMs;
+    });
+    auto baseCurrency = snapshots.front().baseCurrency;
+
+    // Collect every asset and currency that appears in any snapshot.
+    std::unordered_set<AssetId> uniqueAssetIds;
+    std::unordered_set<Currency> uniqueCurrencies;
+
+    for (const PortfolioSnapshot& snap : snapshots) {
+        for (const SnapshotPosition& pos : snap.positions) uniqueAssetIds.insert(pos.assetId);
+        for (const auto& [c, _] : snap.cashBalances) uniqueCurrencies.insert(c);
+    }
+
+    std::unordered_map<finance::Currency, TimeSeries> fxCache;
+    std::unordered_map<AssetId, TimeSeries> priceInBase;
+
+    priceInBase.reserve(uniqueAssetIds.size() + uniqueCurrencies.size());
+    for (Currency c : uniqueCurrencies) {
+        fxCache[c] = (c != baseCurrency)
+                         ? fxService_->load(c, baseCurrency, timestamps)
+                         : ts::common::utils::timeSeries::generateConstantTimeSeries("fx", timestamps, 1.0);
+    }
+
+    for (const AssetId& aid : uniqueAssetIds) {
+        auto asset = assetService_->load(aid);
+        auto assetDenom = asset->denomination();
+        if (assetDenom == baseCurrency) {
+            priceInBase.emplace(aid, assetService_->loadTimeSeriesValue(aid, timestamps));
+        } else {
+            auto [iterator, notPreviouslyPresent] = uniqueCurrencies.insert(assetDenom);
+            if (notPreviouslyPresent) {
+                fxCache.emplace(assetDenom, fxService_->load(assetDenom, baseCurrency, timestamps));
+            }
+            auto price = assetService_->loadTimeSeriesValue(aid, timestamps) * fxCache.at(assetDenom);
+            priceInBase.emplace(aid, price);
+        }
+    }
+    auto totalAccumulation =
+        ts::common::utils::timeSeries::generateConstantTimeSeries(portfolioId + "_value", timestamps, 0.0);
+
+    for (size_t i = 0; i < snapshots.size(); i++) {
+        auto tsSnapshot = snapshots[i].timestampMs;
+        auto nextTs = (i + 1 < snapshots.size()) ? snapshots[i + 1].timestampMs : +std::numeric_limits<int64_t>::max();
+        auto portfolioSegment =
+            Portfolio::Builder(portfolioId, snapshots[i].name, baseCurrency).fromSnapshot(snapshots[i]).build();
+        auto segmentSeries = portfolioSegment.valueSeries(timestamps, priceInBase, fxCache);
+        auto mask = ts::common::utils::timeSeries::makeSegmentMask(timestamps, tsSnapshot, nextTs);
+        totalAccumulation += segmentSeries * mask;
+    }
+
+    return totalAccumulation;
+}
+TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, Timestamp startMs, Timestamp endMs,
+                                         Timestamp frequencyMs) {
+    return valueSeries(portfolioId, ts::common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs));
+}
+
+std::unordered_map<AssetId, TimeSeries> PortfolioService::weightsSeries(const std::string& portfolioId,
+                                                                        TimestampsPtr timestamps) {
+    return valueAndWeightSeries(portfolioId, timestamps).weights;
+}
+
+std::unordered_map<AssetId, TimeSeries> PortfolioService::weightsSeries(const std::string& portfolioId,
+                                                                        Timestamp startMs, Timestamp endMs,
+                                                                        Timestamp frequencyMs) {
+    return valueAndWeightSeries(portfolioId,
+                                ts::common::utils::timeSeries::makeRegularTimestamps(startMs, endMs, frequencyMs))
+        .weights;
+}
+
+finance::PortfolioOverviewAtTs PortfolioService::computeOverviewAtTs(const std::string& portfolioId, Timestamp ts) {
+    const auto recentSnapshot = portfolioRepository_->loadClosestSnapshot(portfolioId, ts);
+    if (!recentSnapshot.has_value()) {
+        std::unordered_map<std::string, double> weights;
+        return {ts, 0.0, weights};
+    }
+    return computePortfolioSnapshotAtSpecificTs_(recentSnapshot.value(), ts);
+}
 // ---------------------------------------------------------------------------
 // Listing and transaction management
 // ---------------------------------------------------------------------------
 
 PortfolioService::PortfolioMetadata PortfolioService::loadMetadata(const std::string& portfolioId) {
     auto snap = portfolioRepository_->loadLatestSnapshot(portfolioId);
-    if (!snap.has_value()) throw std::runtime_error("No snapshot for portfolio: " + portfolioId);
+    if (!snap.has_value()) throw finapp::Exception("No snapshot for portfolio: " + portfolioId);
     return {snap->portfolioId, snap->name, snap->baseCurrency};
 }
 
 std::vector<std::string> PortfolioService::listPortfolioIds() { return portfolioRepository_->listPortfolioIds(); }
 
-std::vector<Transaction> PortfolioService::listTransactions(const std::string& portfolioId, int64_t afterTimestampMs) {
+std::vector<Transaction> PortfolioService::listTransactions(const std::string& portfolioId,
+                                                            Timestamp afterTimestampMs) {
     return portfolioRepository_->loadTransactions(portfolioId, afterTimestampMs);
 }
 
@@ -495,10 +480,10 @@ void PortfolioService::deleteTransaction(const std::string& portfolioId, const s
     const auto it =
         std::find_if(allTxs.begin(), allTxs.end(), [&](const Transaction& t) { return t.id == transactionId; });
     if (it == allTxs.end()) {
-        throw std::runtime_error("PortfolioService::deleteTransaction: transaction '" + transactionId +
-                                 "' not found in portfolio '" + portfolioId + "'.");
+        throw finapp::Exception("PortfolioService::deleteTransaction: transaction '" + transactionId +
+                                "' not found in portfolio '" + portfolioId + "'.");
     }
-    const int64_t deletedTs = it->timestampsMs;
+    const Timestamp deletedTs = it->timestampsMs;
     portfolioRepository_->deleteTransaction(portfolioId, transactionId);
     rebuildSnapshotsFrom_(portfolioId, deletedTs);
 }
@@ -513,7 +498,7 @@ std::string PortfolioService::updateTransaction(const std::string& portfolioId, 
 // Private helpers
 // ---------------------------------------------------------------------------
 
-void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, int64_t fromTimestampMs) {
+void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, Timestamp fromTimestampMs) {
     if (logger_)
         logger_->write(
             finapp::logging::Level::Debug,
@@ -532,8 +517,8 @@ void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, int
         }
     }
     if (!baseSnap) {
-        throw std::runtime_error("PortfolioService::rebuildSnapshotsFrom_: no base snapshot before " +
-                                 std::to_string(fromTimestampMs) + " for portfolio '" + portfolioId + "'.");
+        throw finapp::Exception("PortfolioService::rebuildSnapshotsFrom_: no base snapshot before " +
+                                std::to_string(fromTimestampMs) + " for portfolio '" + portfolioId + "'.");
     }
 
     // Load every transaction that follows the base snapshot and sort them.
@@ -571,8 +556,52 @@ void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, int
     portfolioRepository_->replaceSnapshotsFrom(portfolioId, fromTimestampMs, newSnapshots);
 }
 
-void PortfolioService::recomputeAndCache_(const Portfolio&, int64_t, int64_t, int64_t) {
-    // Intentionally empty — valueSeries/weightSeries already rely on TimeSeriesService
+finance::PortfolioOverviewAtTs PortfolioService::computePortfolioSnapshotAtSpecificTs_(
+    const PortfolioSnapshot& snapshot, Timestamp ts) {
+    const Currency baseCurrency = snapshot.baseCurrency;
+
+    std::unordered_map<const Currency, std::vector<std::string>> assetToConvert;
+    assetToConvert.reserve(finance::valid_currencies.size());
+    std::unordered_map<std::string, double> valueByTicker;
+    valueByTicker.reserve(snapshot.positions.size() + snapshot.cashBalances.size());
+    double total = 0.0;
+
+    // Iterate over positions
+    for (const SnapshotPosition& pos : snapshot.positions) {
+        if (pos.quantity == 0.0) continue;
+        auto asset = assetService_->load(pos.assetId);
+        const Currency denom = asset->denomination();
+        const double price = assetService_->loadValueAtTs(pos.assetId, ts);
+        assetToConvert[denom].push_back(pos.assetId.ticker);
+        valueByTicker[pos.assetId.ticker] = price * pos.quantity;
+    }
+    for (auto& [currency, tickers] : assetToConvert) {
+        double fx = (currency != baseCurrency)
+                        ? fxService_->loadSingleFxAtTs(currency, baseCurrency, ts)  // asset → base
+                        : 1.0;
+        for (const auto& ticker : tickers) {
+            valueByTicker[ticker] *= fx;
+            total += valueByTicker[ticker];
+        }
+    }
+    // Cash balances
+    for (const auto& [currency, amount] : snapshot.cashBalances) {
+        double fx = (currency != baseCurrency) ? fxService_->loadSingleFxAtTs(currency, baseCurrency, ts) : 1.0;
+        const double valueBase = amount * fx;
+        valueByTicker[cashKey(currency)] = valueBase;
+        total += valueBase;
+    }
+    if (total <= 0.0) return {ts, 0.0, {}};
+
+    std::unordered_map<std::string, double> weightsByTicker;
+    weightsByTicker.reserve(valueByTicker.size());
+    for (const auto& [ticker, value] : valueByTicker) weightsByTicker[ticker] = value / total;
+
+    return finance::PortfolioOverviewAtTs{ts, total, std::move(weightsByTicker)};
+}
+
+void PortfolioService::recomputeAndCache_(const Portfolio&, Timestamp, Timestamp, Timestamp) {
+    // Intentionally empty — valueSeries already relies on TimeSeriesService
     // for caching the underlying market-data series, and re-walking the portfolio is
     // cheap compared to the fetch cost. Kept as a hook for future memoization.
 }

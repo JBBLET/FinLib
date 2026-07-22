@@ -8,7 +8,7 @@
 #include "finlib/models/interfaces/EvaluationResult.hpp"
 #include "finlib/models/interfaces/IModel.hpp"
 
-namespace models {
+namespace ts::models {
 
 class IRegressionModel : public virtual IModel {
  public:
@@ -19,4 +19,4 @@ class IRegressionModel : public virtual IModel {
     virtual std::string getViewTimeSeriesId() const = 0;
 };
 
-}  // namespace models
+}  // namespace ts::models

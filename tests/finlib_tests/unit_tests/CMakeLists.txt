@@ -18,6 +18,10 @@ add_executable(time_series_analysis_test
     time_series_analysis_test.cpp
 )
 
+add_executable(time_series_utils_test
+    time_series_utils_test.cpp
+)
+
 add_executable(csv_repository_test
     csv_repository_test.cpp
 )
@@ -45,6 +49,12 @@ target_link_libraries(operation_test
 )
 
 target_link_libraries(time_series_stats_test
+    PRIVATE
+        finlib_core
+        gtest_main
+)
+
+target_link_libraries(time_series_utils_test
     PRIVATE
         finlib_core
         gtest_main
@@ -93,6 +103,11 @@ add_test(
 )
 
 add_test(
+    NAME TimeSeriesUtilsTest
+    COMMAND time_series_utils_test
+)
+
+add_test(
     NAME TimeSeriesAnalysisTest
     COMMAND time_series_analysis_test
 )
@@ -111,6 +126,18 @@ target_link_libraries(model_session_test
         gtest_main
 )
 
+add_executable(session_test
+    session_test.cpp
+)
+
+target_link_libraries(session_test
+    PRIVATE
+        finlib_core
+        finlib_analysis
+        finlib_session
+        gtest_main
+)
+
 add_test(
     NAME ARModelTest
     COMMAND ar_model_test
@@ -121,14 +148,21 @@ add_test(
     COMMAND model_session_test
 )
 
+add_test(
+    NAME SessionTest
+    COMMAND session_test
+)
+
 set_tests_properties(
     TimeSeriesResamplingTest
     TimeSeriesOperationTest
     TimeSeriesViewTest
     TimeSeriesStatsTest
+    TimeSeriesUtilsTest
     TimeSeriesAnalysisTest
     ARModelTest
     ModelSessionTest
+    SessionTest
     PROPERTIES
         LABELS "unit"
       )

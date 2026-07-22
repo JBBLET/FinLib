@@ -1,38 +1,42 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include "finlib/data/implementation/CSVRepository.hpp"
-#include "finlib/common/logger/PrefixedLogger.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <filesystem>
+#include <format>
 #include <fstream>
-#include <iomanip>
 #include <map>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "csv/convert.hpp"
+#include "csv/csvReader.hpp"
+#include "csv/csvReaderAware.hpp"
+#include "csv/csvWriter.hpp"
+#include "csv/csvWriterAware.hpp"
+#include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
-
+namespace ts {
 CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* logger)
-    : directory_(std::move(directory)),
-      logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
+    : directory_(std::move(directory)), logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
     std::filesystem::create_directories(directory_);
 }
 
 // ITimeSeriesLoader Interface
-TimeSeries CSVRepository::load(const std::string& id, int64_t startMs, int64_t endMs) const {
+TimeSeries CSVRepository::load(const std::string& id, Timestamp startMs, Timestamp endMs,
+                               std::optional<Timestamp> /*requestedFrequency*/) const {
     auto freqs = availableFrequencies(id);
     if (freqs.empty()) {
         throw std::runtime_error("No data found for series: " + id);
     }
-    int64_t finestFreq = *std::min_element(freqs.begin(), freqs.end());
+    Timestamp finestFreq = *std::min_element(freqs.begin(), freqs.end());
     return load(SeriesKey{id, finestFreq}, startMs, endMs);
 }
 
@@ -41,29 +45,27 @@ LoaderCapabilities CSVRepository::capabilities(const std::string& id) const {
     if (freqs.empty()) {
         throw std::runtime_error("No data found for series: " + id);
     }
-    int64_t finestFreq = *std::min_element(freqs.begin(), freqs.end());
+    Timestamp finestFreq = *std::min_element(freqs.begin(), freqs.end());
     SeriesKey key{id, finestFreq};
     auto cov = coverage(key);
-    int64_t earliest = cov ? cov->coveredFromMs : 0;
+    Timestamp earliest = cov ? cov->coveredFromMs : 0;
     return LoaderCapabilities{earliest, finestFreq};
 }
 
 // ITimeSeriesSaver Interface
 
-void CSVRepository::doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) {
+void CSVRepository::doSave(const SeriesKey& key, const TimeSeries& ts) {
     if (logger_)
         logger_->write(logging::Level::Debug,
                        "CSV write: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms " +
                            std::to_string(ts.size()) + " points -> " + csvPath_(key).string());
     writeCsv_(key, ts);
-    writeMeta_(cov);
 }
 
 void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
     if (newData.size() == 0) return;
 
-    // Combine existing data (if any) with new data using a sorted map for dedup
-    std::map<int64_t, double> combined;
+    std::map<Timestamp, double> combined;
 
     if (exists(key)) {
         auto existing = readCsv_(key);
@@ -81,7 +83,7 @@ void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
     }
 
     // Build merged TimeSeries
-    std::vector<int64_t> mergedTs;
+    Timestamps mergedTs;
     std::vector<double> mergedVals;
     mergedTs.reserve(combined.size());
     mergedVals.reserve(combined.size());
@@ -95,17 +97,9 @@ void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
     if (logger_)
         logger_->write(logging::Level::Debug,
                        "CSV merge: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms +" +
-                           std::to_string(newData.size()) + " points -> " + std::to_string(merged.size()) +
-                           " total");
-
-    int64_t nowMs =
-        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-            .count();
-
-    CoverageInfo cov{key, merged.getTimestamps().front(), merged.getTimestamps().back(), "merged", nowMs};
+                           std::to_string(newData.size()) + " points -> " + std::to_string(merged.size()) + " total");
 
     writeCsv_(key, merged);
-    writeMeta_(cov);
 }
 
 // ITimeSeriesRepository Interface
@@ -113,12 +107,15 @@ void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
 bool CSVRepository::exists(const SeriesKey& key) const { return std::filesystem::exists(csvPath_(key)); }
 
 std::optional<CoverageInfo> CSVRepository::coverage(const SeriesKey& key) const {
-    if (!std::filesystem::exists(metaPath_(key))) return std::nullopt;
-    return readMeta_(key);
+    if (!std::filesystem::exists(csvPath_(key))) return std::nullopt;
+    auto ts = readCsv_(key);
+    if (ts.size() == 0) return std::nullopt;
+    const auto stamps = ts.getTimestamps();
+    return CoverageInfo{key, stamps.front(), stamps.back(), "computed", 0};
 }
 
-std::vector<int64_t> CSVRepository::availableFrequencies(const std::string& id) const {
-    std::vector<int64_t> freqs;
+Timestamps CSVRepository::availableFrequencies(const std::string& id) const {
+    std::vector<Timestamp> freqs;
     auto seriesDir = directory_ / id;
     if (!std::filesystem::exists(seriesDir) || !std::filesystem::is_directory(seriesDir)) {
         return freqs;
@@ -133,7 +130,6 @@ std::vector<int64_t> CSVRepository::availableFrequencies(const std::string& id) 
         try {
             freqs.push_back(std::stoll(stem));
         } catch (...) {
-            // Invalid frequency in filename — skip
         }
     }
     return freqs;
@@ -147,7 +143,7 @@ TimeSeries CSVRepository::load(const SeriesKey& key) const {
     return ts;
 }
 
-TimeSeries CSVRepository::load(const SeriesKey& key, int64_t startMs, int64_t endMs) const {
+TimeSeries CSVRepository::load(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const {
     auto ts = readCsvFiltered_(key, startMs, endMs);
     if (ts.size() == 0) {
         throw std::runtime_error("No data found in range for series: " + key.SeriesId);
@@ -155,7 +151,6 @@ TimeSeries CSVRepository::load(const SeriesKey& key, int64_t startMs, int64_t en
     return ts;
 }
 
-// Helpers
 std::filesystem::path CSVRepository::csvPath_(const SeriesKey& key) const {
     return directory_ / key.SeriesId / (std::to_string(key.frequencyInMs) + ".csv");
 }
@@ -164,53 +159,25 @@ std::filesystem::path CSVRepository::metaPath_(const SeriesKey& key) const {
     return directory_ / key.SeriesId / (std::to_string(key.frequencyInMs) + ".meta");
 }
 
-TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId, int64_t startMs,
-                                        int64_t endMs) {
+TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId,
+                                        Timestamp startMs, Timestamp endMs) {
     std::ifstream file(path);
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open CSV file: " + path.string());
     }
 
-    bool applyFilter = (startMs <= endMs);
-    std::vector<int64_t> timestamps;
+    const bool applyFilter = (startMs <= endMs);
+    Timestamps timestamps;
     std::vector<double> values;
-    std::string line;
 
-    auto pushIfValid = [&](int64_t ts, const std::string& valStr) {
-        double v = std::stod(valStr);
-        if (!std::isnan(v)) {
-            timestamps.push_back(ts);
-            values.push_back(v);
-        }
-    };
-
-    // Read first line — detect header vs data
-    if (std::getline(file, line)) {
-        if (!line.empty() && !std::isalpha(static_cast<unsigned char>(line[0])) && line[0] != '#') {
-            // First line is data, not a header
-            std::istringstream iss(line);
-            std::string tsStr;
-            std::string valStr;
-            if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
-                int64_t ts = std::stoll(tsStr);
-                if (!applyFilter || (ts >= startMs && ts <= endMs)) {
-                    pushIfValid(ts, valStr);
-                }
-            }
-        }
-    }
-
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        std::string tsStr;
-        std::string valStr;
-        if (std::getline(iss, tsStr, ',') && std::getline(iss, valStr, ',')) {
-            int64_t ts = std::stoll(tsStr);
-            if (!applyFilter || (ts >= startMs && ts <= endMs)) {
-                pushIfValid(ts, valStr);
-            }
-        }
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
+    for (const auto& row : reader.readAllMaps()) {
+        const Timestamp ts = csv::convert::parseInt<Timestamp>(row.at("timestamp"));
+        if (applyFilter && (ts < startMs || ts > endMs)) continue;
+        const double v = csv::convert::parseFloat<double>(row.at("value"));
+        if (std::isnan(v)) continue;
+        timestamps.push_back(ts);
+        values.push_back(v);
     }
 
     return TimeSeries(seriesId, std::move(timestamps), std::move(values));
@@ -221,11 +188,10 @@ TimeSeries CSVRepository::readCsv_(const SeriesKey& key) const {
     if (!std::filesystem::exists(path)) {
         throw std::runtime_error("CSV file not found: " + path.string());
     }
-    // startMs > endMs signals "no filter"
     return parseCsvFile_(path, key.SeriesId, 1, 0);
 }
 
-TimeSeries CSVRepository::readCsvFiltered_(const SeriesKey& key, int64_t startMs, int64_t endMs) const {
+TimeSeries CSVRepository::readCsvFiltered_(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const {
     auto path = csvPath_(key);
     if (!std::filesystem::exists(path)) {
         throw std::runtime_error("CSV file not found: " + path.string());
@@ -241,12 +207,12 @@ void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const 
     if (!file.is_open()) {
         throw std::runtime_error("Cannot open CSV file for writing: " + path.string());
     }
-    file << std::setprecision(17);
-    file << "timestamp,value\n";
+    CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"timestamp", "value"}};
     const auto& timestamps = ts.getTimestamps();
     const auto& values = ts.getValues();
     for (size_t i = 0; i < ts.size(); ++i) {
-        file << timestamps[i] << "," << values[i] << "\n";
+        writer.writeMap(Row{{"timestamp", std::to_string(timestamps[i])}, {"value", std::format("{}", values[i])}},
+                        false);
     }
 }
 
@@ -289,3 +255,4 @@ void CSVRepository::writeMeta_(const CoverageInfo& cov) const {
     file << "source=" << cov.source << "\n";
     file << "lastUpdatedMs=" << cov.lastUpdatedMs << "\n";
 }
+}  // namespace ts

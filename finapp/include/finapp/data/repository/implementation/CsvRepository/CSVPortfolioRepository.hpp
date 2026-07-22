@@ -3,28 +3,41 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
+#include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
+
+using Timestamp = int64_t;
 namespace finapp {
 
 class CSVPortfolioRepository : public IPortfolioRepository {
  public:
-    explicit CSVPortfolioRepository(std::filesystem::path directory);
+    explicit CSVPortfolioRepository(std::filesystem::path directory, finapp::logging::ILogger* logger = nullptr);
+    //  Snapshot
     void saveSnapshot(const finance::PortfolioSnapshot& snapshot) override;
     std::optional<finance::PortfolioSnapshot> loadLatestSnapshot(const std::string& portfolio) const override;
     std::vector<finance::PortfolioSnapshot> loadAllSnapshots(const std::string& portfolioId) const override;
+    std::optional<finance::PortfolioSnapshot> loadClosestSnapshot(const std::string& portfolioId,
+                                                                  const Timestamp& ts) const override;
     void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                               const std::vector<finance::PortfolioSnapshot>& newSnapshots) override;
+
+    std::vector<finance::PortfolioSnapshot> loadSnapshotsCovering(const std::string& portfolioId, Timestamp ts1,
+                                                                  Timestamp ts2) const override;
+    //  Transaction
     void appendTransactions(const std::string& portfolioId,
                             const std::vector<finance::Transaction>& transactions) override;
     std::vector<finance::Transaction> loadTransactions(const std::string& portfolioId,
                                                        int64_t afterTimestamps) const override;
+    //  Portfolio
     std::vector<std::string> listPortfolioIds() const override;
     bool exists(const std::string& portfolioID) const override;
     void deletePortfolio(const std::string& portfolioId) override;
@@ -32,6 +45,7 @@ class CSVPortfolioRepository : public IPortfolioRepository {
 
  private:
     std::filesystem::path directory_;
+    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     std::filesystem::path csvSnapshotPath_(const std::string& portfolioID) const;
     std::filesystem::path csvSnapshotPositionsPath_(const std::string& portfolioID, const int64_t& timestampMs) const;
@@ -56,9 +70,14 @@ class CSVPortfolioRepository : public IPortfolioRepository {
 
     std::optional<finance::PortfolioSnapshot> parseSnapshotCsvFile_(const std::filesystem::path& path) const;
     std::vector<finance::PortfolioSnapshot> parseAllSnapshotRows_(const std::filesystem::path& path) const;
+    /// Builds a snapshot from one index row's fields, loading the referenced .pos/.cash sidecars.
+    finance::PortfolioSnapshot snapshotFromFields_(const std::string& name, const std::string& baseCurrency,
+                                                   const std::string& timestampMs, const std::string& portfolioId,
+                                                   const std::string& positionsId,
+                                                   const std::string& cashBalancesId) const;
     std::vector<finance::SnapshotPosition> parsePositionsSnapshotFile_(const std::filesystem::path& path) const;
     std::unordered_map<finance::Currency, double> parseCashBalanceFile_(const std::filesystem::path& path) const;
     std::vector<finance::Transaction> parseTransactionsCsvFile_(const std::filesystem::path& path,
-                                                                int64_t afterTimestamps) const;
+                                                                Timestamp afterTimestamps) const;
 };
 }  // namespace finapp

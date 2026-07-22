@@ -12,7 +12,7 @@
 #include "finlib/core/StatsCore.hpp"
 #include "finlib/models/interfaces/EvaluationResult.hpp"
 
-namespace models::regression {
+namespace ts::models::regression {
 void ARModel::fit() {
     auto data = trainView_.asEigenVector();
     size_t n = data.size();
@@ -48,7 +48,8 @@ void ARModel::fit() {
     covarianceMatrix_ = (sigmaEpsilon_ * sigmaEpsilon_) * ((X.transpose() * X).ldlt().solve(I));
     standardErrors_ = covarianceMatrix_.diagonal().array().sqrt();
     tStatistics_ = coeffs.array() / standardErrors_.array();
-    pValues_ = tStatistics_.unaryExpr([](double t) { return analysis::hypothesisTesting::PvalueFromTStatistic(t); });
+    pValues_ =
+        tStatistics_.unaryExpr([](double t) { return ts::analysis::hypothesisTesting::PvalueFromTStatistic(t); });
     isFitted_ = true;
     if (testView_.size() > q_) {
         evaluate(testView_);
@@ -155,4 +156,4 @@ void ARModel::clear() {
 std::unique_ptr<IRegressionModel> ARModel::createFresh() const {
     return std::make_unique<ARModel>(q_, solver_, regularityTolerance_);
 }
-}  // namespace models::regression
+}  // namespace ts::models::regression

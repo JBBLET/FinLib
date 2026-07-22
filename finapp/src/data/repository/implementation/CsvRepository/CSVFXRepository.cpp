@@ -4,17 +4,19 @@
 
 #include <filesystem>
 #include <fstream>
-#include <sstream>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "csv/csvReader.hpp"
+#include "csv/csvReaderAware.hpp"
+#include "csv/csvWriter.hpp"
+#include "csv/csvWriterAware.hpp"
+#include "finapp/common/Exception.hpp"
 #include "finapp/finance/common/Currency.hpp"
-
+using finance::Currency;
+using finance::currencyFromString;
 namespace finapp {
-
-using namespace finance;
 
 CSVFXRepository::CSVFXRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
     std::filesystem::create_directories(directory_);
@@ -29,19 +31,14 @@ std::vector<FXInfos> CSVFXRepository::readAll_() const {
     }
     std::ifstream file(path);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open FX CSV file: " + path.string());
+        throw finapp::Exception("Cannot open FX CSV file: " + path.string());
     }
     std::vector<FXInfos> entries;
-    std::string line;
-    std::getline(file, line);  // skip header
-    while (std::getline(file, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        std::string baseStr, quoteStr, seriesId;
-        if (std::getline(iss, baseStr, ',') && std::getline(iss, quoteStr, ',') && std::getline(iss, seriesId)) {
-            entries.push_back(
-                FXInfos{currencyFromString(baseStr), currencyFromString(quoteStr), seriesId});
-        }
+    CSVReaderHeaderAware reader{CSVReader{file, ';'}};
+    for (const auto& row : reader.readAllMaps()) {
+        entries.push_back(FXInfos{currencyFromString(row.at("baseCurrency")),
+                                  currencyFromString(row.at("quoteCurrency")),
+                                  row.at("timeseriesID")});
     }
     return entries;
 }
@@ -52,11 +49,14 @@ void CSVFXRepository::writeAll_(const std::vector<FXInfos>& entries) const {
 
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open FX CSV file for writing: " + path.string());
+        throw finapp::Exception("Cannot open FX CSV file for writing: " + path.string());
     }
-    file << "baseCurrency,quoteCurrency,timeseriesID\n";
+    CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"baseCurrency", "quoteCurrency", "timeseriesID"}};
     for (const auto& entry : entries) {
-        file << toString(entry.baseCurrency) + "," + toString(entry.quoteCurrency) + "," + entry.timeseriesID + "\n";
+        writer.writeMap(Row{{"baseCurrency", toString(entry.baseCurrency)},
+                            {"quoteCurrency", toString(entry.quoteCurrency)},
+                            {"timeseriesID", entry.timeseriesID}},
+                        false);
     }
 }
 
@@ -67,7 +67,7 @@ FXInfos CSVFXRepository::load(const Currency& baseCurrency, const Currency& quot
             return entry;
         }
     }
-    throw std::runtime_error("FX pair not found: " + toString(baseCurrency) + "/" + toString(quoteCurrency));
+    throw finapp::Exception("FX pair not found: " + toString(baseCurrency) + "/" + toString(quoteCurrency));
 }
 
 void CSVFXRepository::save(const FXInfos& fxInfos) {

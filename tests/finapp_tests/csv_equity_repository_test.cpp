@@ -1,6 +1,7 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -12,26 +13,24 @@
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
 
-using namespace finance;
-using namespace finapp;
-
 class CSVEquityRepositoryTest : public ::testing::Test {
  protected:
     std::filesystem::path testDir;
-    std::unique_ptr<CSVEquityRepository> repo;
+    std::unique_ptr<finapp::CSVEquityRepository> repo;
 
     void SetUp() override {
         testDir = std::filesystem::temp_directory_path() / "finapp_csv_equity_test";
         std::filesystem::remove_all(testDir);
         std::filesystem::create_directories(testDir);
-        repo = std::make_unique<CSVEquityRepository>(testDir);
+        repo = std::make_unique<finapp::CSVEquityRepository>(testDir);
     }
 
     void TearDown() override { std::filesystem::remove_all(testDir); }
 
-    static std::shared_ptr<const IAsset> makeEquity(const std::string& ticker, const std::string& name, Currency denom,
-                                                    const std::string& exchange, const std::string& sector) {
-        return std::make_shared<Equity>(ticker, name, denom, exchange, sector);
+    static std::shared_ptr<const finance::IAsset> makeEquity(const std::string& ticker, const std::string& name,
+                                                             finance::Currency denom, const std::string& exchange,
+                                                             const std::string& sector) {
+        return std::make_shared<finance::Equity>(ticker, name, denom, exchange, sector);
     }
 };
 
@@ -40,33 +39,33 @@ class CSVEquityRepositoryTest : public ::testing::Test {
 // ============================================================
 
 TEST_F(CSVEquityRepositoryTest, SaveAndLoadRoundtrip) {
-    auto equity = makeEquity("AAPL", "Apple Inc", Currency::USD, "NASDAQ", "Technology");
+    auto equity = makeEquity("AAPL", "Apple Inc", finance::Currency::USD, "NASDAQ", "Technology");
     repo->save(equity);
 
     auto loaded = repo->load("AAPL");
     ASSERT_NE(loaded, nullptr);
     EXPECT_EQ(loaded->ticker(), "AAPL");
     EXPECT_EQ(loaded->name(), "Apple Inc");
-    EXPECT_EQ(loaded->denomination(), Currency::USD);
-    EXPECT_EQ(loaded->type(), AssetType::Equity);
+    EXPECT_EQ(loaded->denomination(), finance::Currency::USD);
+    EXPECT_EQ(loaded->type(), finance::AssetType::Equity);
 
-    auto equityLoaded = std::dynamic_pointer_cast<const Equity>(loaded);
+    auto equityLoaded = std::dynamic_pointer_cast<const finance::Equity>(loaded);
     ASSERT_NE(equityLoaded, nullptr);
     EXPECT_EQ(equityLoaded->exchange(), "NASDAQ");
     EXPECT_EQ(equityLoaded->sector(), "Technology");
 }
 
 TEST_F(CSVEquityRepositoryTest, SaveOverwritesExisting) {
-    auto equity1 = makeEquity("AAPL", "Apple Inc", Currency::USD, "NASDAQ", "Technology");
+    auto equity1 = makeEquity("AAPL", "Apple Inc", finance::Currency::USD, "NASDAQ", "Technology");
     repo->save(equity1);
 
-    auto equity2 = makeEquity("AAPL", "Apple Updated", Currency::EUR, "NYSE", "Consumer");
+    auto equity2 = makeEquity("AAPL", "Apple Updated", finance::Currency::EUR, "NYSE", "Consumer");
     repo->save(equity2);
 
-    auto loaded = std::dynamic_pointer_cast<const Equity>(repo->load("AAPL"));
+    auto loaded = std::dynamic_pointer_cast<const finance::Equity>(repo->load("AAPL"));
     ASSERT_NE(loaded, nullptr);
     EXPECT_EQ(loaded->name(), "Apple Updated");
-    EXPECT_EQ(loaded->denomination(), Currency::EUR);
+    EXPECT_EQ(loaded->denomination(), finance::Currency::EUR);
     EXPECT_EQ(loaded->exchange(), "NYSE");
 }
 
@@ -77,7 +76,7 @@ TEST_F(CSVEquityRepositoryTest, SaveOverwritesExisting) {
 TEST_F(CSVEquityRepositoryTest, ExistsReturnsFalseWhenMissing) { EXPECT_FALSE(repo->exists("NONEXIST")); }
 
 TEST_F(CSVEquityRepositoryTest, ExistsReturnsTrueAfterSave) {
-    repo->save(makeEquity("MSFT", "Microsoft", Currency::USD, "NASDAQ", "Technology"));
+    repo->save(makeEquity("MSFT", "Microsoft", finance::Currency::USD, "NASDAQ", "Technology"));
     EXPECT_TRUE(repo->exists("MSFT"));
 }
 
@@ -98,9 +97,9 @@ TEST_F(CSVEquityRepositoryTest, ListTickersEmpty) {
 }
 
 TEST_F(CSVEquityRepositoryTest, ListTickersReturnsAllSaved) {
-    repo->save(makeEquity("AAPL", "Apple", Currency::USD, "NASDAQ", "Tech"));
-    repo->save(makeEquity("MSFT", "Microsoft", Currency::USD, "NASDAQ", "Tech"));
-    repo->save(makeEquity("GOOG", "Alphabet", Currency::USD, "NASDAQ", "Tech"));
+    repo->save(makeEquity("AAPL", "Apple", finance::Currency::USD, "NASDAQ", "Tech"));
+    repo->save(makeEquity("MSFT", "Microsoft", finance::Currency::USD, "NASDAQ", "Tech"));
+    repo->save(makeEquity("GOOG", "Alphabet", finance::Currency::USD, "NASDAQ", "Tech"));
 
     auto tickers = repo->listTickers();
     ASSERT_EQ(tickers.size(), 3);
@@ -115,9 +114,9 @@ TEST_F(CSVEquityRepositoryTest, ListTickersReturnsAllSaved) {
 // ============================================================
 
 TEST_F(CSVEquityRepositoryTest, LoadAllReturnsRequestedTickers) {
-    repo->save(makeEquity("AAPL", "Apple", Currency::USD, "NASDAQ", "Tech"));
-    repo->save(makeEquity("MSFT", "Microsoft", Currency::USD, "NASDAQ", "Tech"));
-    repo->save(makeEquity("GOOG", "Alphabet", Currency::USD, "NASDAQ", "Tech"));
+    repo->save(makeEquity("AAPL", "Apple", finance::Currency::USD, "NASDAQ", "Tech"));
+    repo->save(makeEquity("MSFT", "Microsoft", finance::Currency::USD, "NASDAQ", "Tech"));
+    repo->save(makeEquity("GOOG", "Alphabet", finance::Currency::USD, "NASDAQ", "Tech"));
 
     auto all = repo->loadAll({"AAPL", "GOOG"});
     ASSERT_EQ(all.size(), 2);
@@ -131,12 +130,12 @@ TEST_F(CSVEquityRepositoryTest, LoadAllReturnsRequestedTickers) {
 // ============================================================
 
 TEST_F(CSVEquityRepositoryTest, SaveAndLoadWithAttributes) {
-    auto equity = std::make_shared<Equity>("AAPL", "Apple", Currency::USD, "NASDAQ", "Tech");
+    auto equity = std::make_shared<finance::Equity>("AAPL", "Apple", finance::Currency::USD, "NASDAQ", "Tech");
     equity->setAttribute("marketcap_series", "AAPL_marketcap");
     equity->setAttribute("divyield_series", "AAPL_divyield");
     repo->save(equity);
 
-    auto loaded = std::dynamic_pointer_cast<const Equity>(repo->load("AAPL"));
+    auto loaded = std::dynamic_pointer_cast<const finance::Equity>(repo->load("AAPL"));
     ASSERT_NE(loaded, nullptr);
     EXPECT_EQ(loaded->attributes().size(), 2);
     EXPECT_EQ(loaded->attribute("marketcap_series"), "AAPL_marketcap");
@@ -144,9 +143,9 @@ TEST_F(CSVEquityRepositoryTest, SaveAndLoadWithAttributes) {
 }
 
 TEST_F(CSVEquityRepositoryTest, SaveAndLoadWithNoAttributes) {
-    repo->save(makeEquity("AAPL", "Apple", Currency::USD, "NASDAQ", "Tech"));
+    repo->save(makeEquity("AAPL", "Apple", finance::Currency::USD, "NASDAQ", "Tech"));
 
-    auto loaded = std::dynamic_pointer_cast<const Equity>(repo->load("AAPL"));
+    auto loaded = std::dynamic_pointer_cast<const finance::Equity>(repo->load("AAPL"));
     ASSERT_NE(loaded, nullptr);
     EXPECT_TRUE(loaded->attributes().empty());
 }
@@ -156,6 +155,6 @@ TEST_F(CSVEquityRepositoryTest, SaveAndLoadWithNoAttributes) {
 // ============================================================
 
 TEST_F(CSVEquityRepositoryTest, SaveThrowsForNonEquityAsset) {
-    auto cash = std::make_shared<Cash>(Currency::USD);
+    auto cash = std::make_shared<finance::Cash>(finance::Currency::USD);
     EXPECT_THROW(repo->save(cash), std::runtime_error);
 }

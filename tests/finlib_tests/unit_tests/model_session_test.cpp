@@ -16,14 +16,21 @@
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/data/implementation/CSVRepository.hpp"
-#include "finlib/models/interfaces/IRegressionModel.hpp"
 #include "finlib/models/timeseries/regression/ARModel.hpp"
 #include "finlib/session/AppContext.hpp"
 #include "finlib/session/ModelSession.hpp"
 
-class TestLogger : public logging::ILogger {
+using ts::AppContext;
+using ts::CoverageInfo;
+using ts::CSVRepository;
+using ts::ModelSession;
+using ts::SeriesKey;
+using ts::TimeSeries;
+using ts::models::regression::ARModel;
+
+class TestLogger : public ts::logging::ILogger {
  public:
-    void write(logging::Level /*lvl*/, const std::string& msg) override { messages.push_back(msg); }
+    void write(ts::logging::Level /*lvl*/, const std::string& msg) override { messages.push_back(msg); }
     std::vector<std::string> messages;
 };
 
@@ -51,7 +58,7 @@ class ModelSessionTest : public ::testing::Test {
     AppContext context;
 
     std::shared_ptr<TimeSeries> series;
-    std::shared_ptr<models::regression::ARModel> fittedModel;
+    std::shared_ptr<ARModel> fittedModel;
 
     double truePhi = 0.7;
     double trueIntercept = 2.0;
@@ -65,7 +72,7 @@ class ModelSessionTest : public ::testing::Test {
 
         series = generateAR1(truePhi, trueIntercept, 500);
 
-        fittedModel = std::make_shared<models::regression::ARModel>(1, models::regression::ARModel::Solver::OLS);
+        fittedModel = std::make_shared<ARModel>(1, ARModel::Solver::OLS);
         auto view = series->view();
         fittedModel->setData(view, 0.8, 0.0);
         fittedModel->fit();
@@ -82,7 +89,7 @@ TEST_F(ModelSessionTest, ConstructionWithFittedModel) {
 }
 
 TEST_F(ModelSessionTest, ConstructionThrowsWithUnfittedModel) {
-    auto unfitted = std::make_shared<models::regression::ARModel>(1, models::regression::ARModel::Solver::OLS);
+    auto unfitted = std::make_shared<ARModel>(1, ARModel::Solver::OLS);
     auto view = series->view();
     EXPECT_THROW(ModelSession(context, unfitted, view, 50, deltaT, 100.0), std::runtime_error);
 }
@@ -154,7 +161,7 @@ TEST_F(ModelSessionTest, ObserveUpdatesErrorTracking) {
 
 TEST_F(ModelSessionTest, ObserveSequenceProducesReasonableError) {
     auto sessionView = series->slice(0, 400);
-    auto localModel = std::make_shared<models::regression::ARModel>(1, models::regression::ARModel::Solver::OLS);
+    auto localModel = std::make_shared<ARModel>(1, ARModel::Solver::OLS);
     localModel->setData(sessionView, 0.9, 0.0);
     localModel->fit();
 
@@ -269,8 +276,7 @@ TEST_F(CSVRepositoryTest, SaveAndLoadFullTimeSeries) {
     TimeSeries original("test_save_load", ts, vals);
 
     SeriesKey key{"test_save_load", 1000};
-    CoverageInfo cov{key, 1000, 5000, "test", 0};
-    repo->save(key, original, cov);
+    repo->save(key, original);
 
     auto loaded = repo->load("test_save_load", 0, 10000);
     EXPECT_EQ(loaded.size(), 5);
@@ -289,8 +295,7 @@ TEST_F(CSVRepositoryTest, LoadWithTimestampRange) {
     TimeSeries original("test_range", ts, vals);
 
     SeriesKey key{"test_range", 1000};
-    CoverageInfo cov{key, 1000, 5000, "test", 0};
-    repo->save(key, original, cov);
+    repo->save(key, original);
 
     auto loaded = repo->load("test_range", 2000, 4000);
     EXPECT_EQ(loaded.size(), 3);  // timestamps 2000, 3000, 4000
@@ -308,8 +313,7 @@ TEST_F(CSVRepositoryTest, MergeAppendsPoints) {
     TimeSeries original("test_append", ts, vals);
 
     SeriesKey key{"test_append", 1000};
-    CoverageInfo cov{key, 1000, 3000, "test", 0};
-    repo->save(key, original, cov);
+    repo->save(key, original);
 
     // Merge new points
     std::vector<int64_t> newTs = {4000, 5000};
@@ -338,8 +342,7 @@ TEST_F(CSVRepositoryTest, SaveCreatesDirectory) {
     TimeSeries series("test_nested", ts, vals);
 
     SeriesKey key{"test_nested", 1000};
-    CoverageInfo cov{key, 1000, 1000, "test", 0};
-    EXPECT_NO_THROW(nestedRepo.save(key, series, cov));
+    EXPECT_NO_THROW(nestedRepo.save(key, series));
     // Directory layout: <dir>/<seriesId>/<frequencyMs>.csv
     EXPECT_TRUE(std::filesystem::exists(nestedDir / "test_nested" / "1000.csv"));
 }

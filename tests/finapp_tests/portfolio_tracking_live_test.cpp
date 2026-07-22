@@ -1,17 +1,20 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #include <gtest/gtest.h>
 
-#include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "finapp/data/importers/YahooFinanceImporter.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YFinanceEquityProvider.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YFinanceProvider.hpp"
 #include "finapp/data/repository/implementation/CsvRepository/CSVPortfolioRepository.hpp"
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryAssetRepository.hpp"
+#include "finapp/data/repository/implementation/InMemoryRepository/InMemoryFXRepository.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
@@ -21,12 +24,13 @@
 #include "finapp/service/PortfolioService.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"
+#include "finlib/data/implementation/InMemoryTimeSeriesRepository.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
-#include "support/service_test_fakes.hpp"
 
-using namespace finance;
-using namespace finapp;
-using namespace finapp::test;
+using ts::CachedTimeSeriesRepository;
+using ts::InMemoryTimeSeriesRepository;
+using ts::TimeSeries;
+using ts::TimeSeriesService;
 
 namespace {
 
@@ -39,7 +43,7 @@ const std::filesystem::path kResourcesDir{FINAPP_TEST_RESOURCES_DIR};
 // wired to live yfinance and a CSVPortfolioRepository in a temp directory.
 // The temp directory is deleted on destruction.
 struct LiveBundle {
-    std::unique_ptr<PortfolioService> service;
+    std::unique_ptr<finapp::PortfolioService> service;
     std::filesystem::path repoDir;
 
     ~LiveBundle() { std::filesystem::remove_all(repoDir); }
@@ -53,23 +57,24 @@ LiveBundle makeLiveBundle(const std::string& testName) {
     // Time-series: live yfinance loader backed by an in-memory cache.
     auto innerRepo = std::make_shared<InMemoryTimeSeriesRepository>();
     auto cachedRepo = std::make_shared<CachedTimeSeriesRepository>(innerRepo);
-    auto tsLoader = std::make_shared<YFinanceProvider>("/home/jbblet/user/Documents/Projects/FinLib/.venv/bin/python",
-                                                       FINAPP_PYTHON_DIR "/YFinanceFetcher.py");
+    auto tsLoader = std::make_shared<finapp::YFinanceProvider>();
     auto tsService = std::make_shared<TimeSeriesService>(cachedRepo, tsLoader);
 
     // Asset: in-memory repo + live yfinance equity provider to resolve denomination.
-    auto equityRepo = std::make_shared<InMemoryAssetRepository>();
-    auto equityProvider = std::make_shared<YFinanceEquityProvider>();
-    std::unordered_map<AssetType, std::shared_ptr<IAssetRepository>> repos = {{AssetType::Equity, equityRepo}};
-    std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>> providers = {{AssetType::Equity, equityProvider}};
-    auto assetService = std::make_shared<AssetService>(tsService, std::move(repos), std::move(providers));
+    auto equityRepo = std::make_shared<finapp::InMemoryAssetRepository>();
+    auto equityProvider = std::make_shared<finapp::YFinanceEquityProvider>();
+    std::unordered_map<finance::AssetType, std::shared_ptr<finapp::IAssetRepository>> repos = {
+        {finance::AssetType::Equity, equityRepo}};
+    std::unordered_map<finance::AssetType, std::shared_ptr<finapp::IAssetProvider>> providers = {
+        {finance::AssetType::Equity, equityProvider}};
+    auto assetService = std::make_shared<finapp::AssetService>(tsService, std::move(repos), std::move(providers));
 
     // FX: empty repo — both portfolios use a single base currency throughout.
-    auto fxRepo = std::make_shared<InMemoryFXRepository>();
-    auto fxService = std::make_shared<FXService>(tsService, fxRepo);
+    auto fxRepo = std::make_shared<finapp::InMemoryFXRepository>();
+    auto fxService = std::make_shared<finapp::FXService>(tsService, fxRepo);
 
-    auto portfolioRepo = std::make_shared<CSVPortfolioRepository>(repoDir);
-    auto service = std::make_unique<PortfolioService>(portfolioRepo, assetService, fxService);
+    auto portfolioRepo = std::make_shared<finapp::CSVPortfolioRepository>(repoDir);
+    auto service = std::make_unique<finapp::PortfolioService>(portfolioRepo, assetService, fxService);
 
     return {std::move(service), repoDir};
 }
@@ -94,28 +99,28 @@ void assertValidValueSeries(const TimeSeries& series, const std::string& label) 
 TEST(PortfolioTrackingLive, PEA_ValueSeriesFromCSV) {
     auto bundle = makeLiveBundle("pea");
 
-    auto txns = YahooFinanceImporter::parse(kResourcesDir / "portfolio PEA.csv",
-                                            YahooFinanceImporter::Config{Currency::EUR, nullptr});
+    auto txns = finapp::YahooFinanceImporter::parse(
+        kResourcesDir / "portfolio PEA.csv", finapp::YahooFinanceImporter::Config{finance::Currency::EUR, nullptr});
     ASSERT_FALSE(txns.empty()) << "No transactions parsed from PEA CSV";
 
     // Use the full service layer: createNew seeds the T=0 sentinel snapshot,
     // importTransactions runs rebuildSnapshotsFrom_ and applies Portfolio::apply logic.
     // This is the same path as RequestAddTransactionByCsv in the gRPC handler.
-    bundle.service->createNew("pea", "PEA", Currency::EUR);
+    bundle.service->createNew("pea", "PEA", finance::Currency::EUR);
 
     // The Yahoo Finance export may omit some brokerage deposits (interest credits,
     // wire transfers not captured in the tracker).  Prepend a seed deposit so the
     // cash balance never goes negative when replaying historical buys.
-    Transaction seed{};
+    finance::Transaction seed{};
     seed.timestampsMs = txns.front().timestampsMs - 1;
-    seed.type = TransactionType::Deposit;
-    seed.assetType = AssetType::Cash;
-    seed.assetTicker = toString(Currency::EUR);
+    seed.type = finance::TransactionType::Deposit;
+    seed.assetType = finance::AssetType::Cash;
+    seed.assetTicker = toString(finance::Currency::EUR);
     seed.quantity = 10'000.0;
     seed.pricePerUnit = 1.0;
     seed.fees = 0.0;
-    seed.settlementCurrency = Currency::EUR;
-    std::vector<Transaction> allTxns;
+    seed.settlementCurrency = finance::Currency::EUR;
+    std::vector<finance::Transaction> allTxns;
     allTxns.push_back(seed);
     allTxns.insert(allTxns.end(), txns.begin(), txns.end());
     bundle.service->importTransactions("pea", std::move(allTxns));
@@ -127,11 +132,10 @@ TEST(PortfolioTrackingLive, PEA_ValueSeriesFromCSV) {
     assertValidValueSeries(series, "PEA");
     EXPECT_GT(series.size(), 4u) << "PEA: expected more than 4 weekly data points";
 
-    // Exercise the GetPortfoliosByIds → load + totalValue path.
+    // Exercise the GetPortfoliosByIds → load + computeOverviewAtTs path.
     // This calls assetService_->load(ticker) → YFinanceEquityProvider::fetch,
     // which is the path where currencyFromString can throw for unsupported currencies.
-    const auto portfolio = bundle.service->load("pea");
-    const double totalAtEnd = bundle.service->totalValue(portfolio, lastMs);
+    const double totalAtEnd = bundle.service->computeOverviewAtTs("pea", lastMs).totalValue;
     EXPECT_GT(totalAtEnd, 0.0) << "PEA: totalValue at end of history should be positive";
 }
 
@@ -142,12 +146,12 @@ TEST(PortfolioTrackingLive, PEA_ValueSeriesFromCSV) {
 TEST(PortfolioTrackingLive, NISA_ValueSeriesFromCSV) {
     auto bundle = makeLiveBundle("nisa");
 
-    auto txns = YahooFinanceImporter::parse(kResourcesDir / "portfolio NISA.csv",
-                                            YahooFinanceImporter::Config{Currency::USD, nullptr});
+    auto txns = finapp::YahooFinanceImporter::parse(
+        kResourcesDir / "portfolio NISA.csv", finapp::YahooFinanceImporter::Config{finance::Currency::USD, nullptr});
     ASSERT_FALSE(txns.empty()) << "No transactions parsed from NISA CSV";
 
     // Use the full service layer — same path as RequestAddTransactionByCsv.
-    bundle.service->createNew("nisa", "NISA", Currency::USD);
+    bundle.service->createNew("nisa", "NISA", finance::Currency::USD);
     bundle.service->importTransactions("nisa", txns);
 
     const int64_t firstMs = txns.front().timestampsMs;
@@ -157,8 +161,7 @@ TEST(PortfolioTrackingLive, NISA_ValueSeriesFromCSV) {
     assertValidValueSeries(series, "NISA");
     EXPECT_GT(series.size(), 4u) << "NISA: expected more than 4 weekly data points";
 
-    // Exercise the GetPortfoliosByIds → load + totalValue path.
-    const auto portfolio = bundle.service->load("nisa");
-    const double totalAtEnd = bundle.service->totalValue(portfolio, lastMs);
+    // Exercise the GetPortfoliosByIds → load + computeOverviewAtTs path.
+    const double totalAtEnd = bundle.service->computeOverviewAtTs("nisa", lastMs).totalValue;
     EXPECT_GT(totalAtEnd, 0.0) << "NISA: totalValue at end of history should be positive";
 }
