@@ -8,6 +8,7 @@ add_library(finlib_core
     src/core/TimeSeries.cpp
     src/core/TimeSeriesView.cpp
     src/core/StatsCore.cpp
+    src/common/Exception.cpp
     src/utils/TimeUtils.cpp
     src/utils/TimeSeriesUtils.cpp
 )
@@ -19,8 +20,9 @@ target_include_directories(finlib_core
 target_link_libraries(finlib_core
     PUBLIC
         Eigen3::Eigen
+    PRIVATE
+        stdc++exp
 )
-target_compile_features(finlib_core PUBLIC cxx_std_20)
 
 # --------------------
 # Analysis library
@@ -47,11 +49,14 @@ target_link_libraries(finlib_analysis
 add_library(finlib_data
     src/data/CSVRepository.cpp
     src/data/TimeSeriesService.cpp
+    src/data/TimeRange.cpp
 )
 
 target_link_libraries(finlib_data
     PUBLIC
         finlib_core
+    PRIVATE
+        cpp::csv
 )
 
 target_include_directories(finlib_data
@@ -85,6 +90,7 @@ target_include_directories(finlib_models
 add_library(finlib_session
     src/session/ModelSession.cpp
     src/session/TimeSeriesSession.cpp
+    src/session/MultiTimeSeriesSession.cpp
 )
 
 target_link_libraries(finlib_session

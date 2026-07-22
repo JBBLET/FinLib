@@ -1,59 +1,44 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #include <gtest/gtest.h>
 
-#include <vector>
-
+#include "TestMockTimeSeries.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
-class TimeSeriesOperatorsTest : public ::testing::Test {
- protected:
-    std::vector<int64_t> ts1 = {100, 200, 300};
-    std::vector<double> v1 = {10.0, 20.0, 30.0};
-    std::vector<double> v2 = {1.0, 2.0, 3.0};
-};
+class TimeSeriesOperatorsTest : public TimeSeriesMocks {};
 
 TEST_F(TimeSeriesOperatorsTest, ScalarMultiplication) {
-    TimeSeries series("TestTimeSeries", ts1, v1);
-    double scalar = 2.0;
-
-    TimeSeries result = series * scalar;
+    TimeSeries result = *decadeSeries * 2.0;
     EXPECT_DOUBLE_EQ(result.getValues()[0], 20.0);
-    EXPECT_DOUBLE_EQ(result.getValues()[2], 60.0);
-
-    EXPECT_EQ(result.getSharedTimestamps(), series.getSharedTimestamps());
+    EXPECT_DOUBLE_EQ(result.getValues()[4], 100.0);
+    EXPECT_EQ(result.getSharedTimestamps(), decadeSeries->getSharedTimestamps());
 }
 
 TEST_F(TimeSeriesOperatorsTest, ScalarAdditionInPlace) {
-    TimeSeries series("TestTimeSeries", ts1, v1);
+    TimeSeries series = *decadeSeries;
     series += 5.0;
     EXPECT_DOUBLE_EQ(series.getValues()[0], 15.0);
-    EXPECT_DOUBLE_EQ(series.getValues()[2], 35.0);
+    EXPECT_DOUBLE_EQ(series.getValues()[4], 55.0);
 }
 
 TEST_F(TimeSeriesOperatorsTest, SeriesAddition) {
-    TimeSeries s1("TestTimeSeries1", ts1, v1);
-    TimeSeries s2("TestTimeSeries2", ts1, v2);
-    TimeSeries result = s1 + s2;
-
+    // decadeSeries {10,20,30,40,50} + simpleSeries {1,2,3,4,5} = {11,22,33,44,55}
+    TimeSeries result = *decadeSeries + *simpleSeries;
     EXPECT_DOUBLE_EQ(result.getValues()[0], 11.0);
-    EXPECT_DOUBLE_EQ(result.getValues()[2], 33.0);
-    EXPECT_EQ(result.getSharedTimestamps(), s1.getSharedTimestamps());
+    EXPECT_DOUBLE_EQ(result.getValues()[4], 55.0);
+    EXPECT_EQ(result.getSharedTimestamps(), decadeSeries->getSharedTimestamps());
 }
 
 TEST_F(TimeSeriesOperatorsTest, SeriesMultiplicationInPlace) {
-    TimeSeries s1("TestTimeSeries1", ts1, v1);
-    TimeSeries s2("TestTimeSeries2", ts1, v2);
-
-    s1 *= s2;
-
+    // decadeSeries {10,20,30,40,50} *= simpleSeries {1,2,3,4,5} = {10,40,90,160,250}
+    TimeSeries s1 = *decadeSeries;
+    s1 *= *simpleSeries;
     EXPECT_DOUBLE_EQ(s1.getValues()[0], 10.0);
-    EXPECT_DOUBLE_EQ(s1.getValues()[2], 90.0);
+    EXPECT_DOUBLE_EQ(s1.getValues()[4], 250.0);
 }
 
 TEST_F(TimeSeriesOperatorsTest, ThrowsOnMismatchedTimestamps) {
-    TimeSeries s1("TestTimeSeries1", {100, 200}, {10.0, 20.0});
-    TimeSeries s2("TestTimeSeries2", {100, 201}, {1.0, 2.0});
-
-    EXPECT_THROW(s1 + s2, std::invalid_argument);
-    EXPECT_THROW(s1 *= s2, std::invalid_argument);
+    auto s1 = makeSeriesAt("s1", {1000, 2000}, {10.0, 20.0});
+    auto s2 = makeSeriesAt("s2", {1000, 2001}, {1.0, 2.0});
+    EXPECT_THROW(*s1 + *s2, std::invalid_argument);
+    EXPECT_THROW(*s1 *= *s2, std::invalid_argument);
 }

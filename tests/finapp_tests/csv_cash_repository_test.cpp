@@ -9,22 +9,18 @@
 #include "finapp/data/repository/implementation/CsvRepository/CSVCashRepository.hpp"
 #include "finapp/finance/asset/Cash.hpp"
 #include "finapp/finance/asset/Equity.hpp"
-#include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
-
-using namespace finance;
-using namespace finapp;
 
 class CSVCashRepositoryTest : public ::testing::Test {
  protected:
     std::filesystem::path testDir;
-    std::unique_ptr<CSVCashRepository> repo;
+    std::unique_ptr<finapp::CSVCashRepository> repo;
 
     void SetUp() override {
         testDir = std::filesystem::temp_directory_path() / "finapp_csv_cash_test";
         std::filesystem::remove_all(testDir);
         std::filesystem::create_directories(testDir);
-        repo = std::make_unique<CSVCashRepository>(testDir);
+        repo = std::make_unique<finapp::CSVCashRepository>(testDir);
     }
 
     void TearDown() override { std::filesystem::remove_all(testDir); }
@@ -35,27 +31,27 @@ class CSVCashRepositoryTest : public ::testing::Test {
 // ============================================================
 
 TEST_F(CSVCashRepositoryTest, SaveAndLoadRoundtrip) {
-    auto cash = std::make_shared<Cash>(Currency::USD);
+    auto cash = std::make_shared<finance::Cash>(finance::Currency::USD);
     repo->save(cash);
 
     auto loaded = repo->load(cash->ticker());
     ASSERT_NE(loaded, nullptr);
-    EXPECT_EQ(loaded->denomination(), Currency::USD);
-    EXPECT_EQ(loaded->type(), AssetType::Cash);
+    EXPECT_EQ(loaded->denomination(), finance::Currency::USD);
+    EXPECT_EQ(loaded->type(), finance::AssetType::Cash);
 }
 
 TEST_F(CSVCashRepositoryTest, SaveAndLoadMultipleCurrencies) {
-    auto usd = std::make_shared<Cash>(Currency::USD);
-    auto eur = std::make_shared<Cash>(Currency::EUR);
-    auto jpy = std::make_shared<Cash>(Currency::JPY);
+    auto usd = std::make_shared<finance::Cash>(finance::Currency::USD);
+    auto eur = std::make_shared<finance::Cash>(finance::Currency::EUR);
+    auto jpy = std::make_shared<finance::Cash>(finance::Currency::JPY);
 
     repo->save(usd);
     repo->save(eur);
     repo->save(jpy);
 
-    EXPECT_EQ(repo->load(usd->ticker())->denomination(), Currency::USD);
-    EXPECT_EQ(repo->load(eur->ticker())->denomination(), Currency::EUR);
-    EXPECT_EQ(repo->load(jpy->ticker())->denomination(), Currency::JPY);
+    EXPECT_EQ(repo->load(usd->ticker())->denomination(), finance::Currency::USD);
+    EXPECT_EQ(repo->load(eur->ticker())->denomination(), finance::Currency::EUR);
+    EXPECT_EQ(repo->load(jpy->ticker())->denomination(), finance::Currency::JPY);
 }
 
 // ============================================================
@@ -65,7 +61,7 @@ TEST_F(CSVCashRepositoryTest, SaveAndLoadMultipleCurrencies) {
 TEST_F(CSVCashRepositoryTest, ExistsReturnsFalseWhenMissing) { EXPECT_FALSE(repo->exists("NONEXIST")); }
 
 TEST_F(CSVCashRepositoryTest, ExistsReturnsTrueAfterSave) {
-    auto cash = std::make_shared<Cash>(Currency::GBP);
+    auto cash = std::make_shared<finance::Cash>(finance::Currency::GBP);
     repo->save(cash);
     EXPECT_TRUE(repo->exists(cash->ticker()));
 }
@@ -87,8 +83,8 @@ TEST_F(CSVCashRepositoryTest, ListTickersEmpty) {
 }
 
 TEST_F(CSVCashRepositoryTest, ListTickersReturnsAllSaved) {
-    repo->save(std::make_shared<Cash>(Currency::USD));
-    repo->save(std::make_shared<Cash>(Currency::EUR));
+    repo->save(std::make_shared<finance::Cash>(finance::Currency::USD));
+    repo->save(std::make_shared<finance::Cash>(finance::Currency::EUR));
 
     auto tickers = repo->listTickers();
     ASSERT_EQ(tickers.size(), 2);
@@ -102,9 +98,9 @@ TEST_F(CSVCashRepositoryTest, ListTickersReturnsAllSaved) {
 // ============================================================
 
 TEST_F(CSVCashRepositoryTest, LoadAllReturnsRequestedTickers) {
-    auto usd = std::make_shared<Cash>(Currency::USD);
-    auto eur = std::make_shared<Cash>(Currency::EUR);
-    auto gbp = std::make_shared<Cash>(Currency::GBP);
+    auto usd = std::make_shared<finance::Cash>(finance::Currency::USD);
+    auto eur = std::make_shared<finance::Cash>(finance::Currency::EUR);
+    auto gbp = std::make_shared<finance::Cash>(finance::Currency::GBP);
     repo->save(usd);
     repo->save(eur);
     repo->save(gbp);
@@ -120,6 +116,6 @@ TEST_F(CSVCashRepositoryTest, LoadAllReturnsRequestedTickers) {
 // ============================================================
 
 TEST_F(CSVCashRepositoryTest, SaveThrowsForNonCashAsset) {
-    auto equity = std::make_shared<Equity>("AAPL", "Apple", Currency::USD, "NASDAQ", "Tech");
+    auto equity = std::make_shared<finance::Equity>("AAPL", "Apple", finance::Currency::USD, "NASDAQ", "Tech");
     EXPECT_THROW(repo->save(equity), std::runtime_error);
 }

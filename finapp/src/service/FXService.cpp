@@ -2,21 +2,22 @@
 
 #include "finapp/service/FXService.hpp"
 
-#include <cstdint>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
-#include "finapp/finance/common/Currency.hpp"
+#include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/finance/common/Currency.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
+#include "finlib/session/TimeSeriesSession.hpp"
 
 namespace finapp {
 
-using namespace finance;
+using finance::Currency;
 
 FXService::FXService(std::shared_ptr<TimeSeriesService> timeSeriesService,
                      std::shared_ptr<IFXRepository> fxInfoRepository, finapp::logging::ILogger* logger)
@@ -28,10 +29,10 @@ FXService::FXService(std::shared_ptr<TimeSeriesService> timeSeriesService,
 // Public API
 // ---------------------------------------------------------------------------
 
-TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, int64_t fromMs, int64_t endMs,
-                           int64_t frequencyMs, InterpolationStrategy strategy) {
+TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, Timestamp fromMs,
+                           Timestamp endMs, Timestamp frequencyMs, InterpolationStrategy strategy) {
     if (baseCurrency == quoteCurrency) {
-        return common::utils::timeSeries::generateConstantTimeSeries(
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(
             makePairId_(baseCurrency, quoteCurrency), fromMs, endMs, frequencyMs, 1.0);
     }
 
@@ -39,20 +40,39 @@ TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCu
     return timeSeriesService_->getResampled(seriesId, fromMs, endMs, frequencyMs, strategy);
 }
 
-TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, TimestampPtr timestamps) {
+TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, TimestampsPtr timestamps) {
     if (!timestamps) {
-        throw std::invalid_argument("FXService::load: timestamps pointer is null.");
+        throw finapp::InvalidArgument("FXService::load: timestamps pointer is null.");
     }
 
     if (baseCurrency == quoteCurrency) {
-        return common::utils::timeSeries::generateConstantTimeSeries(
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(
             makePairId_(baseCurrency, quoteCurrency), std::move(timestamps), 1.0);
     }
 
     const std::string seriesId = resolveSeriesId_(baseCurrency, quoteCurrency);
     return timeSeriesService_->get(seriesId, std::move(timestamps));
 }
+double FXService::loadSingleFxAtTs(const Currency& baseCurrency, const Currency& quoteCurrency, Timestamp ts) {
+    if (baseCurrency == quoteCurrency) {
+        return 1.0;
+    }
 
+    const std::string seriesId = resolveSeriesId_(baseCurrency, quoteCurrency);
+    return timeSeriesService_->getSinglePoint(seriesId, ts);
+}
+
+std::shared_ptr<::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
+                                                              Timestamp startMs, Timestamp endMs,
+                                                              Timestamp frequencyMs) {
+    return std::make_shared<::TimeSeriesSession>(
+        timeSeriesService_, makePairId_(base, quote), startMs, endMs, frequencyMs);
+}
+
+std::shared_ptr<::TimeSeriesSession> FXService::createSession(const Currency& base, const Currency& quote,
+                                                              TimestampsPtr timestamps) {
+    return std::make_shared<::TimeSeriesSession>(timeSeriesService_, makePairId_(base, quote), std::move(timestamps));
+}
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
@@ -78,9 +98,9 @@ std::string FXService::resolveSeriesId_(const Currency& base, const Currency& qu
     // the provider lazily on the next TimeSeriesService::get call.
     FXInfos info{base, quote, makePairId_(base, quote)};
     if (logger_)
-        logger_->write(finapp::logging::Level::Debug,
-                       "resolveSeriesId_: new pair " + toString(base) + "/" + toString(quote) + " -> " +
-                           info.timeseriesID);
+        logger_->write(
+            finapp::logging::Level::Debug,
+            "resolveSeriesId_: new pair " + toString(base) + "/" + toString(quote) + " -> " + info.timeseriesID);
     fxInfoRepository_->save(info);
     return info.timeseriesID;
 }

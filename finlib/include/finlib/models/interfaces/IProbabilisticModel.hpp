@@ -6,7 +6,7 @@
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/models/interfaces/IModel.hpp"
 
-namespace models {
+namespace ts::models {
 
 struct PredictionDistribution {
     double mean;
@@ -20,4 +20,4 @@ class IProbabilisticModel : public virtual IModel {
     virtual std::unique_ptr<IProbabilisticModel> createFresh() const = 0;
 };
 
-}  // namespace models
+}  // namespace ts::models

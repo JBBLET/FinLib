@@ -9,14 +9,17 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/LogMacros.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/models/interfaces/IRegressionModel.hpp"
 
+namespace ts {
+
 std::vector<ModelSession::PredictionEntry> ModelSession::forecast(size_t steps) {
-    int64_t nextPredictedTimeStamp = lastActualTimeStamp_ + deltaT_;
+    Timestamp nextPredictedTimeStamp = lastActualTimeStamp_ + deltaT_;
     Eigen::VectorXd tempWindow = window_;
     std::vector<ModelSession::PredictionEntry> output;
     output.reserve(steps);
@@ -35,7 +38,7 @@ std::vector<ModelSession::PredictionEntry> ModelSession::forecast(size_t steps) 
     return output;
 }
 
-void ModelSession::observe(double value, int64_t timestamp) {
+void ModelSession::observe(double value, Timestamp timestamp) {
     if (nextToFill_ >= predictionContainer_.size()) {
         return;  // or throw if this should never happen
     }
@@ -46,7 +49,7 @@ void ModelSession::observe(double value, int64_t timestamp) {
         LOG_WARN(context_, "Timestamp generated does not match any timestamp at which the actual value was received");
     }
     entry.actualValue = value;
-    writeBuffer_.push_back(std::pair<int64_t, double>(timestamp, value));
+    writeBuffer_.push_back(std::pair<Timestamp, double>(timestamp, value));
     if (writeBuffer_.size() > writeBufferCapacity_) flush_();
     double error = value - entry.predictedValue;
 
@@ -114,7 +117,7 @@ void ModelSession::refit(const TimeSeriesView& newData) {
 void ModelSession::flush_() {
     if (writeBuffer_.empty()) return;
 
-    std::vector<int64_t> timestamps;
+    Timestamps timestamps;
     std::vector<double> values;
     timestamps.reserve(writeBuffer_.size());
     values.reserve(writeBuffer_.size());
@@ -134,3 +137,4 @@ void ModelSession::flush_() {
     }
     writeBuffer_.clear();
 }
+}  // namespace ts

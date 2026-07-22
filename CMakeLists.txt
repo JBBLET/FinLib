@@ -3,102 +3,76 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(FinancialTimeSeriesLib VERSION 0.1)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-# --- Options ---
-option(BUILD_TESTS "Build unit tests" ON)
-option(BUILD_BENCHMARKS "Build benchmarks" OFF) # Off by default to save time
-option(BUILD_PYTHON "Build Python bindings" ON)
 
-# --- Dependencies ---
-# Find Eigen, OpenMP, etc. here
-include(FetchContent)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-# Eigen Content and Settings
-FetchContent_Declare(
-  Eigen
-  GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-  GIT_TAG master
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE)
-
-set(BUILD_TESTING OFF)
-set(EIGEN_BUILD_TESTING OFF)
-set(EIGEN_MPL2_ONLY ON)
-set(EIGEN_BUILD_PKGCONFIG OFF)
-set(EIGEN_BUILD_DOC OFF)
-
-# Download and make Eigen available in your project
-FetchContent_MakeAvailable(Eigen)
-
-#Pybind11
-
-set(Python3_VIRTUALENV ONLY)
-set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python")
-set(PYBIND11_FINDPYTHON ON)
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-
-FetchContent_Declare(
-  pybind11
-  GIT_REPOSITORY https://github.com/pybind/pybind11
-  GIT_TAG        v2.13.1
-)
-
-FetchContent_MakeAvailable(pybind11)
-
-# gRPC + Protobuf via FetchContent
-set(FETCHCONTENT_QUIET OFF)
-set(gRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(gRPC_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(gRPC_BUILD_CSHARP_EXT OFF CACHE BOOL "" FORCE)
-set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(absl_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-set(gRPC_INSTALL OFF CACHE BOOL "" FORCE)
-set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
-
-FetchContent_Declare(
-  gRPC
-  GIT_REPOSITORY https://github.com/grpc/grpc
-  GIT_TAG        v1.68.0
-  GIT_SHALLOW    TRUE
-  GIT_PROGRESS   TRUE
-)
-
-FetchContent_MakeAvailable(gRPC)
-include(cmake/GrpcHelpers.cmake)
-
-# FTXUI C++
-set(FTXUI_BUILD_EXAMPLES OFF)
-set(FTXUI_BUILD_DOCS OFF)
-set(FTXUI_BUILD_TESTS OFF)
-set(FTXUI_ENABLE_INSTALL OFF)
-
-FetchContent_Declare(ftxui
-  GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI
-  GIT_TAG v6.1.9  # Replace with a version, tag, or commit hash
-)
-
-FetchContent_MakeAvailable(ftxui)
-
-# --- Subdirectories ---
-
-add_subdirectory(finlib)  # FinLib — Domain A (generic time series)
-add_subdirectory(finapp)  # FinApp — Domain B (finance application)
-add_subdirectory(finAppImplementation) # Example System using the FinApp into an actual project
-add_subdirectory(finTUI) # Example small UI using a grpc stub in finAppImplementation
-
-if(BUILD_TESTS)
-    enable_testing()
-    FetchContent_Declare(
-      googletest
-      URL https://github.com/google/googletest/archive/refs/heads/main.zip
-    )
-    FetchContent_MakeAvailable(googletest)
-    add_subdirectory(tests)
+if(NOT DEFINED PROJECT_IS_TOP_LEVEL)
+    if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+        set(PROJECT_IS_TOP_LEVEL ON)
+    else()
+        set(PROJECT_IS_TOP_LEVEL OFF)
+    endif()
 endif()
 
-if(BUILD_BENCHMARKS)
-    add_subdirectory(benchmarks)
+if(PROJECT_IS_TOP_LEVEL)
+    include(DevBuild)
+    finlib_dev_predeps()
+endif()
+
+# --------------------------------------------------------------------------------------
+# Dependencies
+# --------------------------------------------------------------------------------------
+include(FetchContent)
+
+# Eigen — public dependency of finlib_core.
+if(NOT TARGET Eigen3::Eigen)
+    set(BUILD_TESTING OFF)
+    set(EIGEN_BUILD_TESTING OFF)
+    set(EIGEN_MPL2_ONLY ON)
+    set(EIGEN_BUILD_PKGCONFIG OFF)
+    set(EIGEN_BUILD_DOC OFF)
+    FetchContent_Declare(
+        Eigen
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+        GIT_TAG master
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE)
+    FetchContent_MakeAvailable(Eigen)
+endif()
+
+# CppUtils — header-only CSV reader/writer (target cpp::csv). Pulled from the sibling repo.
+if(NOT TARGET cpp::csv)
+    # Sibling project under active local development — consume the live source tree directly
+    # (SOURCE_DIR uses the working directory as-is, no clone of committed state).
+    FetchContent_Declare(
+        CppUtils
+        SOURCE_DIR /home/jbblet/user/Documents/Projects/C++/CppUtils)
+    FetchContent_MakeAvailable(CppUtils)
+endif()
+
+# Python + pybind11 — needed by finapp_providers' embedded interpreter.
+set(PYBIND11_FINDPYTHON ON)
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+if(NOT TARGET pybind11::embed)
+    FetchContent_Declare(
+        pybind11
+        GIT_REPOSITORY https://github.com/pybind/pybind11
+        GIT_TAG        v2.13.1)
+    FetchContent_MakeAvailable(pybind11)
+endif()
+
+# --------------------------------------------------------------------------------------
+# Library targets — the consumable surface.
+# --------------------------------------------------------------------------------------
+add_subdirectory(finlib)  # FinLib — Domain A (generic time series)
+add_subdirectory(finapp)  # FinApp — Domain B (finance application)
+
+# --------------------------------------------------------------------------------------
+# Dev/standalone-only targets (tests, benchmarks), registered after the libraries exist.
+# --------------------------------------------------------------------------------------
+if(PROJECT_IS_TOP_LEVEL)
+    finlib_dev_targets()
 endif()

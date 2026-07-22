@@ -2,72 +2,102 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
 #include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
+#include "finlib/session/ITimeSeriesSession.hpp"
 
-namespace analysis {
+namespace ts::analysis {
 
-using TimestampMs = int64_t;
 using DerivedTransform = std::function<TimeSeries(const TimeSeries&)>;
+using ComputeTransform = std::function<TimeSeries(std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>)>;
 
-class TimeSeriesSession {
+class TimeSeriesSession : public ITimeSeriesSession {
+    struct SeriesNode {
+        std::string name;
+        std::vector<std::string> inputs;
+        ComputeTransform transform;
+    };
+
  public:
-    // Constructors
-    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, int64_t startMs,
-                      TimestampMs endMs, TimestampMs frequencyMs, logging::ILogger* logger = nullptr);
+    // Regular grid constructor
+    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, Timestamp startMs,
+                      Timestamp endMs, Timestamp frequencyMs, logging::ILogger* logger = nullptr);
 
-    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
-                      std::shared_ptr<std::vector<TimestampMs>> timestampsMs, logging::ILogger* logger = nullptr);
+    // Irregular / custom timestamp grid constructor
+    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, TimestampsPtr timestampsMs,
+                      logging::ILogger* logger = nullptr);
 
-    // Setters Methods
-    void setRange(TimestampMs newStartMs, TimestampMs newEndMs);
-    void setFrequency(TimestampMs newFrequencyMs);
-    void setTransform(DerivedTransform transform);
+    // Computed series — source is pre-built, no backing service (range cannot be extended)
+    explicit TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed);
 
-    // View Accessors
+    // Range / frequency setters
+    void setRange(Timestamp newStartMs, Timestamp newEndMs) override;
+    void setFrequency(Timestamp newFrequencyMs) override;
+
+    // Named derived transforms
+    void addTransform(std::string name, DerivedTransform transform);
+    void addTransform(std::string name, std::vector<std::string> inputs, ComputeTransform transform) override;
+
+    // ITimeSeriesSession — name = "" → source, non-empty → named derived transform
+    std::shared_ptr<const TimeSeries> seriesPtr(const std::string& name) override;
+    TimeSeriesView seriesView(const std::string& name) override;
+    const TimeSeriesAnalysis& seriesAnalysis(const std::string& name) override;
+
+    // Concrete accessors kept for direct use
+    std::shared_ptr<const TimeSeries> sourceTimeSeriesPtr() { return source_; }
+    std::shared_ptr<const TimeSeries> derivedTimeSeriesPtr(const std::string& name);
+
     TimeSeriesView sourceView() const;
-    TimeSeriesView derivedView() const;
+    TimeSeriesView derivedView(const std::string& name) const;
 
-    // analysis Accessors
     const TimeSeriesAnalysis& sourceAnalysis();
-    const TimeSeriesAnalysis& derivedAnalysis();
+    const TimeSeriesAnalysis& derivedAnalysis(const std::string& name);
 
-    // Accessors
-    TimestampMs startMs() const { return startMs_; }
-    TimestampMs endMs() const { return endMs_; }
+    // Custom metric analysis — created lazily, rebound on range/frequency change
+    CustomTimeSeriesAnalysis& customAnalysis(const std::string& seriesName = "") override;
+
+    // Scalar accessors
+    Timestamp startMs() const { return startMs_; }
+    Timestamp endMs() const { return endMs_; }
     const std::string& seriesId() const { return seriesId_; }
     size_t size() const;
-    TimestampMs frequencyMs() const;
+    Timestamp frequencyMs() const;
 
  private:
     std::shared_ptr<TimeSeriesService> service_;
     std::shared_ptr<const TimeSeries> source_;
-    std::optional<DerivedTransform> transform_;
-    mutable std::shared_ptr<const TimeSeries> derivedCache_;
-    std::unique_ptr<logging::ILogger> logger_;
+
+    std::unordered_map<std::string, SeriesNode> transforms_;
+    mutable std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> derivedCaches_;
+    mutable std::unordered_map<std::string, std::optional<TimeSeriesAnalysis>> derivedAnalysisCache_;
 
     std::string seriesId_;
-    TimestampMs startMs_;
-    TimestampMs endMs_;
-    std::optional<TimestampMs> frequencyMs_;
+    Timestamp startMs_;
+    Timestamp endMs_;
+    std::optional<Timestamp> frequencyMs_;
 
     std::optional<TimeSeriesAnalysis> sourceAnalysis_;
-    std::optional<TimeSeriesAnalysis> derivedAnalysis_;
 
-    // helpers
-    void buildDerived_() const;
+    std::optional<CustomTimeSeriesAnalysis> sourceCustomAnalysis_;
+    std::unordered_map<std::string, std::optional<CustomTimeSeriesAnalysis>> derivedCustomAnalysisCache_;
+
+    std::unique_ptr<logging::ILogger> logger_;
+
+    void buildDerived_(const std::string& name) const;
     void invalidateAllCache_();
-    void extendRange_(TimestampMs newStartMs, TimestampMs newEndMs);
-    void reduceRange_(TimestampMs newStartMs, TimestampMs newEndMs);
+    void extendRange_(Timestamp newStartMs, Timestamp newEndMs);
 };
-}  // namespace analysis
+
+}  // namespace ts::analysis

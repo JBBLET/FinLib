@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -26,9 +28,10 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
             *it = snapshot;
         } else {
             vec.push_back(snapshot);
-            std::sort(vec.begin(), vec.end(), [](const finance::PortfolioSnapshot& a, const finance::PortfolioSnapshot& b) {
-                return a.timestampMs < b.timestampMs;
-            });
+            std::sort(
+                vec.begin(), vec.end(), [](const finance::PortfolioSnapshot& a, const finance::PortfolioSnapshot& b) {
+                    return a.timestampMs < b.timestampMs;
+                });
         }
     }
 
@@ -44,10 +47,44 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
         return it->second;
     }
 
+    std::optional<finance::PortfolioSnapshot> loadClosestSnapshot(const std::string& portfolioId,
+                                                                  const Timestamp& ts) const override {
+        auto it = snapshots_.find(portfolioId);
+        if (it == snapshots_.end() || it->second.empty()) return std::nullopt;
+        const auto& vec = it->second;
+        // vec is kept sorted ascending by timestampMs — upper_bound then step back.
+        auto upper = std::upper_bound(vec.begin(), vec.end(), ts, [](Timestamp t, const finance::PortfolioSnapshot& s) {
+            return t < s.timestampMs;
+        });
+        if (upper == vec.begin()) return std::nullopt;
+        return *std::prev(upper);
+    }
+
+    std::vector<finance::PortfolioSnapshot> loadSnapshotsCovering(const std::string& portfolioId, Timestamp ts1,
+                                                                  Timestamp ts2) const override {
+        auto all = loadAllSnapshots(portfolioId);
+        if (all.empty()) return {};
+        std::sort(all.begin(), all.end(), [](const finance::PortfolioSnapshot& a, const finance::PortfolioSnapshot& b) {
+            return a.timestampMs < b.timestampMs;
+        });
+        auto upper =
+            std::upper_bound(all.begin(), all.end(), ts1, [](Timestamp t, const finance::PortfolioSnapshot& s) {
+                return t < s.timestampMs;
+            });
+        auto start = (upper == all.begin()) ? all.begin() : std::prev(upper);
+        std::span<finance::PortfolioSnapshot> snapshotsFromTs1{start, all.end()};
+        auto filtered_snapshots =
+            snapshotsFromTs1 | std::views::filter([ts2](const finance::PortfolioSnapshot& snapshot) {
+                return snapshot.timestampMs <= ts2;
+            });
+        return std::vector<finance::PortfolioSnapshot>(filtered_snapshots.begin(), filtered_snapshots.end());
+    }
+
     void replaceSnapshotsFrom(const std::string& portfolioId, int64_t fromTimestampMs,
                               const std::vector<finance::PortfolioSnapshot>& newSnapshots) override {
         auto& vec = snapshots_[portfolioId];
-        vec.erase(std::remove_if(vec.begin(), vec.end(),
+        vec.erase(std::remove_if(vec.begin(),
+                                 vec.end(),
                                  [fromTimestampMs](const finance::PortfolioSnapshot& s) {
                                      return s.timestampMs >= fromTimestampMs;
                                  }),
@@ -103,8 +140,8 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
             throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
         }
         auto& txns = it->second;
-        auto txIt = std::find_if(txns.begin(), txns.end(),
-                                 [&](const finance::Transaction& t) { return t.id == transactionId; });
+        auto txIt = std::find_if(
+            txns.begin(), txns.end(), [&](const finance::Transaction& t) { return t.id == transactionId; });
         if (txIt == txns.end()) {
             throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
         }

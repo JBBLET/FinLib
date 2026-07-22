@@ -4,8 +4,9 @@
 #include <stdexcept>
 
 #include "finlib/core/TimeSeries.hpp"
-#include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
+
+namespace ts {
 
 class ITimeSeriesSaver {
  public:
@@ -16,24 +17,26 @@ class ITimeSeriesSaver {
     ITimeSeriesSaver(ITimeSeriesSaver&&) = default;
     ITimeSeriesSaver& operator=(ITimeSeriesSaver&&) = default;
 
-    // Non-virtual public interface — guards against persisting synthetic (resampled) data.
-    void save(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) {
+    void save(const SeriesKey& key, const TimeSeries& ts) {
         if (ts.isSynthetic())
-            throw std::logic_error("ITimeSeriesSaver::save: attempt to persist a synthetic (resampled) "
-                                   "TimeSeries for series '" +
-                                   key.SeriesId + "'");
-        doSave(key, ts, cov);
+            throw std::logic_error(
+                "ITimeSeriesSaver::save: attempt to persist a synthetic (resampled) "
+                "TimeSeries for series '" +
+                key.SeriesId + "'");
+        doSave(key, ts);
     }
 
     void merge(const SeriesKey& key, const TimeSeries& ts) {
         if (ts.isSynthetic())
-            throw std::logic_error("ITimeSeriesSaver::merge: attempt to persist a synthetic (resampled) "
-                                   "TimeSeries for series '" +
-                                   key.SeriesId + "'");
+            throw std::logic_error(
+                "ITimeSeriesSaver::merge: attempt to persist a synthetic (resampled) "
+                "TimeSeries for series '" +
+                key.SeriesId + "'");
         doMerge(key, ts);
     }
 
  protected:
-    virtual void doSave(const SeriesKey& key, const TimeSeries& ts, const CoverageInfo& cov) = 0;
+    virtual void doSave(const SeriesKey& key, const TimeSeries& ts) = 0;
     virtual void doMerge(const SeriesKey& key, const TimeSeries& ts) = 0;
 };
+}  // namespace ts

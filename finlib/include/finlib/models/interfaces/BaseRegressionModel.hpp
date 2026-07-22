@@ -9,7 +9,7 @@
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/models/interfaces/IRegressionModel.hpp"
 
-namespace models {
+namespace ts::models {
 
 class BaseRegressionModel : public IRegressionModel {
  protected:
@@ -47,4 +47,4 @@ class BaseRegressionModel : public IRegressionModel {
     std::string getViewTimeSeriesId() const override { return fullView_->getTimeSeriesId(); }
 };
 
-}  // namespace models
+}  // namespace ts::models

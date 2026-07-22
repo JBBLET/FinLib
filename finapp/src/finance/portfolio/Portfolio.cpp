@@ -3,7 +3,6 @@
 #include "finapp/finance/portfolio/Portfolio.hpp"
 
 #include <algorithm>
-#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -11,9 +10,14 @@
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Exception.hpp"
+#include "finapp/finance/asset/AssetType.hpp"
+#include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
+#include "finlib/common/utils/TimeSeriesUtils.hpp"
+#include "finlib/core/TimeSeries.hpp"
 
 namespace finance {
 // TODO(JBBLET) add extra transaction check such as Dividend on a bond does not make sense
@@ -38,7 +42,7 @@ void Portfolio::Builder::checkPositions_() {
     std::unordered_set<AssetId> assetIdSeen;
     for (const auto& snapshotPosition : positions_) {
         if (!assetIdSeen.insert(snapshotPosition.assetId).second) {
-            throw std::runtime_error("Two or more Positions of the same Asset");
+            throw finapp::Exception("Two or more Positions of the same Asset");
         }
     }
 }
@@ -109,13 +113,54 @@ void Portfolio::restoreFromSnapshot(const PortfolioSnapshot& snapshot) {
     positionsIndex_ = std::move(getPositionsIndexFromPosition(positions_));
 }
 
-PortfolioSnapshot Portfolio::snapshot(int64_t timestampsMs) const {
+PortfolioSnapshot Portfolio::snapshot(Timestamp timestampsMs) const {
     return PortfolioSnapshot{name_, baseCurrency_, timestampsMs, id_, positions_, cashBalances_};
 }
 
+// Computations
+PortfolioSeries Portfolio::valueAndWeightSeries(
+    ts::TimestampsPtr grid, const std::unordered_map<finance::AssetId, ts::TimeSeries>& priceInBase,
+    const std::unordered_map<finance::Currency, ts::TimeSeries>& fxToBase) const {
+    ts::TimeSeries total = ts::common::utils::timeSeries::generateConstantTimeSeries(id_ + "_value", grid, 0.0);
+    std::unordered_map<finance::AssetId, ts::TimeSeries> assetValues = {};
+    assetValues.reserve(positions_.size() + cashBalances_.size());
+    for (const auto& pos : positions_) {
+        if (pos.quantity == 0.0) continue;
+        auto pv = priceInBase.at(pos.assetId) * pos.quantity;
+        assetValues[pos.assetId] = pv;
+        total += pv;
+    }
+    for (const auto& [currency, amount] : cashBalances_) {
+        auto cashVal = fxToBase.at(currency) * amount;
+        total += cashVal;
+        assetValues[AssetId{AssetType::Cash, toString(currency)}] = cashVal;
+    }
+    std::unordered_map<finance::AssetId, ts::TimeSeries> weights{};
+    weights.reserve(assetValues.size());
+    for (const auto& [assetId, timeSeries] : assetValues) {
+        weights[assetId] = timeSeries / total;
+    }
+    return {total, weights};
+}
+
+ts::TimeSeries Portfolio::valueSeries(ts::TimestampsPtr grid,
+                                      const std::unordered_map<finance::AssetId, ts::TimeSeries>& priceInBase,
+                                      const std::unordered_map<finance::Currency, ts::TimeSeries>& fxToBase) const {
+    ts::TimeSeries total = ts::common::utils::timeSeries::generateConstantTimeSeries(id_ + "_value", grid, 0.0);
+    for (const auto& pos : positions_) {
+        if (pos.quantity == 0.0) continue;
+        auto pv = priceInBase.at(pos.assetId) * pos.quantity;
+        total += pv;
+    }
+    for (const auto& [currency, amount] : cashBalances_) {
+        auto cashVal = fxToBase.at(currency) * amount;
+        total += cashVal;
+    }
+    return total;
+}
 void Portfolio::apply(const Transaction& transaction) {
     if (transaction.timestampsMs < lastTransactionMs_) {
-        throw std::runtime_error("The Transaction is outdated relative to the Portfolio");
+        throw finapp::Exception("The Transaction is outdated relative to the Portfolio");
     }
     switch (transaction.type) {
         case (TransactionType::Buy): {
@@ -137,16 +182,20 @@ void Portfolio::apply(const Transaction& transaction) {
             return applySplit_(transaction);
         }
         default:
-            throw std::runtime_error("Illegal TransactionType");
+            throw finapp::Exception("Illegal TransactionType");
     }
 }
 
 void Portfolio::applyBuy_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Buy) {
-        throw std::runtime_error("The Transaction is not a Buy transaction");
+        throw finapp::Exception("The Transaction is not a Buy transaction");
     }
-    double totalCost = transaction.quantity * transaction.pricePerUnit + transaction.fees;
-    cashBalances_[transaction.settlementCurrency] -= totalCost;
+    if (transaction.usedCurrency.has_value()) {
+        cashBalances_[transaction.usedCurrency.value()] -= transaction.paymentprice.value();
+    } else {
+        double totalCost = transaction.quantity * transaction.pricePerUnit + transaction.fees;
+        cashBalances_[transaction.settlementCurrency] -= totalCost;
+    }
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
         positions_[positionIndex].quantity += transaction.quantity;
@@ -160,17 +209,17 @@ void Portfolio::applyBuy_(const Transaction& transaction) {
 
 void Portfolio::applySell_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Sell) {
-        throw std::runtime_error("The Transaction is not a Sell Transaction");
+        throw finapp::Exception("The Transaction is not a Sell Transaction");
     }
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
         double quantity = positions_[positionIndex].quantity;
         if (quantity < transaction.quantity) {
-            throw std::runtime_error("Not enough quantity to fulfill the transaction");
+            throw finapp::Exception("Not enough quantity to fulfill the transaction");
         }
         positions_[positionIndex].quantity -= transaction.quantity;
     } catch (const std::out_of_range& e) {
-        throw std::runtime_error("Not enough quantity to fulfill the transaction");
+        throw finapp::Exception("Not enough quantity to fulfill the transaction");
     }
     double totalRevenue = transaction.quantity * transaction.pricePerUnit - transaction.fees;
     cashBalances_[transaction.settlementCurrency] += totalRevenue;
@@ -179,10 +228,10 @@ void Portfolio::applySell_(const Transaction& transaction) {
 
 void Portfolio::applyDeposit_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Deposit) {
-        throw std::runtime_error("The Transaction is not a Deposit Transaction");
+        throw finapp::Exception("The Transaction is not a Deposit Transaction");
     }
     if (transaction.quantity < 0) {
-        throw std::runtime_error("Cannot deposit negative amount");
+        throw finapp::Exception("Cannot deposit negative amount");
     }
     cashBalances_[transaction.settlementCurrency] += transaction.quantity - transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
@@ -190,10 +239,10 @@ void Portfolio::applyDeposit_(const Transaction& transaction) {
 
 void Portfolio::applyWithdrawal_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Withdrawal) {
-        throw std::runtime_error("The Transaction is not a Withdrawal transaction");
+        throw finapp::Exception("The Transaction is not a Withdrawal transaction");
     }
     if (transaction.quantity < 0) {
-        throw std::runtime_error("Cannot withdraw a negative amount");
+        throw finapp::Exception("Cannot withdraw a negative amount");
     }
     cashBalances_[transaction.settlementCurrency] -= transaction.quantity + transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
@@ -201,10 +250,10 @@ void Portfolio::applyWithdrawal_(const Transaction& transaction) {
 
 void Portfolio::applyDividend_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Dividend) {
-        throw std::runtime_error("The Transaction is not a Dividend transaction");
+        throw finapp::Exception("The Transaction is not a Dividend transaction");
     }
     if (!positionsIndex_.contains(transaction.assetTicker)) {
-        throw std::runtime_error("Cannot apply a Dividend if you do not hold the position");
+        throw finapp::Exception("Cannot apply a Dividend if you do not hold the position");
     }
     double sharesNumber = positions_[positionsIndex_[transaction.assetTicker]].quantity;
     if (sharesNumber == 0.0) {
@@ -217,7 +266,7 @@ void Portfolio::applyDividend_(const Transaction& transaction) {
 
 void Portfolio::applySplit_(const Transaction& transaction) {
     if (transaction.type != TransactionType::Split) {
-        throw std::runtime_error("The Transaction is not a Split transaction");
+        throw finapp::Exception("The Transaction is not a Split transaction");
     }
     double sharesNumber = 0.0;
     try {
@@ -225,7 +274,7 @@ void Portfolio::applySplit_(const Transaction& transaction) {
         sharesNumber = positions_[positionIndex].quantity;
         positions_[positionIndex].quantity = transaction.quantity * sharesNumber;
     } catch (const std::out_of_range& e) {
-        throw std::runtime_error("No Shares corresponding to this transaction in the Portfolio");
+        throw finapp::Exception("No Shares corresponding to this transaction in the Portfolio");
     }
     lastTransactionMs_ = transaction.timestampsMs;
 }

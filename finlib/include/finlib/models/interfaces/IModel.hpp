@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-namespace models {
+namespace ts::models {
 
 class IModel : public std::enable_shared_from_this<IModel> {
  public:
@@ -30,4 +30,4 @@ class IModel : public std::enable_shared_from_this<IModel> {
     bool isFitted_ = false;
 };
 
-}  // namespace models
+}  // namespace ts::models

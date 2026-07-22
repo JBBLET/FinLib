@@ -3,30 +3,38 @@
 #include "finapp/service/AssetService.hpp"
 
 #include <memory>
-#include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
+#include "finapp/common/Exception.hpp"
+#include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Cash.hpp"
-#include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/finance/asset/IAsset.hpp"
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
+#include "finlib/data/services/TimeSeriesService.hpp"
+#include "finlib/session/TimeSeriesSession.hpp"
 
+using ts::TimeSeriesService;
 namespace finapp {
 
-using namespace finance;
+using finance::AssetId;
+using finance::AssetType;
+using finance::IAsset;
 
 namespace {
 
 // Cash assets have no price series — they are their own numeraire. Return a
 // constant 1.0 series in the cash's denomination; FX conversion is the caller's job.
-TimeSeries constantCashSeries(const AssetId& assetId, int64_t startMs, int64_t endMs, int64_t frequencyMs) {
-    return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, startMs, endMs, frequencyMs, 1.0);
+TimeSeries constantCashSeries(const AssetId& assetId, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs) {
+    return ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, startMs, endMs, frequencyMs, 1.0);
 }
 
-TimeSeries constantCashSeries(const AssetId& assetId, TimestampPtr timestamps) {
-    return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
+TimeSeries constantCashSeries(const AssetId& assetId, TimestampsPtr timestamps) {
+    return ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
 }
 
 }  // namespace
@@ -46,20 +54,20 @@ AssetService::AssetService(std::shared_ptr<TimeSeriesService> timeSeriesService,
 
 void AssetService::save(const std::shared_ptr<IAsset>& asset) {
     if (!asset) {
-        throw std::invalid_argument("AssetService::save: asset pointer is null.");
+        throw finapp::InvalidArgument("AssetService::save: asset pointer is null.");
     }
 
     auto repoIt = IAssetRepositoryMap_.find(asset->type());
     if (repoIt == IAssetRepositoryMap_.end()) {
-        throw std::runtime_error("AssetService::save: no repository registered for asset type " +
-                                 assetTypeToString(asset->type()));
+        throw finapp::Exception("AssetService::save: no repository registered for asset type " +
+                                assetTypeToString(asset->type()));
     }
 
     repoIt->second->save(asset);
     cachedAssets_[AssetId{asset->type(), asset->ticker()}] = asset;
 }
 
-std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
+std::shared_ptr<const finance::IAsset> AssetService::load(const AssetId& assetId) {
     // 1. In-memory cache hit.
     if (auto it = cachedAssets_.find(assetId); it != cachedAssets_.end()) {
         return it->second;
@@ -67,7 +75,7 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
 
     // Cash is synthesized on demand — it has no repository row and no provider.
     if (assetId.type == AssetType::Cash) {
-        auto cash = std::make_shared<const Cash>(currencyFromString(assetId.ticker.substr(0, 3)));
+        auto cash = std::make_shared<const finance::Cash>(finance::currencyFromString(assetId.ticker.substr(0, 3)));
         cachedAssets_[assetId] = cash;
         return cash;
     }
@@ -77,7 +85,8 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
     if (repoIt != IAssetRepositoryMap_.end() && repoIt->second->exists(assetId.ticker)) {
         auto asset = repoIt->second->load(assetId.ticker);
         if (asset) {
-            if (logger_) logger_->write(finapp::logging::Level::Debug, "load: '" + assetId.ticker + "' from repository");
+            if (logger_)
+                logger_->write(finapp::logging::Level::Debug, "load: '" + assetId.ticker + "' from repository");
             cachedAssets_[assetId] = asset;
             return asset;
         }
@@ -86,24 +95,25 @@ std::shared_ptr<const IAsset> AssetService::load(const AssetId& assetId) {
     // 3. Provider fallback — persist back into the repository so next call hits step 2.
     auto providerIt = IAssetProvidersMap_.find(assetId.type);
     if (providerIt != IAssetProvidersMap_.end() && providerIt->second->exists(assetId.ticker)) {
-        if (logger_) logger_->write(finapp::logging::Level::Info, "load: '" + assetId.ticker + "' fetching from provider");
-        std::shared_ptr<IAsset> fetched = providerIt->second->fetch(assetId.ticker);
+        if (logger_)
+            logger_->write(finapp::logging::Level::Info, "load: '" + assetId.ticker + "' fetching from provider");
+        std::shared_ptr<finance::IAsset> fetched = providerIt->second->fetch(assetId.ticker);
         if (fetched) {
             if (repoIt != IAssetRepositoryMap_.end()) {
                 repoIt->second->save(fetched);
             }
-            std::shared_ptr<const IAsset> cached = fetched;
+            std::shared_ptr<const finance::IAsset> cached = fetched;
             cachedAssets_[assetId] = cached;
             return cached;
         }
     }
 
-    throw std::runtime_error("AssetService::load: asset not found in repository or provider for ticker " +
-                             assetId.ticker);
+    throw finapp::Exception("AssetService::load: asset not found in repository or provider for ticker " +
+                            assetId.ticker);
 }
 
-TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, int64_t startMs, int64_t endMs,
-                                             int64_t frequencyMs, InterpolationStrategy strategy) {
+TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, Timestamp startMs, Timestamp endMs,
+                                             Timestamp frequencyMs, InterpolationStrategy strategy) {
     if (assetId.type == AssetType::Cash) {
         return constantCashSeries(assetId, startMs, endMs, frequencyMs);
     }
@@ -111,14 +121,15 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, int64_t sta
     auto asset = load(assetId);
     const std::string seriesId = asset->priceSeriesId();
     if (seriesId.empty()) {
-        return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, startMs, endMs, frequencyMs, 1.0);
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(
+            assetId.ticker, startMs, endMs, frequencyMs, 1.0);
     }
     return timeSeriesService_->getResampled(seriesId, startMs, endMs, frequencyMs, strategy);
 }
 
-TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampPtr timestamps) {
+TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampsPtr timestamps) {
     if (!timestamps) {
-        throw std::invalid_argument("AssetService::loadTimeSeriesValue: timestamps pointer is null.");
+        throw finapp::InvalidArgument("AssetService::loadTimeSeriesValue: timestamps pointer is null.");
     }
 
     if (assetId.type == AssetType::Cash) {
@@ -128,9 +139,31 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampPt
     auto asset = load(assetId);
     const std::string seriesId = asset->priceSeriesId();
     if (seriesId.empty()) {
-        return common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
+        return ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
     }
     return timeSeriesService_->get(seriesId, std::move(timestamps));
 }
 
+double AssetService::loadValueAtTs(const finance::AssetId& assetId, const Timestamp& timestamp) {
+    if (assetId.type == AssetType::Cash) {
+        return 1.0;
+    }
+    auto asset = load(assetId);
+    const std::string seriesId = asset->priceSeriesId();
+    if (seriesId.empty()) {
+        return 1.0;
+    }
+    return timeSeriesService_->getSinglePoint(seriesId, timestamp);
+}
+
+std::shared_ptr<TimeSeriesSession> AssetService::createSession(const AssetId& id, Timestamp startMs, Timestamp endMs,
+                                                               Timestamp frequencyMs) {
+    auto asset = load(id);
+    return std::make_shared<TimeSeriesSession>(timeSeriesService_, asset->priceSeriesId(), startMs, endMs, frequencyMs);
+}
+
+std::shared_ptr<TimeSeriesSession> AssetService::createSession(const AssetId& id, TimestampsPtr timestamps) {
+    auto asset = load(id);
+    return std::make_shared<TimeSeriesSession>(timeSeriesService_, asset->priceSeriesId(), std::move(timestamps));
+}
 }  // namespace finapp

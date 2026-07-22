@@ -7,6 +7,10 @@
 
 add_library(finapp_core
     src/finance/portfolio/Portfolio.cpp
+    src/finance/portfolio/Transaction.cpp
+    src/finance/common/Currency.cpp
+    src/finance/asset/AssetType.cpp
+    src/common/Exception.cpp
 )
 
 target_include_directories(finapp_core
@@ -17,6 +21,8 @@ target_include_directories(finapp_core
 target_link_libraries(finapp_core
     PUBLIC
         finlib_core
+    PRIVATE
+        stdc++exp
 )
 
 # --------------------
@@ -27,6 +33,15 @@ add_library(finapp_service
     src/service/FXService.cpp
     src/service/AssetService.cpp
     src/service/PortfolioService.cpp
+    src/service/analysisService/AssetAnalysisService.cpp
+    src/service/analysisService/PortfolioAnalysisService.cpp
+    src/service/analysisService/EquityAnalysisService.cpp
+    src/finance/analysis/IAssetAnalysis.cpp
+    src/finance/analysis/EquityAnalysis.cpp
+    src/finance/analysis/PortfolioAnalysis.cpp
+    src/finance/analysis/ReturnFeatures.cpp
+    src/finance/analysis/ReturnTransforms.cpp
+    src/finance/stats/FinanceStats.cpp
 )
 
 target_include_directories(finapp_service
@@ -38,6 +53,7 @@ target_link_libraries(finapp_service
     PUBLIC
         finapp_core
         finlib_data
+        finlib_session
     PRIVATE
         finlib_analysis
 )
@@ -60,6 +76,9 @@ target_include_directories(finapp_csv_repository
 target_link_libraries(finapp_csv_repository
     PUBLIC
         finapp_core
+    PRIVATE
+        cpp::csv
+        stdc++exp
 )
 
 # --------------------
@@ -79,6 +98,9 @@ target_link_libraries(finapp_importers
     PUBLIC
         finapp_core
         finlib_core
+    PRIVATE
+        cpp::csv
+        stdc++exp
 )
 
 # --------------------
@@ -95,10 +117,6 @@ target_include_directories(finapp_providers
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_compile_definitions(finapp_providers
-    PRIVATE
-        FINAPP_PYTHON_DIR="${CMAKE_SOURCE_DIR}/finapp/scripts"
-)
 
 target_link_libraries(finapp_providers
     PUBLIC
@@ -106,5 +124,40 @@ target_link_libraries(finapp_providers
         finapp_core
     PRIVATE
         pybind11::embed
+)
+
+# Helper Python scripts live here; the embedded interpreter adds this to sys.path so
+# py::module_::import("YFinanceFetcher") resolves YFinanceFetcher.py at runtime.
+target_compile_definitions(finapp_providers
+    PRIVATE
+        FINAPP_PYTHON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scripts"
+)
+
+# Optional: bake a default interpreter chosen at configure time (e.g.
+# -DFINAPP_PYTHON=/path/to/venv/bin/python). The FINAPP_PYTHON / VIRTUAL_ENV
+# environment variables still take precedence at runtime.
+if(FINAPP_PYTHON)
+    target_compile_definitions(finapp_providers
+        PRIVATE
+            FINAPP_PYTHON_DEFAULT="${FINAPP_PYTHON}"
+    )
+endif()
+
+# --------------------
+# Manual end-to-end driver (Returns Features over a live AAPL portfolio)
+# --------------------
+# Not a unit test — a hand-runnable binary that pushes the Returns Features /
+# Returns Transforms computation through the full service loop against live
+# yfinance data. Requires Python + yfinance at runtime.
+add_executable(finapp_returns_demo
+    src/main.cpp
+)
+
+target_link_libraries(finapp_returns_demo
+    PRIVATE
+        finapp_service
+        finapp_providers
+        finapp_csv_repository
+        finlib_analysis
 )
 

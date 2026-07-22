@@ -9,10 +9,11 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 using std::vector;
-
+namespace ts {
 TimeSeriesView::TimeSeriesView(std::shared_ptr<const TimeSeries> src, size_t start, size_t len, int lag)
     : source_(std::move(src)), begin_(start), length_(len), valueLag_(lag) {
     if (static_cast<int>(begin_) - valueLag_ < 0 || (begin_ + length_ - valueLag_) > source_->size()) {
@@ -20,7 +21,7 @@ TimeSeriesView::TimeSeriesView(std::shared_ptr<const TimeSeries> src, size_t sta
     }
 }
 
-int64_t TimeSeriesView::timestamp(size_t i) const { return source_->getTimestamps()[begin_ + i]; }
+Timestamp TimeSeriesView::timestamp(size_t i) const { return source_->getTimestamps()[begin_ + i]; }
 
 const double* TimeSeriesView::begin() const noexcept { return &(source_->getValues()[begin_ - valueLag_]); }
 
@@ -104,12 +105,12 @@ RegularityCheck TimeSeriesView::checkRegularity(double tolerance) const {
         if (length_ < 3) {
             cachedRegularityCheck_ = (RegularityCheck{0.0, true, 0, 0.0});
         } else {
-            std::vector<int64_t> deltaT;
+            std::vector<Timestamp> deltaT;
             deltaT.reserve(length_ - 1);
             for (size_t i = 1; i < length_; ++i) deltaT.push_back(timestamp(i) - timestamp(i - 1));
             auto deltaTCopy = deltaT;
             std::nth_element(deltaTCopy.begin(), deltaTCopy.begin() + deltaTCopy.size() / 2, deltaTCopy.end());
-            int64_t median = deltaTCopy[deltaTCopy.size() / 2];
+            Timestamp median = deltaTCopy[deltaTCopy.size() / 2];
 
             double mean = std::accumulate(deltaT.begin(), deltaT.end(), 0.0) / deltaT.size();
             double variance = 0.0;
@@ -147,3 +148,4 @@ RegularityCheck TimeSeriesView::checkRegularity(double tolerance) const {
     }
     return cachedRegularityCheck_.value();
 }
+}  // namespace ts
