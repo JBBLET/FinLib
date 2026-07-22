@@ -1,4 +1,5 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -16,7 +17,6 @@
 #include "finapp/data/repository/implementation/CsvRepository/CSVPortfolioRepository.hpp"
 #include "finapp/data/repository/implementation/InMemoryRepository/InMemoryAssetRepository.hpp"
 #include "finapp/data/repository/implementation/InMemoryRepository/InMemoryFXRepository.hpp"
-#include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 #include "finapp/finance/analysis/ReturnFeatures.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -41,21 +41,22 @@ using finance::AssetType;
 using finance::Currency;
 using finance::Transaction;
 using finance::TransactionType;
-using finance::analysis::PortfolioAnalysis;
 using ts::TimeSeries;
 
 namespace {
 
 constexpr int64_t kDayMs = 86'400'000LL;
-// Daily series → ~252 trading days a year is the conventional annualization base.
 constexpr double kTradingDaysPerYear = 252.0;
+
+int failures = 0;
 
 int64_t ymdToMs(int year, unsigned month, unsigned day) {
     const std::chrono::sys_days sd{std::chrono::year{year} / month / day};
     return std::chrono::duration_cast<std::chrono::milliseconds>(sd.time_since_epoch()).count();
 }
 
-Transaction makeTxn(int64_t ts, TransactionType type, const std::string& ticker, double qty, double price) {
+Transaction makeTxn(int64_t ts, TransactionType type, const std::string& ticker, double qty, double price,
+                    Currency settlement) {
     Transaction t{};
     t.timestampsMs = ts;
     t.type = type;
@@ -65,43 +66,36 @@ Transaction makeTxn(int64_t ts, TransactionType type, const std::string& ticker,
     t.quantity = qty;
     t.pricePerUnit = price;
     t.fees = 0.0;
-    t.settlementCurrency = Currency::USD;
+    t.settlementCurrency = settlement;
     return t;
 }
 
-// Pretty-prints mean / std-dev for a return series, both per-period (as stored)
-// and annualized, so the raw vs. annualized distinction is explicit.
-void reportReturnStats(const std::string& label, const ts::analysis::TimeSeriesAnalysis& a) {
-    const double meanDaily = a.mean();
-    const auto stdDaily = a.standardDeviation();  // sample std, std::nullopt if < 2 points
+std::string label(const AssetId& assetId) { return finance::assetTypeToString(assetId.type) + ":" + assetId.ticker; }
 
-    std::cout << "  " << label << " (" << a.size() << " returns)\n";
-    std::cout << std::fixed << std::setprecision(4);
-    std::cout << "    mean   (per-period) : " << meanDaily * 100.0 << " %\n";
-    if (stdDaily) std::cout << "    stddev (per-period) : " << *stdDaily * 100.0 << " %\n";
-
-    std::cout << std::setprecision(2);
-    std::cout << "    mean   (annualized) : " << meanDaily * kTradingDaysPerYear * 100.0 << " %  (x252)\n";
-    if (stdDaily) {
-        const double annVol = *stdDaily * std::sqrt(kTradingDaysPerYear);
-        std::cout << "    vol    (annualized) : " << annVol * 100.0 << " %  (x sqrt(252))\n";
-        if (annVol > 0.0) {
-            const double annSharpe = (meanDaily * kTradingDaysPerYear) / annVol;
-            std::cout << "    sharpe (annualized) : " << annSharpe
-                      << "   = (mean/std)*sqrt(252)  <-- textbook annualized\n";
-        }
-    }
+// Each check prints its own verdict so the run doubles as a report.
+void check(const std::string& what, bool ok, const std::string& detail = "") {
+    std::cout << (ok ? "  [ OK ]   " : "  [FAIL]   ") << what;
+    if (!detail.empty()) std::cout << "  (" << detail << ")";
+    std::cout << "\n";
+    if (!ok) ++failures;
 }
 
-void reportScalarMetrics(const std::string& label, const std::vector<std::pair<std::string, double>>& metrics) {
-    std::cout << "  " << label << " scalar metrics from the service layer:\n";
-    if (metrics.empty()) {
-        std::cout << "    (none)\n";
-        return;
-    }
-    std::cout << std::fixed << std::setprecision(4);
-    for (const auto& [name, value] : metrics)
-        std::cout << "    " << std::setw(22) << std::left << name << value << "\n";
+void checkNear(const std::string& what, double actual, double expected, double tol) {
+    const double diff = std::abs(actual - expected);
+    std::ostringstream detail;
+    detail << std::fixed << std::setprecision(6) << "actual=" << actual << " expected=" << expected
+           << " diff=" << diff;
+    check(what, diff <= tol, detail.str());
+}
+
+void reportReturnStats(const std::string& lbl, const ts::analysis::TimeSeriesAnalysis& a) {
+    const double meanDaily = a.mean();
+    const auto stdDaily = a.standardDeviation();
+    std::cout << "  " << lbl << " (" << a.size() << " returns)\n";
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "    mean (annualized) : " << meanDaily * kTradingDaysPerYear * 100.0 << " %\n";
+    if (stdDaily)
+        std::cout << "    vol  (annualized) : " << *stdDaily * std::sqrt(kTradingDaysPerYear) * 100.0 << " %\n";
 }
 
 }  // namespace
@@ -135,7 +129,6 @@ int main() {
     auto portfolioRepo = std::make_shared<finapp::CSVPortfolioRepository>(repoDir);
     finapp::PortfolioService portfolioService(portfolioRepo, assetService, fxService);
 
-    // Analysis services: Equity analysis -> generic asset analysis -> portfolio analysis.
     auto equityAnalysisService = std::make_shared<finapp::EquityAnalysisService>(assetService);
     std::unordered_map<AssetType, std::shared_ptr<finapp::IAssetAnalysisService>> analysisServices = {
         {AssetType::Equity, equityAnalysisService}};
@@ -144,25 +137,36 @@ int main() {
     finapp::PortfolioAnalysisService portfolioAnalysisService(assetAnalysisService);
 
     // ---------------------------------------------------------------------
-    // 2. Build a single-asset AAPL portfolio with buys and sells over 2 years.
-    //    Prices below only affect the cash ledger; the NAV/return analysis
-    //    uses real yfinance closes. (Today = 2026-06-26 -> window 2024..2026.)
+    // 2. A multi-asset, multi-currency portfolio. AIR.PA is EUR-denominated in
+    //    a USD-base portfolio, so the orchestrator must fold FX into the price
+    //    (priceInBase = price x fx) and convert the EUR cash leg too. The buys
+    //    and sells produce several snapshots, so the value/weight series are
+    //    stitched from several segments rather than a single one.
     // ---------------------------------------------------------------------
-    const std::string kId = "aapl_demo";
-    const std::string kTicker = "AAPL";
-    const int64_t startMs = ymdToMs(2024, 6, 26);
-    const int64_t endMs = ymdToMs(2026, 6, 26);
+    const std::string kId = "multi_demo";
+    const int64_t startMs = ymdToMs(2024, 7, 1);
+    const int64_t endMs = ymdToMs(2026, 7, 1);
 
-    portfolioService.createNew(kId, "AAPL Demo", Currency::USD);
+    const AssetId kAapl{AssetType::Equity, "AAPL"};   // USD
+    const AssetId kMsft{AssetType::Equity, "MSFT"};   // USD
+    const AssetId kAir{AssetType::Equity, "AIR.PA"};  // EUR
+    const AssetId kCashUsd{AssetType::Cash, finance::toString(Currency::USD)};
+    const AssetId kCashEur{AssetType::Cash, finance::toString(Currency::EUR)};
+
+    portfolioService.createNew(kId, "Multi-Currency Demo", Currency::USD);
 
     std::vector<Transaction> txns;
-    txns.push_back(makeTxn(startMs - kDayMs, TransactionType::Deposit, "USD", 60'000.0, 1.0));
-    txns.push_back(makeTxn(ymdToMs(2024, 6, 27), TransactionType::Buy, kTicker, 100.0, 210.0));
-    txns.push_back(makeTxn(ymdToMs(2024, 9, 16), TransactionType::Buy, kTicker, 50.0, 220.0));
-    txns.push_back(makeTxn(ymdToMs(2025, 1, 10), TransactionType::Sell, kTicker, 40.0, 240.0));
-    txns.push_back(makeTxn(ymdToMs(2025, 6, 20), TransactionType::Buy, kTicker, 30.0, 200.0));
-    txns.push_back(makeTxn(ymdToMs(2026, 1, 15), TransactionType::Sell, kTicker, 60.0, 230.0));
-    portfolioService.importTransactions(kId, std::move(txns));  // net holding: 80 AAPL
+    // Funded the day *before* the grid starts — the covering snapshot is a predecessor,
+    // which is the case that must resolve at tick 0.
+    txns.push_back(makeTxn(startMs - kDayMs, TransactionType::Deposit, "USD", 150'000.0, 1.0, Currency::USD));
+    txns.push_back(makeTxn(startMs - kDayMs, TransactionType::Deposit, "EUR", 50'000.0, 1.0, Currency::EUR));
+    txns.push_back(makeTxn(ymdToMs(2024, 7, 8), TransactionType::Buy, "AAPL", 100.0, 210.0, Currency::USD));
+    txns.push_back(makeTxn(ymdToMs(2024, 9, 16), TransactionType::Buy, "MSFT", 50.0, 440.0, Currency::USD));
+    txns.push_back(makeTxn(ymdToMs(2024, 11, 12), TransactionType::Buy, "AIR.PA", 200.0, 130.0, Currency::EUR));
+    txns.push_back(makeTxn(ymdToMs(2025, 3, 10), TransactionType::Sell, "AAPL", 40.0, 240.0, Currency::USD));
+    txns.push_back(makeTxn(ymdToMs(2025, 9, 22), TransactionType::Buy, "AAPL", 30.0, 200.0, Currency::USD));
+    txns.push_back(makeTxn(ymdToMs(2026, 1, 15), TransactionType::Sell, "MSFT", 10.0, 500.0, Currency::USD));
+    portfolioService.importTransactions(kId, std::move(txns));
 
     finance::Portfolio portfolio = portfolioService.load(kId);
 
@@ -170,43 +174,115 @@ int main() {
               << "] ===\n";
     for (const auto& pos : portfolio.positions())
         std::cout << "  final position: " << pos.assetId.ticker << " x " << pos.quantity << "\n";
+    for (const auto& [ccy, amount] : portfolio.cashBalances())
+        std::cout << "  final cash:     " << finance::toString(ccy) << " " << std::fixed << std::setprecision(2)
+                  << amount << "\n";
+
+    // Confirm the FX path is genuinely engaged rather than collapsing to identity.
+    const Currency airDenom = assetService->load(kAir)->denomination();
+    std::cout << "\n  AIR.PA denomination: " << finance::toString(airDenom) << "  (base is "
+              << finance::toString(Currency::USD) << ")\n";
 
     // ---------------------------------------------------------------------
-    // 3. NAV time series through the service loop (replays buys/sells daily).
+    // 3. The new orchestrator API: total + weights in a single pass.
     // ---------------------------------------------------------------------
-    TimeSeries navSeries = portfolioService.valueSeries(kId, startMs, endMs, kDayMs);
-    std::cout << "\nNAV series points: " << navSeries.size();
-    if (navSeries.size() > 0)
-        std::cout << "  first=" << navSeries.getValues().front() << "  last=" << navSeries.getValues().back();
-    std::cout << "\n";
+    std::cout << "\n--- PortfolioService::valueAndWeightSeries ---\n";
+    finance::PortfolioSeries series = portfolioService.valueAndWeightSeries(kId, startMs, endMs, kDayMs);
+
+    const auto& total = series.total.getValues();
+    std::cout << "  total series points: " << series.total.size() << "  first=" << std::fixed << std::setprecision(2)
+              << total.front() << "  last=" << total.back() << "\n";
+    std::cout << "  weight series returned: " << series.weights.size() << "\n";
+
+    check("total series is non-empty", series.total.size() > 0);
+    // The deposits land the day before the grid starts, so tick 0 is covered by a
+    // predecessor snapshot. A zero here is the mask-at-grid-start bug.
+    check("tick 0 is funded (predecessor snapshot resolves)", total.front() > 0.0,
+          "first=" + std::to_string(total.front()));
+    check("every tick is funded", std::ranges::all_of(total, [](double v) { return v > 0.0; }));
 
     // ---------------------------------------------------------------------
-    // 4. Portfolio analysis: install the Returns Features on the replayed NAV
-    //    and read the mean / std-dev / metrics the service layer computes.
+    // 4. Weights must sum to 1 at every tick — the core invariant of the
+    //    mask-and-sum stitching across segments.
     // ---------------------------------------------------------------------
+    std::cout << "\n--- weight invariants ---\n";
+    double worstWeightSumDeviation = 0.0;
+    for (size_t i = 0; i < series.total.size(); ++i) {
+        double sum = 0.0;
+        for (const auto& [assetId, w] : series.weights) sum += w.getValues()[i];
+        worstWeightSumDeviation = std::max(worstWeightSumDeviation, std::abs(sum - 1.0));
+    }
+    checkNear("weights sum to 1.0 at every tick (worst case shown)", 1.0 + worstWeightSumDeviation, 1.0, 1e-9);
+
+    std::cout << "\n  weights at " << msToStringDate(endMs) << ":\n";
+    std::cout << std::fixed << std::setprecision(4);
+    for (const auto& [assetId, w] : series.weights)
+        std::cout << "    " << std::setw(16) << std::left << label(assetId) << w.getValues().back() * 100.0 << " %\n";
+
+    // ---------------------------------------------------------------------
+    // 5. The narrower APIs must agree with the combined one. valueSeries and
+    //    weightsSeries run their own fetch/segment loops, so this cross-checks
+    //    those against valueAndWeightSeries.
+    // ---------------------------------------------------------------------
+    std::cout << "\n--- cross-checks between service APIs ---\n";
+    TimeSeries valueOnly = portfolioService.valueSeries(kId, startMs, endMs, kDayMs);
+    double worstValueDiff = 0.0;
+    if (valueOnly.size() == series.total.size()) {
+        for (size_t i = 0; i < valueOnly.size(); ++i)
+            worstValueDiff = std::max(worstValueDiff, std::abs(valueOnly.getValues()[i] - total[i]));
+        checkNear("valueSeries matches valueAndWeightSeries.total at every tick", worstValueDiff, 0.0, 1e-6);
+    } else {
+        check("valueSeries has the same length as valueAndWeightSeries.total", false);
+    }
+
+    auto weightsOnly = portfolioService.weightsSeries(kId, startMs, endMs, kDayMs);
+    check("weightsSeries returns the same assets as valueAndWeightSeries.weights",
+          weightsOnly.size() == series.weights.size(),
+          std::to_string(weightsOnly.size()) + " vs " + std::to_string(series.weights.size()));
+
+    // computeOverviewAtTs still runs the older scalar price/FX path. Note this compares
+    // more than the arithmetic: the series path fetches prices via TimeSeriesService::get
+    // (InterpolationStrategy::Nearest, which may snap forward to a later bar) while the
+    // scalar path uses getSinglePoint (exact, else latestValue — look-back only). Until
+    // those two agree on a strategy, the totals differ by roughly one bar of drift.
+    auto overview = portfolioService.computeOverviewAtTs(kId, endMs);
+    checkNear("computeOverviewAtTs total agrees with the series (Nearest vs latestValue fetch)", overview.totalValue,
+              total.back(), std::max(1.0, total.back() * 1e-6));
+
+    // ---------------------------------------------------------------------
+    // 6. quantitySeries is now public — its final tick must match the replayed
+    //    portfolio's positions and cash.
+    // ---------------------------------------------------------------------
+    std::cout << "\n--- quantitySeries ---\n";
+    auto quantities = portfolioService.quantitySeries(kId, startMs, endMs, kDayMs);
+    for (const auto& [assetId, q] : quantities)
+        std::cout << "    " << std::setw(16) << std::left << label(assetId) << std::setprecision(2)
+                  << q.getValues().back() << "\n";
+
+    for (const auto& pos : portfolio.positions()) {
+        auto it = quantities.find(pos.assetId);
+        if (it == quantities.end()) {
+            check("quantitySeries covers " + label(pos.assetId), false);
+            continue;
+        }
+        checkNear("quantitySeries final tick matches position " + pos.assetId.ticker, it->second.getValues().back(),
+                  pos.quantity, 1e-9);
+    }
+    for (const auto& cashId : {kCashUsd, kCashEur})
+        check("quantitySeries covers " + label(cashId), quantities.contains(cashId));
+
+    // ---------------------------------------------------------------------
+    // 7. The NAV from the new API feeds the existing analysis stack unchanged.
+    // ---------------------------------------------------------------------
+    std::cout << "\n--- Portfolio NAV log returns (NAV from valueAndWeightSeries) ---\n";
     auto analysis = portfolioAnalysisService.createPortfolioAnalysis(portfolio, startMs, endMs, kDayMs);
-    analysis->setNavTimeSeries(std::make_shared<const TimeSeries>(std::move(navSeries)));
+    analysis->setNavTimeSeries(std::make_shared<const TimeSeries>(series.total));
     for (const auto& feature : finance::analysis::defaultReturnFeatures()) analysis->installFeature(feature);
-
-    std::cout << "\n--- Portfolio NAV log returns ---\n";
     reportReturnStats("nav logReturn", analysis->seriesAnalysis("logReturn"));
-    reportScalarMetrics("portfolio", analysis->scalarMetrics());
-
-    // ---------------------------------------------------------------------
-    // 5. Same Returns Features on the AAPL price series directly (the asset
-    //    analysis already built inside the portfolio analysis).
-    // ---------------------------------------------------------------------
-    auto aapl = analysis->assetAnalysis(kTicker);
-    aapl->installFeatures(finance::analysis::defaultReturnFeatures());
-
-    std::cout << "\n--- AAPL price log returns ---\n";
-    reportReturnStats("AAPL logReturn", aapl->derivedAnalysis("logReturn"));
-    reportScalarMetrics("AAPL", aapl->scalarMetrics());
-
-    std::cout << "\nNote: 'sharpe' from the service layer currently equals mean/std (the\n"
-                 "sqrt(252) cancels in FinanceStats::sharpeRatio); compare it to the\n"
-                 "annualized sharpe printed above.\n";
 
     std::filesystem::remove_all(repoDir);
-    return 0;
+
+    std::cout << "\n=== " << (failures == 0 ? "ALL CHECKS PASSED" : std::to_string(failures) + " CHECK(S) FAILED")
+              << " ===\n";
+    return failures == 0 ? 0 : 1;
 }
