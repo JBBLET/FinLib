@@ -158,6 +158,31 @@ ts::TimeSeries Portfolio::valueSeries(ts::TimestampsPtr grid,
     }
     return total;
 }
+
+PortfolioValuation Portfolio::valuation(const std::unordered_map<finance::AssetId, double>& priceInBase,
+                                        const std::unordered_map<finance::Currency, double>& fxToBase) const {
+    double total = 0.0;
+    std::unordered_map<finance::AssetId, double> assetValues{};
+    assetValues.reserve(positions_.size() + cashBalances_.size());
+    for (const auto& pos : positions_) {
+        if (pos.quantity == 0.0) continue;
+        const double pv = priceInBase.at(pos.assetId) * pos.quantity;
+        assetValues[pos.assetId] = pv;
+        total += pv;
+    }
+    for (const auto& [currency, amount] : cashBalances_) {
+        const double cashVal = fxToBase.at(currency) * amount;
+        assetValues[AssetId{AssetType::Cash, toString(currency)}] = cashVal;
+        total += cashVal;
+    }
+    std::unordered_map<finance::AssetId, double> weights{};
+    weights.reserve(assetValues.size());
+    // Explicit guard: the series twin gets total==0 -> 0 for free from operator/, but scalar
+    // division has no such protection.
+    for (const auto& [assetId, value] : assetValues) weights[assetId] = (total == 0.0) ? 0.0 : value / total;
+    return {total, weights};
+}
+
 void Portfolio::apply(const Transaction& transaction) {
     if (transaction.timestampsMs < lastTransactionMs_) {
         throw finapp::Exception("The Transaction is outdated relative to the Portfolio");
