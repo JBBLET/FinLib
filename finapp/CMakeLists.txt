@@ -8,6 +8,8 @@
 add_library(finapp_core
     src/finance/portfolio/Portfolio.cpp
     src/finance/portfolio/Transaction.cpp
+    src/finance/calendar/Recurrence.cpp
+    src/finance/calendar/EventCalendar.cpp
     src/finance/common/Currency.cpp
     src/finance/asset/AssetType.cpp
     src/common/Exception.cpp

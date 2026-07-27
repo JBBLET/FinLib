@@ -10,7 +10,11 @@
 
 namespace finance {
 using Timestamp = int64_t;
-using TimestampsPtr = std::shared_ptr<std::vector<int64_t>>;
+// Same type as ts::TimestampsPtr (const inner vector) so grids interoperate with the
+// TimeSeries layer without conversion.
+using TimestampsPtr = std::shared_ptr<const std::vector<int64_t>>;
+
+enum class GridMode { Union, Intersection };
 
 // Set operations over sorted, duplicate-free timestamp grids. Both inputs must be
 // ascending; the result is ascending and duplicate-free. Used to assemble a portfolio's
