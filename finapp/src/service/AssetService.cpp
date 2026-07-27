@@ -141,7 +141,19 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampsP
     if (seriesId.empty()) {
         return ts::common::utils::timeSeries::generateConstantTimeSeries(assetId.ticker, std::move(timestamps), 1.0);
     }
-    return timeSeriesService_->get(seriesId, std::move(timestamps));
+    // Latest (look-back only) — valuing at t must never use a bar stamped after t.
+    return timeSeriesService_->getFilled(seriesId, std::move(timestamps), InterpolationStrategy::Latest);
+}
+
+TimestampsPtr AssetService::rawTicks(const AssetId& assetId, Timestamp startMs, Timestamp endMs) {
+    // Cash and unpriced assets have no market observations — they contribute no ticks to a grid.
+    if (assetId.type == AssetType::Cash) return std::make_shared<std::vector<Timestamp>>();
+    auto asset = load(assetId);
+    const std::string seriesId = asset->priceSeriesId();
+    if (seriesId.empty()) return std::make_shared<std::vector<Timestamp>>();
+    const TimeSeries raw = timeSeriesService_->getRaw(seriesId, startMs, endMs);
+    const auto span = raw.getTimestamps();
+    return std::make_shared<std::vector<Timestamp>>(span.begin(), span.end());
 }
 
 double AssetService::loadValueAtTs(const finance::AssetId& assetId, const Timestamp& timestamp) {

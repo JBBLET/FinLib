@@ -41,6 +41,10 @@ class AssetService {
     // 1.0 series in their own denomination (FX conversion is the caller's job).
     TimeSeries loadTimeSeriesValue(const finance::AssetId& assetId, TimestampsPtr timestamps);
 
+    // Native observation timestamps in [startMs, endMs] — no resampling. Cash/unpriced
+    // assets return an empty grid. Used to assemble a portfolio's analysis grid.
+    TimestampsPtr rawTicks(const finance::AssetId& assetId, Timestamp startMs, Timestamp endMs);
+
     // Laod a singular point at a specific point to compute overwiew may be more performant based on repository
     // implementation
     double loadValueAtTs(const finance::AssetId& assetId, const Timestamp& timestamp);

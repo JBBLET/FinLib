@@ -176,6 +176,39 @@ void PortfolioService::save(const Portfolio& portfolio, Timestamp timestampMs) {
 // }
 
 // ---------------------------------------------------------------------------
+// Analysis grid — union/intersection of constituents' native observation ticks
+// ---------------------------------------------------------------------------
+TimestampsPtr PortfolioService::grid(const std::string& portfolioId, Timestamp startMs, Timestamp endMs,
+                                     finance::GridMode mode) {
+    auto snapshots = portfolioRepository_->loadSnapshotsCovering(portfolioId, startMs, endMs);
+    if (snapshots.empty()) return std::make_shared<std::vector<Timestamp>>();
+    const Currency base = snapshots.front().baseCurrency;
+
+    std::unordered_set<AssetId> uniqueAssetIds;
+    std::unordered_set<Currency> uniqueCurrencies;
+    for (const PortfolioSnapshot& snap : snapshots) {
+        for (const SnapshotPosition& pos : snap.positions) uniqueAssetIds.insert(pos.assetId);
+        for (const auto& [c, _] : snap.cashBalances) uniqueCurrencies.insert(c);
+    }
+
+    std::vector<TimestampsPtr> grids;
+    grids.reserve(uniqueAssetIds.size() + uniqueCurrencies.size());
+    for (const AssetId& aid : uniqueAssetIds) {
+        grids.push_back(assetService_->rawTicks(aid, startMs, endMs));
+        uniqueCurrencies.insert(assetService_->load(aid)->denomination());  // fold in each denomination
+    }
+    for (Currency c : uniqueCurrencies) {
+        if (c != base) grids.push_back(fxService_->rawTicks(c, base, startMs, endMs));
+    }
+
+    // Drop empty grids (cash, same-currency FX, unpriced assets) — an empty operand would
+    // otherwise collapse an intersection to nothing.
+    std::erase_if(grids, [](const TimestampsPtr& g) { return !g || g->empty(); });
+
+    return (mode == finance::GridMode::Union) ? finance::unionOf(grids) : finance::intersectionOf(grids);
+}
+
+// ---------------------------------------------------------------------------
 // Derived TimeSeries over a range
 // ---------------------------------------------------------------------------
 //

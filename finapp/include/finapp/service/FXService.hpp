@@ -37,6 +37,11 @@ class FXService {
     TimeSeries load(const finance::Currency& baseCurrency, const finance::Currency& quoteCurrency,
                     TimestampsPtr timestamps);
 
+    // Native FX observation timestamps in [startMs, endMs] — no resampling. Same-currency
+    // pairs return an empty grid. Used to assemble a portfolio's analysis grid.
+    TimestampsPtr rawTicks(const finance::Currency& baseCurrency, const finance::Currency& quoteCurrency,
+                           Timestamp startMs, Timestamp endMs);
+
     double loadSingleFxAtTs(const finance::Currency& baseCurrency, const finance::Currency& quoteCurrency,
                             Timestamp ts);
 
