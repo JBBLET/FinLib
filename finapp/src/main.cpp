@@ -1,12 +1,16 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <numeric>
+#include <random>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -19,6 +23,8 @@
 #include "finapp/data/repository/implementation/InMemoryRepository/InMemoryFXRepository.hpp"
 #include "finapp/finance/analysis/ReturnFeatures.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
+#include "finapp/finance/calendar/Recurrence.hpp"
+#include "finapp/finance/calendar/WeekdayCalendar.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
@@ -83,8 +89,7 @@ void check(const std::string& what, bool ok, const std::string& detail = "") {
 void checkNear(const std::string& what, double actual, double expected, double tol) {
     const double diff = std::abs(actual - expected);
     std::ostringstream detail;
-    detail << std::fixed << std::setprecision(6) << "actual=" << actual << " expected=" << expected
-           << " diff=" << diff;
+    detail << std::fixed << std::setprecision(6) << "actual=" << actual << " expected=" << expected << " diff=" << diff;
     check(what, diff <= tol, detail.str());
 }
 
@@ -144,6 +149,7 @@ int main() {
     //    stitched from several segments rather than a single one.
     // ---------------------------------------------------------------------
     const std::string kId = "multi_demo";
+    const Currency kBase = Currency::USD;
     const int64_t startMs = ymdToMs(2024, 7, 1);
     const int64_t endMs = ymdToMs(2026, 7, 1);
 
@@ -197,7 +203,8 @@ int main() {
     check("total series is non-empty", series.total.size() > 0);
     // The deposits land the day before the grid starts, so tick 0 is covered by a
     // predecessor snapshot. A zero here is the mask-at-grid-start bug.
-    check("tick 0 is funded (predecessor snapshot resolves)", total.front() > 0.0,
+    check("tick 0 is funded (predecessor snapshot resolves)",
+          total.front() > 0.0,
           "first=" + std::to_string(total.front()));
     check("every tick is funded", std::ranges::all_of(total, [](double v) { return v > 0.0; }));
 
@@ -246,8 +253,10 @@ int main() {
     // scalar path uses getSinglePoint (exact, else latestValue — look-back only). Until
     // those two agree on a strategy, the totals differ by roughly one bar of drift.
     auto overview = portfolioService.computeOverviewAtTs(kId, endMs);
-    checkNear("computeOverviewAtTs total agrees with the series (Nearest vs latestValue fetch)", overview.totalValue,
-              total.back(), std::max(1.0, total.back() * 1e-6));
+    checkNear("computeOverviewAtTs total agrees with the series (Nearest vs latestValue fetch)",
+              overview.totalValue,
+              total.back(),
+              std::max(1.0, total.back() * 1e-6));
 
     // ---------------------------------------------------------------------
     // 6. quantitySeries is now public — its final tick must match the replayed
@@ -265,8 +274,10 @@ int main() {
             check("quantitySeries covers " + label(pos.assetId), false);
             continue;
         }
-        checkNear("quantitySeries final tick matches position " + pos.assetId.ticker, it->second.getValues().back(),
-                  pos.quantity, 1e-9);
+        checkNear("quantitySeries final tick matches position " + pos.assetId.ticker,
+                  it->second.getValues().back(),
+                  pos.quantity,
+                  1e-9);
     }
     for (const auto& cashId : {kCashUsd, kCashEur})
         check("quantitySeries covers " + label(cashId), quantities.contains(cashId));
@@ -284,5 +295,81 @@ int main() {
 
     std::cout << "\n=== " << (failures == 0 ? "ALL CHECKS PASSED" : std::to_string(failures) + " CHECK(S) FAILED")
               << " ===\n";
-    return failures == 0 ? 0 : 1;
+
+    // ---------------------------------------------------------------------
+    // Monte Carlo Simulation
+    // ---------------------------------------------------------------------
+
+    // Constants
+    const int64_t simStart = ymdToMs(2026, 7, 2);
+    const int64_t simEnd = ymdToMs(2041, 7, 31);
+    const double monthlyContribution = 1000.00;
+    const int numPaths = 10'000;
+    const double initialInvest = 10'000.00;
+    finance::WeekdayCalendar cal;
+
+    // Series Starting
+    auto histGrid = cal.schedule(startMs, simStart);
+    TimeSeries aaplHist = assetService->loadTimeSeriesValue(kAapl, histGrid);
+    const auto& hv = aaplHist.getValues();
+    const double spot = hv.back();
+
+    std::vector<double> r;
+    r.reserve(hv.size());
+    for (size_t i = 1; i < hv.size(); ++i)
+        if (hv[i - 1] > 0.0 && hv[i] > 0.0) r.push_back(std::log(hv[i] / hv[i - 1]));
+    const double meanDaily = std::accumulate(r.begin(), r.end(), 0.0) / r.size();
+    double var = 0.0;
+    for (double x : r) var += (x - meanDaily) * (x - meanDaily);
+    var /= (r.size() - 1);
+    const double stdDaily = std::sqrt(var);
+
+    // Constribution calendar
+    auto gridPtr = cal.schedule(simStart, simEnd);
+    const auto& grid = *gridPtr;
+    auto contribDates =
+        finance::Recurrence{.start = grid.front(), .end = simEnd, .frequency = finance::Frequency::Monthly}.generate(
+            cal);
+
+    auto runPath = [&](std::mt19937_64& rng) -> double {
+        std::normal_distribution<double> z(0.0, 1.0);
+        finance::Portfolio pf = finance::Portfolio::Builder("mc", "mc", kBase).build();
+        double price = spot;
+        size_t ci = 0, di = 0;
+        pf.apply(makeTxn(grid.front(), TransactionType::Deposit, "USD", initialInvest, 1.0, kBase));
+        pf.apply(makeTxn(grid.front(), TransactionType::Buy, kAapl.ticker, initialInvest / price, price, kBase));
+        while (ci < contribDates.size() && contribDates[ci] == grid.front()) ++ci;
+
+        for (size_t t = 1; t < grid.size(); ++t) {
+            const int64_t ts = grid[t];
+            price *= std::exp(meanDaily + stdDaily * z(rng));
+            while (ci < contribDates.size() && contribDates[ci] == ts) {
+                ++ci;
+                pf.apply(makeTxn(ts, TransactionType::Deposit, toString(kBase), monthlyContribution, 1.0, kBase));
+                const double cash = pf.cashBalance(kBase);
+                if (cash > 0.0 && price > 0.0)
+                    pf.apply(makeTxn(ts, TransactionType::Buy, kAapl.ticker, cash / price, price, kBase));
+            }
+        }
+        return pf.valuation({{kAapl, price}}, {{kBase, 1.0}}).total;
+    };
+    std::vector<double> terminal(numPaths);
+    std::mt19937_64 rng(0xC0FFEE);
+    for (int p = 0; p < numPaths; ++p) terminal[p] = runPath(rng);
+    std::sort(terminal.begin(), terminal.end());
+
+    auto pct = [&](double q) { return terminal[std::min<size_t>(q * numPaths, numPaths - 1)]; };
+    const double mean = std::accumulate(terminal.begin(), terminal.end(), 0.0) / numPaths;
+    const double invested = initialInvest + monthlyContribution * static_cast<double>(contribDates.size() - 1);
+
+    std::cout << std::fixed << std::setprecision(0);
+    std::cout << "\n=== Monte Carlo (" << numPaths << " paths, " << grid.size() << " steps) ===\n";
+    std::cout << "  daily log-return: m=" << std::setprecision(5) << meanDaily << " s=" << stdDaily << "\n"
+              << std::setprecision(0);
+    std::cout << "  annualized log-return: m=" << std::setprecision(5) << meanDaily * 252
+              << " s=" << stdDaily * std::sqrt(252) << "\n"
+              << std::setprecision(0);
+    std::cout << "  invested total : " << invested << "\n";
+    std::cout << "  mean terminal  : " << mean << "\n";
+    std::cout << "  p5  / p50 / p95: " << pct(0.05) << " / " << pct(0.50) << " / " << pct(0.95) << "\n";
 }
