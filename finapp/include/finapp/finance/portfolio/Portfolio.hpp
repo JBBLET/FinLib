@@ -29,6 +29,12 @@ struct PortfolioSeries {
     std::unordered_map<finance::AssetId, ts::TimeSeries> weights;
 };
 
+// Scalar twin of PortfolioSeries: total value and weights at a single instant.
+struct PortfolioValuation {
+    double total;
+    std::unordered_map<finance::AssetId, double> weights;
+};
+
 class Portfolio {
  public:
     class Builder;
@@ -67,6 +73,11 @@ class Portfolio {
     ts::TimeSeries valueSeries(ts::TimestampsPtr grid,
                                const std::unordered_map<finance::AssetId, ts::TimeSeries>& priceInBase,
                                const std::unordered_map<finance::Currency, ts::TimeSeries>& fxToBase) const;
+
+    // Single-instant twin of valueAndWeightSeries. priceInBase is per-unit-in-base for each
+    // held asset, fxToBase is per-unit-in-base for each cash currency (base currency = 1.0).
+    PortfolioValuation valuation(const std::unordered_map<finance::AssetId, double>& priceInBase,
+                                 const std::unordered_map<finance::Currency, double>& fxToBase) const;
 
  private:
     Portfolio(std::string id, std::string name, Currency baseCurrency)
