@@ -10,6 +10,7 @@
 
 #include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
+#include "finapp/finance/calendar/GridOps.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
@@ -86,6 +87,12 @@ class PortfolioService {
 
     // Compute the Overview at a specific Timestamp in a single Passage.
     finance::PortfolioOverviewAtTs computeOverviewAtTs(const std::string& portfolioId, Timestamp ts);
+
+    // Analysis grid assembled from the constituents' native observation ticks (union by
+    // default, intersection optional). Feed the result to the valueAndWeightSeries
+    // TimestampsPtr overload for a bias-free, non-resampled NAV grid.
+    TimestampsPtr grid(const std::string& portfolioId, Timestamp startMs, Timestamp endMs,
+                       finance::GridMode mode = finance::GridMode::Union);
 
     // Computiation of TimeSeries
     finance::PortfolioSeries valueAndWeightSeries(const std::string& id, TimestampsPtr timestamps);

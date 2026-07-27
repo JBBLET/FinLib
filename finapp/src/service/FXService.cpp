@@ -51,7 +51,17 @@ TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCu
     }
 
     const std::string seriesId = resolveSeriesId_(baseCurrency, quoteCurrency);
-    return timeSeriesService_->get(seriesId, std::move(timestamps));
+    // Latest (look-back only) — an FX rate at t must never come from a bar stamped after t.
+    return timeSeriesService_->getFilled(seriesId, std::move(timestamps), InterpolationStrategy::Latest);
+}
+
+TimestampsPtr FXService::rawTicks(const Currency& baseCurrency, const Currency& quoteCurrency, Timestamp startMs,
+                                  Timestamp endMs) {
+    if (baseCurrency == quoteCurrency) return std::make_shared<std::vector<Timestamp>>();
+    const std::string seriesId = resolveSeriesId_(baseCurrency, quoteCurrency);
+    const TimeSeries raw = timeSeriesService_->getRaw(seriesId, startMs, endMs);
+    const auto span = raw.getTimestamps();
+    return std::make_shared<std::vector<Timestamp>>(span.begin(), span.end());
 }
 double FXService::loadSingleFxAtTs(const Currency& baseCurrency, const Currency& quoteCurrency, Timestamp ts) {
     if (baseCurrency == quoteCurrency) {
