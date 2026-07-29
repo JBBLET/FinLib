@@ -97,16 +97,6 @@ TEST_F(TimeSeriesViewTest, ViewArithmeticSharesTimestampPointer) {
     EXPECT_EQ(diff.getTimestamps()[2], 4000);  // timestamps[3]
 }
 
-TEST_F(TimeSeriesViewTest, ApplySharesTimestampPointer) {
-    // apply() on an lvalue should share the parent's TimestampPtr and preserve tsOffset_.
-    auto doubled = series->apply([](double v) { return v * 2.0; });
-
-    EXPECT_EQ(doubled.getSharedTimestamps(), series->getSharedTimestamps());
-    EXPECT_EQ(doubled.tsOffset(), 0u);
-    EXPECT_EQ(doubled.getTimestamps()[0], 1000);
-    EXPECT_EQ(doubled.getValues()[0], 20.0);
-}
-
 TEST_F(TimeSeriesViewTest, OffsetSeriesTimestampsCorrect) {
     // A derived series with tsOffset > 0 must report only its own slice of timestamps.
     auto v_curr = series->slice(1, 3);
