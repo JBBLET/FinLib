@@ -2,42 +2,47 @@
 #pragma once
 
 #include <Eigen/Dense>
+#include <cstddef>
+#include <span>
 #include <vector>
-namespace ts {
-class TimeSeriesView;
-}
+
 namespace ts::analysis::stats {
+
+using Samples = std::span<const double>;
 
 // Standard
 enum class VarianceType { Population, Sample };
-double mean(const TimeSeriesView& view);
-double varianceFast(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
-double varianceSlow(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
-double standardDeviation(const TimeSeriesView& view, VarianceType type = VarianceType::Sample);
+double mean(Samples x);
+double varianceFast(Samples x, VarianceType type = VarianceType::Sample);
+double varianceSlow(Samples x, VarianceType type = VarianceType::Sample);
+double standardDeviation(Samples x, VarianceType type = VarianceType::Sample);
 
-double skewness(const TimeSeriesView& view);
-double kurtosis(const TimeSeriesView& view);
-double excessKurtosis(const TimeSeriesView&);
-double autocorrelationAt(const TimeSeriesView& view, size_t lag);
-std::vector<double> acf(const TimeSeriesView& view, size_t max_lag);
-std::vector<double> pacf(const TimeSeriesView& view, size_t max_lag);
-std::vector<double> autocovariances(const TimeSeriesView& view, size_t max_lag);
+double skewness(Samples x);
+double kurtosis(Samples x);
+double excessKurtosis(Samples x);
 
-Eigen::MatrixXd toeplitz(const TimeSeriesView& view, size_t max_lag);
-Eigen::MatrixXd toeplitz(const std::vector<double>& gamma, size_t max_lag);
+double quantileSorted(Samples sortedX, double q);
+
+double autocorrelationAt(Samples x, std::size_t lag);
+std::vector<double> acf(Samples x, std::size_t maxLag);
+std::vector<double> pacf(Samples x, std::size_t maxLag);
+std::vector<double> autocovariances(Samples x, std::size_t maxLag);
+
+Eigen::MatrixXd toeplitzFromSamples(Samples x, std::size_t maxLag);
+Eigen::MatrixXd toeplitzFromAutocovariances(Samples gamma, std::size_t maxLag);
 }  // namespace ts::analysis::stats
 
 namespace ts::analysis::hypothesisTesting {
-// Test for guaussian distribution, Trend, seasonality and so on
+
 struct HypothesisTestResult {
     double statistic;
     double p_value;
 };
 
-HypothesisTestResult jarqueBera(const TimeSeriesView&);
-HypothesisTestResult adf(const TimeSeriesView&);
-HypothesisTestResult breuschPagan(const TimeSeriesView&);
-HypothesisTestResult breuschGodfrey(const TimeSeriesView&);
+HypothesisTestResult jarqueBera(stats::Samples x);
+HypothesisTestResult adf(stats::Samples x);
+HypothesisTestResult breuschPagan(stats::Samples x);
+HypothesisTestResult breuschGodfrey(stats::Samples x);
 
 double PvalueFromTStatistic(double tStat);
 }  // namespace ts::analysis::hypothesisTesting
