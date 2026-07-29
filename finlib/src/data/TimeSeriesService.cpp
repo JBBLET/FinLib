@@ -13,6 +13,7 @@
 
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
+#include "finlib/core/Resampling.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -132,7 +133,7 @@ TimeSeries TimeSeriesService::getAligned(const std::string& id, TimestampsPtr gr
     }
     // Analysis: coarsest bucket fine enough to resolve the grid (else throw — no fabrication).
     TimeSeries bucket = loadBucket_(id, grid->front(), grid->back(), minSpacing(*grid), /*finestFirst=*/false);
-    return bucket.resampling(std::move(grid), InterpolationStrategy::Exact);
+    return resample(bucket, std::move(grid), InterpolationStrategy::Exact);
 }
 
 TimeSeries TimeSeriesService::getFilled(const std::string& id, TimestampsPtr grid, InterpolationStrategy strategy) {
@@ -141,7 +142,7 @@ TimeSeries TimeSeriesService::getFilled(const std::string& id, TimestampsPtr gri
     }
     // Graphing: coarsest available bucket (interpolation may upsample from coarser data).
     TimeSeries bucket = loadBucket_(id, grid->front(), grid->back(), INT64_MAX, /*finestFirst=*/false);
-    return bucket.resampling(std::move(grid), strategy);
+    return resample(bucket, std::move(grid), strategy);
 }
 
 TimeSeries TimeSeriesService::getFilled(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp freqMs,

@@ -2,18 +2,12 @@
 #include "finlib/core/TimeSeries.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <format>
-#include <functional>
-#include <future>
 #include <iterator>
-#include <limits>
 #include <memory>
 #include <optional>
-#include <random>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -21,110 +15,7 @@
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
-using std::future;
-using std::invalid_argument;
-using std::sqrt;
-using std::vector;
 namespace ts {
-
-// ---------------------------------------------------------------------------
-// Private Helpers
-// ---------------------------------------------------------------------------
-double calculateNoise(Timestamp target, Timestamp t1, Timestamp t2, double annualVolatility, std::mt19937& gen) {
-    std::normal_distribution<double> dist(0.0, 1.0);
-
-    // scale the volatility with the distance to a known point
-    double bridgeVarianceSeconds = (static_cast<double>(target - t1) * (t2 - target)) / (t2 - t1);
-
-    // TODO(JBBLET) PRECOMPUTRE THE annual_vol/sqrt(31560000.0) this is the same for all
-    // the points
-    double volatilityScale = annualVolatility * sqrt(bridgeVarianceSeconds / 31536000.0);
-    return dist(gen) * volatilityScale;
-}
-
-double applyStrategy(InterpolationStrategy strategy, std::mt19937& gen, Timestamp target, Timestamp t1, double v1,
-                     Timestamp t2, double v2, double annualVolatility = 1.0) {
-    double fraction = static_cast<double>(target - t1) / (t2 - t1);
-    double linearVal = v1 + fraction * (v2 - v1);
-
-    if (strategy == InterpolationStrategy::Linear) {
-        return linearVal;
-    }
-
-    if (strategy == InterpolationStrategy::Stochastic) {
-        return linearVal + calculateNoise(target, t1, t2, annualVolatility, gen);
-    }
-    if (strategy == InterpolationStrategy::Nearest) {
-        return (target - t1 < t2 - target) ? v1 : v2;
-    }
-    if (strategy == InterpolationStrategy::Latest) {
-        return v1;
-    }
-    return v1;
-}
-
-vector<double> TimeSeries::partialWalk(const Timestamps& targetTimestamps, size_t startIndex, size_t endIndex,
-                                       InterpolationStrategy strategy, std::optional<uint32_t> seed) const {
-    static thread_local std::mt19937 globalGen(std::random_device{}());
-    std::mt19937 localGen;
-    if (seed) localGen.seed(*seed + startIndex);
-    std::mt19937& currentGen = seed ? localGen : globalGen;
-
-    const size_t chunkLength = endIndex - startIndex;
-    vector<double> newValues;
-    newValues.resize(chunkLength);
-
-    // Use the span view so tsOffset_ is applied — timestamps_->size() can exceed
-    // values_.size() when this series shares a parent's TimestampsPtr (e.g. after a
-    // slice via TimeSeriesView::materialise_ or TimeSeries arithmetic operators).
-    const auto span = getTimestamps();
-    const size_t originalSize = values_.size();
-    if (originalSize == 0) {
-        throw std::runtime_error("TimeSeries::resampling: cannot resample from empty series '" + id_ + "'");
-    }
-
-    auto it = std::lower_bound(span.begin(), span.end(), targetTimestamps[startIndex]);
-    size_t dataIndex = std::distance(span.begin(), it);
-    if (dataIndex > 0) dataIndex--;
-
-    for (size_t i = 0; i < chunkLength; i++) {
-        int64_t currentTarget = targetTimestamps[startIndex + i];
-        while (dataIndex < (originalSize - 1) && span[dataIndex + 1] <= currentTarget) {
-            dataIndex++;
-        }
-        if (strategy == InterpolationStrategy::Exact) {
-            newValues[i] =
-                (span[dataIndex] == currentTarget) ? values_[dataIndex] : std::numeric_limits<double>::quiet_NaN();
-            continue;
-        }
-        if (currentTarget <= span[0]) {
-            newValues[i] = values_[0];
-        } else if (dataIndex >= originalSize - 1) {
-            newValues[i] = values_.back();
-        } else {
-            newValues[i] = applyStrategy(strategy,
-                                         currentGen,
-                                         currentTarget,
-                                         span[dataIndex],
-                                         values_[dataIndex],
-                                         span[dataIndex + 1],
-                                         values_[dataIndex + 1]);
-        }
-    }
-    return newValues;
-}
-
-void TimeSeries::verifyAlignment_(const TimeSeries& other) const {
-    // Fast path: same backing vector at the same offset — definitely aligned.
-    if (timestamps_ == other.timestamps_ && tsOffset_ == other.tsOffset_) return;
-    if (this->size() != other.size()) {
-        throw std::invalid_argument("TimeSeries size mismatch.");
-    }
-    // Slow path: compare only the slices each series actually represents.
-    if (!std::equal(getTimestamps().begin(), getTimestamps().end(), other.getTimestamps().begin())) {
-        throw std::invalid_argument("TimeSeries timestamps do not match.");
-    }
-}
 
 // ---------------------------------------------------------------------------
 // constructor
@@ -151,6 +42,16 @@ TimeSeries::TimeSeries(std::string id, TimestampsPtr sharedTimestamps, size_t ts
         throw std::invalid_argument("TimeSeries: tsOffset + size exceeds timestamp vector length");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Named Factory
+// ---------------------------------------------------------------------------
+TimeSeries TimeSeries::synthetic(std::string id, TimestampsPtr ts, std::vector<double> vals) {
+    TimeSeries s(std::move(id), std::move(ts), std::move(vals));
+    s.isSynthetic_ = true;
+    return s;
+}
+
 // Timestamps Accessors
 size_t TimeSeries::lowerBound(Timestamp ts) const {
     auto span = getTimestamps();
@@ -300,71 +201,19 @@ TimeSeriesView TimeSeries::sliceIndex(size_t start, size_t end) const {
     return TimeSeriesView(shared_from_this(), start, end - start + 1);
 }
 
-TimeSeries TimeSeries::resampling(const Timestamps& targetTimestamps, InterpolationStrategy strategy,
-                                  std::optional<uint32_t> seed) const {
-    const size_t PARALLEL_THRESHOLD = 20000;
-    if (!std::is_sorted(targetTimestamps.begin(), targetTimestamps.end())) {
-        throw invalid_argument("target_timestamps must be sorted for resampling.");
-    }
+// ---------------------------------------------------------------------------
+// Private Helpers
+// ---------------------------------------------------------------------------
 
-    vector<double> newValues;
-    if (targetTimestamps.size() < PARALLEL_THRESHOLD) {
-        newValues = partialWalk(targetTimestamps, 0, targetTimestamps.size(), strategy, seed);
-    } else {
-        unsigned int numCores = std::thread::hardware_concurrency();
-        size_t chunkSize = targetTimestamps.size() / numCores;
-        vector<future<vector<double>>> futures;
-        for (unsigned int i = 0; i < numCores; ++i) {
-            size_t start = i * chunkSize;
-            size_t end = (i == numCores - 1) ? targetTimestamps.size() : (i + 1) * chunkSize;
-            futures.push_back(std::async(std::launch::async, [this, &targetTimestamps, start, end, strategy, seed]() {
-                return this->partialWalk(targetTimestamps, start, end, strategy, seed);
-            }));
-        }
-        newValues.reserve(targetTimestamps.size());
-        for (auto& fut : futures) {
-            auto partial = fut.get();
-            newValues.insert(newValues.end(), partial.begin(), partial.end());
-        }
+void TimeSeries::verifyAlignment_(const TimeSeries& other) const {
+    // Fast path: same backing vector at the same offset — definitely aligned.
+    if (timestamps_ == other.timestamps_ && tsOffset_ == other.tsOffset_) return;
+    if (this->size() != other.size()) {
+        throw std::invalid_argument("TimeSeries size mismatch.");
     }
-    TimeSeries result("Resampled " + id_, targetTimestamps, std::move(newValues));
-    result.isSynthetic_ = true;
-    return result;
-}
-
-TimeSeries TimeSeries::resampling(TimestampsPtr targetTimestamps, InterpolationStrategy strategy,
-                                  std::optional<uint32_t> seed) const {
-    if (!targetTimestamps) {
-        throw invalid_argument("targetTimestamps pointer is null.");
+    // Slow path: compare only the slices each series actually represents.
+    if (!std::equal(getTimestamps().begin(), getTimestamps().end(), other.getTimestamps().begin())) {
+        throw std::invalid_argument("TimeSeries timestamps do not match.");
     }
-    const auto& ts = *targetTimestamps;
-    if (!std::is_sorted(ts.begin(), ts.end())) {
-        throw invalid_argument("target_timestamps must be sorted for resampling.");
-    }
-
-    const size_t PARALLEL_THRESHOLD = 20000;
-    vector<double> newValues;
-    if (ts.size() < PARALLEL_THRESHOLD) {
-        newValues = partialWalk(ts, 0, ts.size(), strategy, seed);
-    } else {
-        unsigned int numCores = std::thread::hardware_concurrency();
-        size_t chunkSize = ts.size() / numCores;
-        vector<future<vector<double>>> futures;
-        for (unsigned int i = 0; i < numCores; ++i) {
-            size_t start = i * chunkSize;
-            size_t end = (i == numCores - 1) ? ts.size() : (i + 1) * chunkSize;
-            futures.push_back(std::async(std::launch::async, [this, &ts, start, end, strategy, seed]() {
-                return this->partialWalk(ts, start, end, strategy, seed);
-            }));
-        }
-        newValues.reserve(ts.size());
-        for (auto& fut : futures) {
-            auto partial = fut.get();
-            newValues.insert(newValues.end(), partial.begin(), partial.end());
-        }
-    }
-    TimeSeries result("Resampled " + id_, std::move(targetTimestamps), std::move(newValues));
-    result.isSynthetic_ = true;
-    return result;
 }
 }  // namespace ts

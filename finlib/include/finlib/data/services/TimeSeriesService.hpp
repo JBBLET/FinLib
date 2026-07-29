@@ -9,6 +9,7 @@
 
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/ILogger.hpp"
+#include "finlib/core/Resampling.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/data/TimeRange.hpp"
