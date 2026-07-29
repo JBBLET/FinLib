@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -77,4 +78,10 @@ class TimeSeriesView : public std::enable_shared_from_this<TimeSeriesView> {
     // Check
     RegularityCheck checkRegularity(double tolerance) const;
 };
+
+// Everything in ts::analysis::stats takes std::span<const double>; the view feeds it only as long as
+// it stays a contiguous, sized range. Make the day that stops being true a compile error, not a
+// mysterious overload-resolution failure at every stats call site.
+static_assert(std::ranges::contiguous_range<const TimeSeriesView> && std::ranges::sized_range<const TimeSeriesView>,
+              "TimeSeriesView must remain a contiguous sized range so it converts to std::span<const double>");
 }  // namespace ts
