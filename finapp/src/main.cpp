@@ -35,7 +35,7 @@
 #include "finapp/service/analysisService/AssetAnalysisService.hpp"
 #include "finapp/service/analysisService/AssetsAnalysis/EquityAnalysisService.hpp"
 #include "finapp/service/analysisService/PortfolioAnalysisService.hpp"
-#include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/utils/TimeUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"

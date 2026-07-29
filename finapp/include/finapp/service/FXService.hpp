@@ -9,9 +9,9 @@
 #include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IFXRepository.hpp"
 #include "finapp/finance/common/Currency.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 using ts::InterpolationStrategy;
 using ts::TimeSeries;

@@ -29,7 +29,7 @@ target_link_libraries(finlib_core
 # --------------------
 
 add_library(finlib_analysis
-    src/analysis/TimeSeriesAnalysis.cpp
+    src/analysis/seriesAnalysis/TimeSeriesAnalysis.cpp
 )
 
 target_include_directories(finlib_analysis
@@ -69,8 +69,8 @@ target_include_directories(finlib_data
 # --------------------
 
 add_library(finlib_models
-    src/models/timeseries/regression/ARModel.cpp
-    src/models/interfaces/EvaluationResult.cpp
+    src/analysis/models/timeseries/regression/ARModel.cpp
+    src/analysis/models/interfaces/EvaluationResult.cpp
 )
 
 target_link_libraries(finlib_models
@@ -88,9 +88,9 @@ target_include_directories(finlib_models
 # --------------------
 
 add_library(finlib_session
-    src/session/ModelSession.cpp
-    src/session/TimeSeriesSession.cpp
-    src/session/MultiTimeSeriesSession.cpp
+    src/analysis/session/ModelSession.cpp
+    src/analysis/session/TimeSeriesSession.cpp
+    src/analysis/session/MultiTimeSeriesSession.cpp
 )
 
 target_link_libraries(finlib_session

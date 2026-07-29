@@ -10,7 +10,7 @@
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
-#include "finlib/session/MultiTimeSeriesSession.hpp"
+#include "finlib/analysis/session/MultiTimeSeriesSession.hpp"
 
 namespace finapp {
 

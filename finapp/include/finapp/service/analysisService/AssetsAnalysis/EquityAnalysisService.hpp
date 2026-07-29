@@ -6,7 +6,7 @@
 #include "finapp/common/logger/ILogger.hpp"
 #include "finapp/service/AssetService.hpp"
 #include "finapp/service/analysisService/IAssetAnalysisService.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 
 namespace finapp {
 

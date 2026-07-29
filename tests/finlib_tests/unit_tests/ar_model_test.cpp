@@ -8,10 +8,10 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/analysis/models/interfaces/EvaluationResult.hpp"
+#include "finlib/analysis/models/timeseries/regression/ARModel.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/models/interfaces/EvaluationResult.hpp"
-#include "finlib/models/timeseries/regression/ARModel.hpp"
 
 // Helper: generate a synthetic AR(1) process
 // y_t = intercept + phi * y_{t-1} + noise[t]

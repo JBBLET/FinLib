@@ -10,10 +10,10 @@
 
 #include "finapp/finance/analysis/AnalysisFeature.hpp"
 #include "finapp/finance/analysis/ReturnFeatures.hpp"
-#include "finlib/analysis/MetricHandle.hpp"
+#include "finlib/analysis/seriesAnalysis/MetricHandle.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 using finance::analysis::computeMetricsOfType;
 using finance::analysis::FeatureBindings;

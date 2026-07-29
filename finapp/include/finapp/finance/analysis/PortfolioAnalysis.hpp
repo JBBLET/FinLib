@@ -11,12 +11,12 @@
 #include "finapp/finance/analysis/AnalysisFeature.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
-#include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
-#include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/analysis/seriesAnalysis/CustomTimeSeriesAnalysis.hpp"
+#include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
+#include "finlib/analysis/session/ITimeSeriesSession.hpp"
+#include "finlib/analysis/session/MultiTimeSeriesSession.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/core/TimeSeries.hpp"
-#include "finlib/session/ITimeSeriesSession.hpp"
-#include "finlib/session/MultiTimeSeriesSession.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 using ts::TimeSeries;
 using ts::TimeSeriesView;

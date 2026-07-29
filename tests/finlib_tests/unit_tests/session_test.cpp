@@ -8,12 +8,12 @@
 #include <utility>
 
 #include "TestMockTimeSeries.hpp"
-#include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
-#include "finlib/analysis/MetricHandle.hpp"
+#include "finlib/analysis/seriesAnalysis/CustomTimeSeriesAnalysis.hpp"
+#include "finlib/analysis/seriesAnalysis/MetricHandle.hpp"
+#include "finlib/analysis/session/MultiTimeSeriesSession.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/session/MultiTimeSeriesSession.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 using ts::TimeSeriesView;
 using ts::analysis::CustomTimeSeriesAnalysis;
@@ -216,8 +216,9 @@ TEST_F(MultiTimeSeriesSessionTest, ScalarMultiplyCrossTransform) {
 // cross-transform-as-input resolution in buildAligned_.
 TEST_F(MultiTimeSeriesSessionTest, ChainedCrossTransformDerivesReturnsFromCrossTransform) {
     multi_->addTransform(
-        "sum", {"A", "B"},
-        [](const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>& m) { return *m.at("A") + *m.at("B"); });
+        "sum", {"A", "B"}, [](const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>& m) {
+            return *m.at("A") + *m.at("B");
+        });
     multi_->addTransform(
         "return", {"sum"}, [](const std::unordered_map<std::string, std::shared_ptr<const TimeSeries>>& m) {
             const auto& vals = m.at("sum")->getValues();

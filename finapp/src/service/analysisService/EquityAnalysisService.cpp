@@ -10,7 +10,7 @@
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/asset/Equity.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 
 namespace finapp {
 

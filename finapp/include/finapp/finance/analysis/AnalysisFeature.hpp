@@ -10,9 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include "finlib/analysis/CustomTimeSeriesAnalysis.hpp"
-#include "finlib/analysis/MetricHandle.hpp"
-#include "finlib/session/ITimeSeriesSession.hpp"
+#include "finlib/analysis/seriesAnalysis/CustomTimeSeriesAnalysis.hpp"
+#include "finlib/analysis/seriesAnalysis/MetricHandle.hpp"
+#include "finlib/analysis/session/ITimeSeriesSession.hpp"
 
 namespace finance::analysis {
 

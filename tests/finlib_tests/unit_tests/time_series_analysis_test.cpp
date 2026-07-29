@@ -4,7 +4,7 @@
 #include <cmath>
 
 #include "TestMockTimeSeries.hpp"
-#include "finlib/analysis/TimeSeriesAnalysis.hpp"
+#include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/StatsCore.hpp"
 
 using ts::analysis::TimeSeriesAnalysis;

@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "finapp/finance/stats/FinanceStats.hpp"
-#include "finlib/analysis/MetricHandle.hpp"
+#include "finlib/analysis/seriesAnalysis/MetricHandle.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
 using ts::TimeSeriesView;

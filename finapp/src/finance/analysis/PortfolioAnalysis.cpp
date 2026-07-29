@@ -11,9 +11,9 @@
 #include "finapp/common/Exception.hpp"
 #include "finapp/finance/analysis/AnalysisFeature.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 namespace finance::analysis {
 
