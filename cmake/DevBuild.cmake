@@ -21,9 +21,11 @@ function(finlib_dev_predeps)
 endfunction()
 
 # Dev targets registered AFTER the library targets exist (tests link finlib_*/finapp_*).
+# enable_testing() is NOT called here — it sets a variable, which this function scope would
+# discard, leaving the top of the build tree without a CTestTestfile.cmake. The caller runs
+# it at directory scope instead.
 function(finlib_dev_targets)
     if(BUILD_TESTS)
-        enable_testing()
         include(FetchContent)
         FetchContent_Declare(
             googletest

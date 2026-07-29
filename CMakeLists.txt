@@ -74,5 +74,10 @@ add_subdirectory(finapp)  # FinApp — Domain B (finance application)
 # Dev/standalone-only targets (tests, benchmarks), registered after the libraries exist.
 # --------------------------------------------------------------------------------------
 if(PROJECT_IS_TOP_LEVEL)
+    # Must be at directory scope, before the tests subdirectory is added, so that ctest
+    # finds a CTestTestfile.cmake at the root of the build tree.
+    if(BUILD_TESTS)
+        enable_testing()
+    endif()
     finlib_dev_targets()
 endif()
