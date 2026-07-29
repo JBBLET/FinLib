@@ -8,8 +8,8 @@
 
 #include "finapp/finance/analysis/AnalysisFeature.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
-#include "finlib/analysis/TimeSeriesAnalysis.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
+#include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 
 using ts::analysis::TimeSeriesAnalysis;
 using ts::analysis::TimeSeriesSession;

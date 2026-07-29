@@ -12,11 +12,11 @@
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Cash.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 using ts::TimeSeriesService;
 namespace finapp {

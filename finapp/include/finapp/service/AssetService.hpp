@@ -9,10 +9,10 @@
 #include "finapp/data/repository/interface/IAssetRepository.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/AssetId.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 using ts::InterpolationStrategy;
 using ts::TimeSeries;

@@ -9,11 +9,11 @@
 #include "finapp/common/Exception.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/common/Currency.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/utils/TimeSeriesUtils.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
-#include "finlib/session/TimeSeriesSession.hpp"
 
 namespace finapp {
 

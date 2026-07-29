@@ -1,0 +1,82 @@
+// Copyright 2026 JBBLET
+#pragma once
+
+#include <cstddef>
+#include <deque>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+#include "Eigen/Core"
+#include "finlib/analysis/models/interfaces/IRegressionModel.hpp"
+#include "finlib/analysis/session/AppContext.hpp"
+#include "finlib/common/FinlibTypes.hpp"
+#include "finlib/core/TimeSeries.hpp"
+#include "finlib/core/TimeSeriesView.hpp"
+
+namespace ts {
+class ModelSession {
+    AppContext& context_;
+
+    std::shared_ptr<models::IRegressionModel> model_;
+    Eigen::VectorXd window_;
+    size_t windowSize_;
+
+    // Prediction
+    struct PredictionEntry {
+        Timestamp timestamp;
+        double predictedValue;
+        std::optional<double> actualValue;
+    };
+
+    std::deque<PredictionEntry> predictionContainer_;
+    std::vector<std::pair<Timestamp, double>> writeBuffer_;
+    size_t writeBufferCapacity_ = 100;
+
+    // Running Error Tracking
+    size_t errorTrackingWindowSize_;
+    double runningSumSquaredError_ = 0.0;
+    double runningSumAbsoluteError_ = 0.0;
+    size_t observationCount_ = 0;
+
+    Timestamp lastActualTimeStamp_;
+    Timestamp deltaT_;
+    double deltaTTolerance_;
+
+ public:
+    ModelSession(AppContext& context, std::shared_ptr<models::IRegressionModel> model, const TimeSeriesView& view,
+                 size_t errorTrackingWindowSize, Timestamp deltaT, double deltaTTolerance)
+        : context_(context),
+          model_(std::move(model)),
+          errorTrackingWindowSize_(errorTrackingWindowSize),
+          deltaT_(deltaT),
+          deltaTTolerance_(deltaTTolerance) {
+        if (!model_->isFitted()) throw std::runtime_error("Model used for session not Fitted");
+        size_t viewLength = view.size();
+        if (viewLength < 1) throw std::runtime_error("View passed in model session cannot be empty");
+        windowSize_ = model_->contextSize();
+        window_ = view.asEigenVector().tail(windowSize_);
+        lastActualTimeStamp_ = view.timestamp(viewLength - 1);
+    }
+    ~ModelSession() { flush_(); }
+    ModelSession(const ModelSession&) = delete;
+    ModelSession& operator=(const ModelSession&) = delete;
+    ModelSession(ModelSession&&) = delete;
+    ModelSession& operator=(ModelSession&&) = delete;
+
+    std::vector<PredictionEntry> forecast(size_t steps);
+    void observe(double value, Timestamp timestamp);
+    double rollingMSE(size_t lastN) const;
+    double rollingMAE(size_t lastN) const;
+    bool shouldRefit(double mseTreshold) const;
+
+    void refit(const TimeSeriesView& newView);
+
+ private:
+    // Helper
+    size_t nextToFill_ = 0;
+    void flush_();
+};
+}  // namespace ts

@@ -10,15 +10,15 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/analysis/models/timeseries/regression/ARModel.hpp"
+#include "finlib/analysis/session/AppContext.hpp"
+#include "finlib/analysis/session/ModelSession.hpp"
 #include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
 #include "finlib/data/implementation/CSVRepository.hpp"
-#include "finlib/models/timeseries/regression/ARModel.hpp"
-#include "finlib/session/AppContext.hpp"
-#include "finlib/session/ModelSession.hpp"
 
 using ts::AppContext;
 using ts::CoverageInfo;
