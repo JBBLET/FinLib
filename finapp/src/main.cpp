@@ -36,7 +36,13 @@
 #include "finapp/service/analysisService/AssetsAnalysis/EquityAnalysisService.hpp"
 #include "finapp/service/analysisService/PortfolioAnalysisService.hpp"
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
+#include "finlib/analysis/simulation/monteCarlo/Distribution.hpp"
+#include "finlib/analysis/simulation/monteCarlo/IInnovation.hpp"
+#include "finlib/analysis/simulation/monteCarlo/MonteCarloEngine.hpp"
+#include "finlib/analysis/simulation/monteCarlo/PathAccumulators.hpp"
+#include "finlib/common/Random.hpp"
 #include "finlib/common/utils/TimeUtils.hpp"
+#include "finlib/core/StatsCore.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"
 #include "finlib/data/implementation/InMemoryTimeSeriesRepository.hpp"
@@ -370,6 +376,103 @@ int main() {
               << " s=" << stdDaily * std::sqrt(252) << "\n"
               << std::setprecision(0);
     std::cout << "  invested total : " << invested << "\n";
+
+    std::cout << "\n  -- manual (single shared mt19937_64, hand-rolled loop) --\n";
     std::cout << "  mean terminal  : " << mean << "\n";
     std::cout << "  p5  / p50 / p95: " << pct(0.05) << " / " << pct(0.50) << " / " << pct(0.95) << "\n";
+
+    // One trajectory of the contribution plan, expressed as a finlib PathSimulation: state, step(),
+    // result(). Everything the hand-rolled runPath lambda below does, minus the loop and the RNG —
+    // those belong to the engine now. Same arithmetic, same order of operations, so the two versions
+    // are directly comparable.
+    struct ContributionPath {
+        struct Result {
+            double terminal;
+            double priceMaxDrawdown;
+        };
+
+        const ts::Timestamps& grid;
+        const ts::Timestamps& contributions;
+        AssetId asset;
+        Currency base;
+        double drift;
+        double vol;
+        double monthlyContribution;
+
+        finance::Portfolio portfolio;
+        ts::simulation::GaussianInnovation z{};
+        // Free to carry: it only ever sees the price we already computed, so it costs no valuation.
+        ts::simulation::DrawdownTracker drawdown{};
+        double price;
+        std::size_t contributionIndex = 0;
+
+        ContributionPath(const ts::Timestamps& gridIn, const ts::Timestamps& contributionsIn, AssetId assetIn,
+                         Currency baseIn, double spot, double driftIn, double volIn, double initialInvest,
+                         double monthlyContributionIn)
+            : grid(gridIn),
+              contributions(contributionsIn),
+              asset(std::move(assetIn)),
+              base(baseIn),
+              drift(driftIn),
+              vol(volIn),
+              monthlyContribution(monthlyContributionIn),
+              portfolio(finance::Portfolio::Builder("mc", "mc", baseIn).build()),
+              price(spot) {
+            const int64_t t0 = grid.front();
+            portfolio.apply(makeTxn(t0, TransactionType::Deposit, toString(base), initialInvest, 1.0, base));
+            portfolio.apply(makeTxn(t0, TransactionType::Buy, asset.ticker, initialInvest / price, price, base));
+            while (contributionIndex < contributions.size() && contributions[contributionIndex] == t0)
+                ++contributionIndex;
+            drawdown.push(price);
+        }
+
+        void step(std::size_t t, ts::Rng& rng) {
+            const int64_t ts = grid[t];
+            price *= std::exp(drift + vol * z.draw(rng));
+            drawdown.push(price);
+            while (contributionIndex < contributions.size() && contributions[contributionIndex] == ts) {
+                ++contributionIndex;
+                portfolio.apply(makeTxn(ts, TransactionType::Deposit, toString(base), monthlyContribution, 1.0, base));
+                const double cash = portfolio.cashBalance(base);
+                if (cash > 0.0 && price > 0.0)
+                    portfolio.apply(makeTxn(ts, TransactionType::Buy, asset.ticker, cash / price, price, base));
+            }
+        }
+
+        Result result() const {
+            return {portfolio.valuation({{asset, price}}, {{base, 1.0}}).total, drawdown.maxDrawdown};
+        }
+    };
+
+    const auto engineResults = ts::simulation::run(
+        {.paths = static_cast<std::size_t>(numPaths), .steps = grid.size() - 1, .seed = 0xC0FFEE}, [&](std::size_t) {
+            return ContributionPath(
+                grid, contribDates, kAapl, kBase, spot, meanDaily, stdDaily, initialInvest, monthlyContribution);
+        });
+
+    const auto engineTerminal = ts::simulation::Distribution::from(engineResults, &ContributionPath::Result::terminal);
+    const auto engineDrawdown =
+        ts::simulation::Distribution::from(engineResults, &ContributionPath::Result::priceMaxDrawdown);
+
+    // terminal is a plain std::vector<double> and feeds the same estimator the views use.
+    const double manualSem =
+        ts::analysis::stats::standardDeviation(terminal) / std::sqrt(static_cast<double>(numPaths));
+    const double engineSem = engineTerminal.stddev() / std::sqrt(static_cast<double>(numPaths));
+
+    std::cout << "\n  -- engine (ts::simulation::run, per-path RNG stream) --\n";
+    std::cout << "  mean terminal  : " << engineTerminal.mean() << "\n";
+    std::cout << "  p5  / p50 / p95: " << engineTerminal.quantile(0.05) << " / " << engineTerminal.quantile(0.50)
+              << " / " << engineTerminal.quantile(0.95) << "\n";
+    std::cout << "  price max drawdown p50 / p95: " << std::setprecision(3) << engineDrawdown.quantile(0.50) << " / "
+              << engineDrawdown.quantile(0.95) << std::setprecision(0) << "   (free extra from DrawdownTracker)\n";
+
+    std::cout << "\n  -- agreement --\n";
+    const double meanGap = std::abs(engineTerminal.mean() - mean);
+    std::cout << "  mean difference: " << meanGap << "  (manual SEM " << manualSem << ", engine SEM " << engineSem
+              << ")\n";
+    std::cout << "  "
+              << (meanGap <= 3.0 * std::max(manualSem, engineSem) ? "within 3 SEM - consistent"
+                                                                  : "OUTSIDE 3 SEM - investigate")
+              << "\n";
+    std::cout << "  p50 difference : " << std::abs(engineTerminal.quantile(0.50) - pct(0.50)) << "\n";
 }
