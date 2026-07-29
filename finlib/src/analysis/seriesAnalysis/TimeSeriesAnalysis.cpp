@@ -106,7 +106,7 @@ Eigen::MatrixXd TimeSeriesAnalysis::toeplitz(size_t maxLag) {
             (cachedAutocovariances_.value().size() - 1) < maxLag) {
             cachedAutocovariances_ = ts::analysis::stats::autocovariances(view_, maxLag);
         }
-        cachedToeplitz_ = ts::analysis::stats::toeplitz(cachedAutocovariances_.value(), maxLag);
+        cachedToeplitz_ = ts::analysis::stats::toeplitzFromAutocovariances(cachedAutocovariances_.value(), maxLag);
     }
     return cachedToeplitz_.value();
 }

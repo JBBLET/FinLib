@@ -10,11 +10,10 @@ namespace ts {
 enum class InterpolationStrategy { Linear, Stochastic, Nearest, Exact, Latest };
 
 struct StochasticParams {
-    std::optional<double> varianceRate = 0.0;  // variance per timestamp tick; 0 degenerates to Linear
+    std::optional<double> varianceRate = std::nullopt;
     Seed seed = kDefaultSeed;
 };
 
-// Realized quadratic variation per tick — the default bridge scale when none is supplied.
 double varianceRatePerTick(const TimeSeries& src);
 
 TimeSeries resample(const TimeSeries& src, TimestampsPtr target, InterpolationStrategy strategy,

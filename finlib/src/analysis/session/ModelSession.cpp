@@ -105,10 +105,7 @@ bool ModelSession::shouldRefit(double mseTreshold) const {
 
 void ModelSession::refit(const TimeSeriesView& newData) {
     flush_();
-    std::unique_ptr<models::IRegressionModel> newModel = model_->createFresh();
-    newModel->setData(newData);
-    newModel->fit();
-    model_ = std::move(newModel);
+    model_ = model_->refitted(newData);
     window_ = newData.asEigenVector().tail(windowSize_);
     lastActualTimeStamp_ = newData.timestamp(newData.size() - 1);
 }
