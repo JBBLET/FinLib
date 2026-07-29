@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/core/Resampling.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 namespace ts::common::utils::timeSeries {
@@ -88,7 +89,7 @@ TimeSeries generateStepSeries(const std::string& id, std::vector<std::pair<Times
         values[count] = pair.second;
         count++;
     });
-    return TimeSeries{id, std::move(breakpointsTs), std::move(values)}.resampling(grid, InterpolationStrategy::Latest);
+    return resample(TimeSeries{id, std::move(breakpointsTs), std::move(values)}, grid, InterpolationStrategy::Latest);
 }
 
 TimeSeries makeSegmentMask(TimestampsPtr grid, Timestamp ts1, Timestamp ts2) {

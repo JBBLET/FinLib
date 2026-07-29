@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <execution>
 #include <iostream>
 #include <memory>
@@ -14,24 +13,11 @@
 #include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
+
 namespace ts {
 class TimeSeriesView;
 
-enum class InterpolationStrategy { Linear, Stochastic, Nearest, Exact, Latest };
-
 class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
- private:
-    std::string id_;
-    TimestampsPtr timestamps_;
-    size_t tsOffset_ = 0;
-    std::vector<double> values_;
-    bool isSynthetic_ = false;
-
-    // helper
-    std::vector<double> partialWalk(const Timestamps& targetTimestamps, size_t startIndex, size_t endIndex,
-                                    InterpolationStrategy strategy, std::optional<uint32_t> seed) const;
-    void verifyAlignment_(const TimeSeries& other) const;
-
  public:
     // Constructor
     TimeSeries();
@@ -45,6 +31,8 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
           tsOffset_(other.tsOffset_),
           values_(other.values_),
           isSynthetic_(other.isSynthetic_) {}
+
+    static TimeSeries synthetic(std::string id, TimestampsPtr ts, std::vector<double> vals);
 
     friend void swap(TimeSeries& first, TimeSeries& second) noexcept {
         std::swap(first.id_, second.id_);
@@ -114,13 +102,6 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimeSeriesView view() const;
     TimeSeriesView slice(size_t start, size_t len) const;
     TimeSeriesView sliceIndex(size_t start, size_t end) const;
-    TimeSeries resampling(const Timestamps& targetTimestamps, InterpolationStrategy strategy,
-                          std::optional<uint32_t> seed = std::nullopt) const;
-
-    // Overload that shares the caller-owned timestamp vector — avoids an extra allocation
-    // and lets downstream operators short-circuit alignment checks via pointer equality.
-    TimeSeries resampling(TimestampsPtr targetTimestamps, InterpolationStrategy strategy,
-                          std::optional<uint32_t> seed = std::nullopt) const;
 
     template <typename Func>
     TimeSeries apply(Func func) const& {
@@ -153,6 +134,15 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
         }
         return *this;
     }
+
+ private:
+    std::string id_;
+    TimestampsPtr timestamps_;
+    size_t tsOffset_ = 0;
+    std::vector<double> values_;
+    bool isSynthetic_ = false;
+
+    void verifyAlignment_(const TimeSeries& other) const;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const TimeSeries& obj) {
