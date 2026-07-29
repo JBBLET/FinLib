@@ -7,6 +7,7 @@
 add_library(finlib_core
     src/core/TimeSeries.cpp
     src/core/TimeSeriesView.cpp
+    src/core/Resampling.cpp
     src/core/StatsCore.cpp
     src/common/Exception.cpp
     src/utils/TimeUtils.cpp
@@ -30,6 +31,7 @@ target_link_libraries(finlib_core
 
 add_library(finlib_analysis
     src/analysis/seriesAnalysis/TimeSeriesAnalysis.cpp
+    src/analysis/simulation/Distribution.cpp
 )
 
 target_include_directories(finlib_analysis
