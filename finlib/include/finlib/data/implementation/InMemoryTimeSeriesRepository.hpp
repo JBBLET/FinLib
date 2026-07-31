@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
@@ -24,9 +25,7 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
     TimeSeries load(const std::string& id, Timestamp startMs, Timestamp endMs,
                     std::optional<Timestamp> /*requestedFrequency*/ = std::nullopt) const override {
         auto it = std::find_if(data_.begin(), data_.end(), [&](const auto& kv) { return kv.first.SeriesId == id; });
-        if (it == data_.end()) {
-            throw std::runtime_error("InMemoryTimeSeriesRepository: no data for id " + id);
-        }
+        ensure(it != data_.end(), "InMemoryTimeSeriesRepository: no data for id {}", id);
         return filter_(it->second, startMs, endMs);
     }
 
@@ -54,9 +53,7 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
 
     TimeSeries load(const SeriesKey& key) const override {
         auto it = data_.find(key);
-        if (it == data_.end()) {
-            throw std::runtime_error("InMemoryTimeSeriesRepository: missing key " + key.SeriesId);
-        }
+        ensure(it != data_.end(), "InMemoryTimeSeriesRepository: missing key {}", key.SeriesId);
         return it->second;
     }
 
@@ -106,9 +103,7 @@ class InMemoryTimeSeriesRepository : public ITimeSeriesRepository {
                 ovs.push_back(values[i]);
             }
         }
-        if (ots.empty()) {
-            throw std::runtime_error("InMemoryTimeSeriesRepository: empty range for " + ts.getId());
-        }
+        ensure(!ots.empty(), "InMemoryTimeSeriesRepository: empty range for {}", ts.getId());
         return TimeSeries(ts.getId(), std::move(ots), std::move(ovs));
     }
 };

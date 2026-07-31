@@ -12,10 +12,18 @@
 #include "csv/csvReaderAware.hpp"
 #include "csv/csvWriter.hpp"
 #include "csv/csvWriterAware.hpp"
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/finance/common/Currency.hpp"
+
+using cpputils::csv::CSVReader;
+using cpputils::csv::CSVReaderHeaderAware;
+using cpputils::csv::CSVWriter;
+using cpputils::csv::CSVWriterHeaderAware;
+using cpputils::csv::Row;
+
 using finance::Currency;
 using finance::currencyFromString;
+
 namespace finapp {
 
 CSVFXRepository::CSVFXRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
@@ -30,9 +38,7 @@ std::vector<FXInfos> CSVFXRepository::readAll_() const {
         return {};
     }
     std::ifstream file(path);
-    if (!file.is_open()) {
-        throw finapp::Exception("Cannot open FX CSV file: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open FX CSV file: {}.", path.string());
     std::vector<FXInfos> entries;
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     for (const auto& row : reader.readAllMaps()) {
@@ -48,9 +54,7 @@ void CSVFXRepository::writeAll_(const std::vector<FXInfos>& entries) const {
     std::filesystem::create_directories(path.parent_path());
 
     std::ofstream file(path, std::ios::trunc);
-    if (!file.is_open()) {
-        throw finapp::Exception("Cannot open FX CSV file for writing: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open FX CSV file for writing: {}", path.string());
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"baseCurrency", "quoteCurrency", "timeseriesID"}};
     for (const auto& entry : entries) {
         writer.writeMap(Row{{"baseCurrency", toString(entry.baseCurrency)},
@@ -67,7 +71,7 @@ FXInfos CSVFXRepository::load(const Currency& baseCurrency, const Currency& quot
             return entry;
         }
     }
-    throw finapp::Exception("FX pair not found: " + toString(baseCurrency) + "/" + toString(quoteCurrency));
+    throw Exception("FX pair not found: {}/{}.", toString(baseCurrency), toString(quoteCurrency));
 }
 
 void CSVFXRepository::save(const FXInfos& fxInfos) {

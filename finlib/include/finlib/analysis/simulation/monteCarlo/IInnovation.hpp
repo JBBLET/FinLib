@@ -4,8 +4,8 @@
 #include <cmath>
 #include <memory>
 #include <random>
-#include <stdexcept>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/Random.hpp"
 
 namespace ts::simulation {
@@ -37,7 +37,7 @@ class StudentTInnovation final : public IInnovation {
 
  public:
     explicit StudentTInnovation(double nu) : nu_(nu), scale_(std::sqrt((nu - 2.0) / nu)), t_(nu) {
-        if (!(nu > 2.0)) throw std::invalid_argument("StudentTInnovation: nu must exceed 2 for finite variance");
+        ensure<InvalidArgument>(nu > 2.0, "StudentTInnovation: nu must exceed 2 for finite variance, got {}", nu);
     }
     double draw(Rng& g) override { return t_(g) * scale_; }
     std::unique_ptr<IInnovation> clone() const override { return std::make_unique<StudentTInnovation>(nu_); }

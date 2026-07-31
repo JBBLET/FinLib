@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 
+#include "finlib/common/Error.hpp"
+
 namespace ts::models {
 
 class IModel : public std::enable_shared_from_this<IModel> {
@@ -35,7 +37,7 @@ template <class T>
 std::unique_ptr<T> createFreshAs(const ts::models::IModel& m) {
     auto p = m.createFresh();
     auto* q = dynamic_cast<T*>(p.get());
-    if (!q) throw std::runtime_error(m.name() + ": createFresh returned an incompatible type");
+    ts::ensure(q != nullptr, "{}: createFresh returned an incompatible type", m.name());
     p.release();
     return std::unique_ptr<T>(q);
 }

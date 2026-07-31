@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/Resampling.hpp"
@@ -83,16 +84,14 @@ TimeSeries TimeSeriesService::loadBucket_(const std::string& id, Timestamp start
         return cache_->load(*key, startMs, endMs);
     }
 
-    if (!provider_) {
-        throw std::runtime_error("TimeSeriesService::loadBucket_: no provider and no stored series <= " +
-                                 std::to_string(coarsestMs) + "ms covering range for '" + id + "'");
-    }
+    ensure(provider_ != nullptr,
+           "TimeSeriesService::loadBucket_: no provider and no stored series <= {}ms covering range for '{}'",
+           coarsestMs, id);
     const Timestamp providerFreq = provider_->capabilities(id).frequencyForRange(endMs - startMs);
-    if (providerFreq > coarsestMs) {
-        throw std::runtime_error(
-            "TimeSeriesService::loadBucket_: cannot serve interval <= " + std::to_string(coarsestMs) +
-            "ms for this range of '" + id + "' (finest available is " + std::to_string(providerFreq) + "ms)");
-    }
+    ensure(providerFreq <= coarsestMs,
+           "TimeSeriesService::loadBucket_: cannot serve interval <= {}ms for this range of '{}' (finest available is "
+           "{}ms)",
+           coarsestMs, id, providerFreq);
 
     const SeriesKey key{id, providerFreq};
     if (cache_->exists(key)) {
@@ -114,9 +113,7 @@ TimeSeries TimeSeriesService::loadBucket_(const std::string& id, Timestamp start
                                "ms: provider full fetch [" + std::to_string(startMs) + ", " + std::to_string(endMs) +
                                "]");
         TimeSeries fetched = stripNaN(provider_->load(id, startMs, endMs, providerFreq));
-        if (fetched.size() == 0) {
-            throw std::runtime_error("TimeSeriesService::loadBucket_: provider returned no data for '" + id + "'");
-        }
+        ensure(fetched.size() != 0, "TimeSeriesService::loadBucket_: provider returned no data for '{}'", id);
         cache_->save(key, fetched);  // persists down to the DB (coverage computed on read)
     }
     return cache_->load(key, startMs, endMs);
@@ -128,18 +125,14 @@ TimeSeries TimeSeriesService::getRaw(const std::string& id, Timestamp startMs, T
 }
 
 TimeSeries TimeSeriesService::getAligned(const std::string& id, TimestampsPtr grid) {
-    if (!grid || grid->empty()) {
-        throw std::invalid_argument("TimeSeriesService::getAligned: grid must be non-empty.");
-    }
+    ensure<InvalidArgument>(grid && !grid->empty(), "TimeSeriesService::getAligned: grid must be non-empty.");
     // Analysis: coarsest bucket fine enough to resolve the grid (else throw — no fabrication).
     TimeSeries bucket = loadBucket_(id, grid->front(), grid->back(), minSpacing(*grid), /*finestFirst=*/false);
     return resample(bucket, std::move(grid), InterpolationStrategy::Exact);
 }
 
 TimeSeries TimeSeriesService::getFilled(const std::string& id, TimestampsPtr grid, InterpolationStrategy strategy) {
-    if (!grid || grid->empty()) {
-        throw std::invalid_argument("TimeSeriesService::getFilled: grid must be non-empty.");
-    }
+    ensure<InvalidArgument>(grid && !grid->empty(), "TimeSeriesService::getFilled: grid must be non-empty.");
     // Graphing: coarsest available bucket (interpolation may upsample from coarser data).
     TimeSeries bucket = loadBucket_(id, grid->front(), grid->back(), INT64_MAX, /*finestFirst=*/false);
     return resample(bucket, std::move(grid), strategy);
@@ -202,8 +195,8 @@ double TimeSeriesService::singlePoint_(const std::string& id, Timestamp ts, bool
         }
     }
 
-    throw std::runtime_error("TimeSeriesService::singlePoint_: no " + std::string(requireExact ? "exact " : "") +
-                             "data for '" + id + "' at ts=" + std::to_string(ts));
+    throw Exception("TimeSeriesService::singlePoint_: no {}data for '{}' at ts={}", requireExact ? "exact " : "", id,
+                    ts);
 }
 
 TimeSeries TimeSeriesService::get(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp freqMs) {
@@ -220,9 +213,7 @@ TimeSeries TimeSeriesService::get(const std::string& id, TimestampsPtr grid) {
 }
 
 void TimeSeriesService::fetchAndMergeGaps_(const SeriesKey& key, const std::vector<TimeRange>& gaps) {
-    if (!provider_) {
-        throw std::runtime_error("No provider available to fetch gaps for series: " + key.SeriesId);
-    }
+    ensure(provider_ != nullptr, "No provider available to fetch gaps for series: {}", key.SeriesId);
     for (const auto& gap : gaps) {
         // Skip gaps narrower than the series interval — nothing new to fetch there.
         if (gap.endTimeStampMs - gap.startTimeStampMs < key.frequencyInMs) continue;

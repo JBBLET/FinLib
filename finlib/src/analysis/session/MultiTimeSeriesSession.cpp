@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -40,19 +41,19 @@ void MultiTimeSeriesSession::addSession(
 // ITimeSeriesSession
 // ---------------------------------------------------------------------------
 std::shared_ptr<const TimeSeries> MultiTimeSeriesSession::seriesPtr(const std::string& name) {
-    if (name.empty()) throw std::logic_error("MultiTimeSeriesSession has no single source series");
+    ensure(!name.empty(), "MultiTimeSeriesSession has no single source series");
     if (!crossCaches_.count(name)) buildCross_(name);
     return crossCaches_.at(name);
 }
 
 TimeSeriesView MultiTimeSeriesSession::seriesView(const std::string& name) {
-    if (name.empty()) throw std::logic_error("MultiTimeSeriesSession has no single source series");
+    ensure(!name.empty(), "MultiTimeSeriesSession has no single source series");
     const auto& ts = seriesPtr(name);
     return TimeSeriesView(ts, 0, ts->size());
 }
 
 const TimeSeriesAnalysis& MultiTimeSeriesSession::seriesAnalysis(const std::string& name) {
-    if (name.empty()) throw std::logic_error("MultiTimeSeriesSession has no single source series");
+    ensure(!name.empty(), "MultiTimeSeriesSession has no single source series");
     auto& cached = crossAnalysisCache_[name];
     if (!cached.has_value()) cached = TimeSeriesAnalysis(seriesView(name));
     return cached.value();

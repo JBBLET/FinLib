@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 
 namespace ts::common::utils::time {
@@ -15,7 +16,7 @@ Timestamp parseIso8601ToMs(const std::string& input) {
 
     // Split date-time and timezone
     auto pos = input.find_first_of("Z+-", 19);
-    if (pos == std::string::npos) throw std::invalid_argument("Missing timezone information");
+    ensure<InvalidArgument>(pos != std::string::npos, "Missing timezone information in '{}'", input);
 
     std::string datetime = input.substr(0, pos);
     std::string tzPart = input.substr(pos);
@@ -24,7 +25,7 @@ Timestamp parseIso8601ToMs(const std::string& input) {
     int year, month, day, hour, min, sec;
     int millis = 0;
 
-    if (datetime.size() < 19) throw std::invalid_argument("Invalid datetime format");
+    ensure<InvalidArgument>(datetime.size() >= 19, "Invalid datetime format: '{}'", datetime);
 
     year = stoi(datetime.substr(0, 4));
     month = stoi(datetime.substr(5, 2));

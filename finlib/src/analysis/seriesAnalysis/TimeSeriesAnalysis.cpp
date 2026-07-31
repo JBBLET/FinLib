@@ -3,9 +3,9 @@
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 
 #include <cmath>
-#include <stdexcept>
 #include <vector>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/core/StatsCore.hpp"
 
 namespace ts::analysis {
@@ -24,7 +24,7 @@ std::optional<double> TimeSeriesAnalysis::variance(stats::VarianceType type) con
     } else if (type == stats::VarianceType::Population) {
         cache = &cachedVariancePopulation_;
     } else {
-        throw std::invalid_argument("Invalid Variance type");
+        throw InvalidArgument("Invalid Variance type");
     }
 
     if (!*cache) {

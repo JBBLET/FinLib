@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/common/Error.hpp"
 using std::size_t;
 
 namespace ts::analysis::stats {
@@ -46,13 +47,13 @@ double varianceFast(Samples x, VarianceType type) {
     }
     if (count == 0) return 0.0;
     if (type == VarianceType::Sample) {
-        if (count < 2) throw std::invalid_argument("Sample variance of a single point is undefined");
+        ensure<InvalidArgument>(count >= 2, "Sample variance of a single point is undefined");
         return M2 / static_cast<double>(count - 1);
     }
     if (type == VarianceType::Population) {
         return M2 / static_cast<double>(count);
     }
-    throw std::invalid_argument("Variance Type undefined");
+    throw InvalidArgument("Variance Type undefined");
 }
 
 double varianceSlow(Samples x, VarianceType type) {
@@ -70,13 +71,13 @@ double varianceSlow(Samples x, VarianceType type) {
     }
     if (count == 0) return 0.0;
     if (type == VarianceType::Sample) {
-        if (count < 2) throw std::invalid_argument("Sample variance of a single point is undefined");
+        ensure<InvalidArgument>(count >= 2, "Sample variance of a single point is undefined");
         return M2 / static_cast<double>(count - 1);
     }
     if (type == VarianceType::Population) {
         return M2 / static_cast<double>(count);
     }
-    throw std::invalid_argument("Variance Type undefined");
+    throw InvalidArgument("Variance Type undefined");
 }
 
 double standardDeviation(Samples x, VarianceType type) { return std::sqrt(varianceFast(x, type)); }
@@ -116,7 +117,7 @@ double standardizedFourthMoment(Samples x) {
             ++count;
         }
     }
-    if (count < 4) throw std::invalid_argument("Kurtosis undefined");
+    ensure<InvalidArgument>(count >= 4, "Kurtosis undefined");
     return M4 / static_cast<double>(count);
 }
 }  // namespace
@@ -132,8 +133,8 @@ double excessKurtosis(Samples x) {
 }
 
 double quantileSorted(Samples sortedX, double q) {
-    if (sortedX.empty()) throw std::invalid_argument("quantileSorted: empty sample");
-    if (!(q >= 0.0 && q <= 1.0)) throw std::invalid_argument("quantileSorted: q must lie in [0, 1]");
+    ensure<InvalidArgument>(!sortedX.empty(), "quantileSorted: empty sample");
+    ensure<InvalidArgument>(q >= 0.0 && q <= 1.0, "quantileSorted: q must lie in [0, 1]");
 
     const double position = q * static_cast<double>(sortedX.size() - 1);
     const auto lower = static_cast<size_t>(std::floor(position));
@@ -201,8 +202,8 @@ Eigen::MatrixXd toeplitzFromSamples(Samples x, size_t maxLag) {
 }
 
 Eigen::MatrixXd toeplitzFromAutocovariances(Samples gamma, size_t maxLag) {
-    if (gamma.size() < maxLag)
-        throw std::runtime_error("autocovariances size do not match the required for the toeplitz matrix");
+    ensure(gamma.size() >= maxLag, "autocovariances size {} is smaller than the toeplitz matrix requires ({})",
+           gamma.size(), maxLag);
     Eigen::MatrixXd R(maxLag, maxLag);
     for (size_t i = 0; i < maxLag; ++i) {
         for (size_t j = 0; j < maxLag; ++j) {

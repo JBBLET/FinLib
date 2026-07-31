@@ -12,6 +12,7 @@
 #include "Eigen/Core"
 #include "finlib/analysis/models/interfaces/IRegressionModel.hpp"
 #include "finlib/analysis/session/AppContext.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
@@ -53,9 +54,9 @@ class ModelSession {
           errorTrackingWindowSize_(errorTrackingWindowSize),
           deltaT_(deltaT),
           deltaTTolerance_(deltaTTolerance) {
-        if (!model_->isFitted()) throw std::runtime_error("Model used for session not Fitted");
+        ensure(model_->isFitted(), "Model used for session not Fitted");
         size_t viewLength = view.size();
-        if (viewLength < 1) throw std::runtime_error("View passed in model session cannot be empty");
+        ensure(viewLength >= 1, "View passed in model session cannot be empty");
         windowSize_ = model_->contextSize();
         window_ = view.asEigenVector().tail(windowSize_);
         lastActualTimeStamp_ = view.timestamp(viewLength - 1);

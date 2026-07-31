@@ -9,7 +9,6 @@ add_library(finlib_core
     src/core/TimeSeriesView.cpp
     src/core/Resampling.cpp
     src/core/StatsCore.cpp
-    src/common/Exception.cpp
     src/utils/TimeUtils.cpp
     src/utils/TimeSeriesUtils.cpp
 )
@@ -21,8 +20,7 @@ target_include_directories(finlib_core
 target_link_libraries(finlib_core
     PUBLIC
         Eigen3::Eigen
-    PRIVATE
-        stdc++exp
+        cpp::utils
 )
 
 # --------------------

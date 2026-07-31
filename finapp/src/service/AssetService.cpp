@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Cash.hpp"
@@ -53,15 +53,11 @@ AssetService::AssetService(std::shared_ptr<TimeSeriesService> timeSeriesService,
 // ---------------------------------------------------------------------------
 
 void AssetService::save(const std::shared_ptr<IAsset>& asset) {
-    if (!asset) {
-        throw finapp::InvalidArgument("AssetService::save: asset pointer is null.");
-    }
+    ensure<InvalidArgument>(asset != nullptr, "AssetService::save: asset pointer is null.");
 
     auto repoIt = IAssetRepositoryMap_.find(asset->type());
-    if (repoIt == IAssetRepositoryMap_.end()) {
-        throw finapp::Exception("AssetService::save: no repository registered for asset type " +
-                                assetTypeToString(asset->type()));
-    }
+    ensure(repoIt != IAssetRepositoryMap_.end(), "AssetService::save: no repository registered for asset type {}.",
+           assetTypeToString(asset->type()));
 
     repoIt->second->save(asset);
     cachedAssets_[AssetId{asset->type(), asset->ticker()}] = asset;
@@ -108,8 +104,7 @@ std::shared_ptr<const finance::IAsset> AssetService::load(const AssetId& assetId
         }
     }
 
-    throw finapp::Exception("AssetService::load: asset not found in repository or provider for ticker " +
-                            assetId.ticker);
+    throw Exception("AssetService::load: asset not found in repository or provider for ticker {}.", assetId.ticker);
 }
 
 TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, Timestamp startMs, Timestamp endMs,
@@ -128,9 +123,7 @@ TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, Timestamp s
 }
 
 TimeSeries AssetService::loadTimeSeriesValue(const AssetId& assetId, TimestampsPtr timestamps) {
-    if (!timestamps) {
-        throw finapp::InvalidArgument("AssetService::loadTimeSeriesValue: timestamps pointer is null.");
-    }
+    ensure<InvalidArgument>(timestamps != nullptr, "AssetService::loadTimeSeriesValue: timestamps pointer is null.");
 
     if (assetId.type == AssetType::Cash) {
         return constantCashSeries(assetId, std::move(timestamps));

@@ -1,9 +1,10 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #include "finapp/finance/asset/AssetType.hpp"
 
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
+
+#include "finapp/common/Error.hpp"
 
 namespace finance {
 
@@ -28,13 +29,13 @@ const std::string assetTypeToString(AssetType assetType) {
         case AssetType::Crypto:
             return "Crypto";
         default:
-            throw std::runtime_error("Illegal asset Type");
+            throw InvalidArgument("Illegal asset Type");
     }
 }
 
 AssetType assetTypeFromString(const std::string& name) {
     auto it = nameToAssetTypeMap.find(name);
-    if (it == nameToAssetTypeMap.end()) throw std::runtime_error("Unsupported asset type: '" + name + "'");
+    ensure<InvalidArgument>(it != nameToAssetTypeMap.end(), "Unsupported asset type: '{}'", name);
     return it->second;
 }
 

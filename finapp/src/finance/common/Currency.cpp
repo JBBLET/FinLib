@@ -6,7 +6,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 
 namespace finance {
 
@@ -42,10 +42,8 @@ Currency currencyFromString(const std::string& id) {
     std::string upperCaseStr = id;
     std::transform(upperCaseStr.begin(), upperCaseStr.end(), upperCaseStr.begin(), ::toupper);
     auto it = stringToCurrencyMap.find(upperCaseStr);
-    if (it == stringToCurrencyMap.end()) {
-        throw finapp::InvalidArgument("Unsupported currency code: '" + id +
-                                      "'. Supported: USD, EUR, JPY, KRW, CAD, GBP.");
-    }
+    ensure<InvalidArgument>(it != stringToCurrencyMap.end(),
+                            "Unsupported currency code: '{}'. Supported: USD, EUR, JPY, KRW, CAD, GBP.", id);
     return it->second;
 }
 

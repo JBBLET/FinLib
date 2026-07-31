@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/Resampling.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -18,12 +19,10 @@
 namespace ts::common::utils::timeSeries {
 
 TimestampsPtr makeRegularTimestamps(Timestamp beginMs, Timestamp endMs, Timestamp frequencyMs) {
-    if (frequencyMs <= 0) {
-        throw std::invalid_argument("makeRegularTimestamps: frequencyMs must be positive.");
-    }
-    if (endMs < beginMs) {
-        throw std::invalid_argument("makeRegularTimestamps: endMs must be >= beginMs.");
-    }
+    ensure<InvalidArgument>(frequencyMs > 0, "makeRegularTimestamps: frequencyMs must be positive, got {}",
+                            frequencyMs);
+    ensure<InvalidArgument>(endMs >= beginMs, "makeRegularTimestamps: endMs ({}) must be >= beginMs ({})", endMs,
+                            beginMs);
 
     Timestamps timestamps;
     const size_t expected = static_cast<size_t>((endMs - beginMs) / frequencyMs) + 1;
@@ -42,9 +41,7 @@ TimeSeries generateConstantTimeSeries(const std::string& id, Timestamp beginMs, 
 }
 
 TimeSeries generateConstantTimeSeries(const std::string& id, TimestampsPtr timestamps, double value) {
-    if (!timestamps) {
-        throw std::invalid_argument("generateConstantTimeSeries: timestamps pointer is null.");
-    }
+    ensure<InvalidArgument>(timestamps != nullptr, "generateConstantTimeSeries: timestamps pointer is null.");
     std::vector<double> values(timestamps->size(), value);
     return TimeSeries(id, std::move(timestamps), std::move(values));
 }

@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/finance/analysis/AnalysisFeature.hpp"
 #include "finapp/finance/portfolio/Portfolio.hpp"
 #include "finlib/analysis/session/TimeSeriesSession.hpp"
@@ -160,7 +160,7 @@ std::vector<std::pair<std::string, double>> PortfolioAnalysis::scalarMetrics() {
 // ---------------------------------------------------------------------------
 std::shared_ptr<IAssetAnalysis> PortfolioAnalysis::assetAnalysis(const std::string& ticker) const {
     auto it = index_.find(ticker);
-    if (it == index_.end()) throw finapp::Exception("No analysis for ticker: " + ticker);
+    ensure(it != index_.end(), "No analysis for ticker: {}", ticker);
     return it->second;
 }
 

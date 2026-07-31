@@ -1,10 +1,10 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
+#include "finapp/common/Error.hpp"
 #include "finapp/data/repository/interface/IFXRepository.hpp"
 #include "finapp/finance/common/Currency.hpp"
 
@@ -14,9 +14,7 @@ class InMemoryFXRepository : public IFXRepository {
  public:
     FXInfos load(const finance::Currency& base, const finance::Currency& quote) const override {
         auto it = entries_.find(key_(base, quote));
-        if (it == entries_.end()) {
-            throw std::runtime_error("InMemoryFXRepository: pair not found");
-        }
+        ensure(it != entries_.end(), "InMemoryFXRepository: pair not found ({}/{})", toString(base), toString(quote));
         return it->second;
     }
 
