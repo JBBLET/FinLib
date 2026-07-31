@@ -9,6 +9,7 @@
 
 #include "TestMockTimeSeries.hpp"
 #include "finlib/analysis/seriesAnalysis/CustomTimeSeriesAnalysis.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/analysis/seriesAnalysis/MetricHandle.hpp"
 #include "finlib/analysis/session/MultiTimeSeriesSession.hpp"
 #include "finlib/analysis/session/TimeSeriesSession.hpp"
@@ -106,7 +107,7 @@ TEST_F(TimeSeriesSessionTest, SumTransformFromSourceAndDerived) {
 }
 
 TEST_F(TimeSeriesSessionTest, UnknownTransformThrows) {
-    EXPECT_THROW(session_->seriesPtr("nonexistent"), std::logic_error);
+    EXPECT_THROW(session_->seriesPtr("nonexistent"), ts::Exception);
 }
 
 TEST_F(TimeSeriesSessionTest, DerivedCacheReturnsSamePointer) {
@@ -163,7 +164,7 @@ TEST_F(MultiTimeSeriesSessionTest, SessionNamesContainRegistered) {
     EXPECT_TRUE(hasB);
 }
 
-TEST_F(MultiTimeSeriesSessionTest, SeriesPtrEmptyNameThrows) { EXPECT_THROW(multi_->seriesPtr(""), std::logic_error); }
+TEST_F(MultiTimeSeriesSessionTest, SeriesPtrEmptyNameThrows) { EXPECT_THROW(multi_->seriesPtr(""), ts::Exception); }
 
 TEST_F(MultiTimeSeriesSessionTest, SumCrossTransform) {
     multi_->addTransform(

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -53,7 +54,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed)
     : service_{nullptr}, source_{std::move(precomputed)}, seriesId_{source_->getId()} {
     const auto ts = source_->getTimestamps();
-    if (ts.empty()) throw std::invalid_argument("Cannot create TimeSeriesSession from empty TimeSeries");
+    ensure<InvalidArgument>(!ts.empty(), "Cannot create TimeSeriesSession from empty TimeSeries");
     startMs_ = ts.front();
     endMs_ = ts.back();
 }
@@ -74,7 +75,7 @@ void TimeSeriesSession::setRange(Timestamp newStartMs, Timestamp newEndMs) {
 }
 
 void TimeSeriesSession::setFrequency(Timestamp newFrequencyMs) {
-    if (!service_) throw std::logic_error("Cannot change frequency on a computed TimeSeriesSession");
+    ensure(service_ != nullptr, "Cannot change frequency on a computed TimeSeriesSession");
     if (logger_) logger_->write(logging::Level::Debug, "setFrequency " + std::to_string(newFrequencyMs) + "ms");
     frequencyMs_ = newFrequencyMs;
     source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, startMs_, endMs_, newFrequencyMs));
@@ -125,8 +126,7 @@ const TimeSeriesAnalysis& TimeSeriesSession::seriesAnalysis(const std::string& n
 std::shared_ptr<const TimeSeries> TimeSeriesSession::derivedTimeSeriesPtr(const std::string& name) {
     if (name == "") return sourceTimeSeriesPtr();
 
-    if (transforms_.find(name) == transforms_.end())
-        throw std::logic_error("No transform named '" + name + "' registered on this session");
+    ensure(transforms_.find(name) != transforms_.end(), "No transform named '{}' registered on this session", name);
     if (derivedCaches_.find(name) == derivedCaches_.end()) buildDerived_(name);
     return derivedCaches_.at(name);
 }
@@ -140,8 +140,7 @@ TimeSeriesView TimeSeriesSession::sourceView() const {
 }
 
 TimeSeriesView TimeSeriesSession::derivedView(const std::string& name) const {
-    if (transforms_.find(name) == transforms_.end())
-        throw std::logic_error("No transform named '" + name + "' registered on this session");
+    ensure(transforms_.find(name) != transforms_.end(), "No transform named '{}' registered on this session", name);
     if (derivedCaches_.find(name) == derivedCaches_.end()) buildDerived_(name);
     const auto& derived = derivedCaches_.at(name);
     size_t begin = derived->lowerBound(startMs_);
@@ -170,7 +169,7 @@ size_t TimeSeriesSession::size() const { return source_->upperBound(endMs_) - so
 
 Timestamp TimeSeriesSession::frequencyMs() const {
     if (frequencyMs_.has_value()) return frequencyMs_.value();
-    throw std::logic_error("Session is not on a regular TimeSeries");
+    throw Exception("Session is not on a regular TimeSeries");
 }
 
 // ---------------------------------------------------------------------------

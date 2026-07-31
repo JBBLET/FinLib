@@ -6,8 +6,9 @@
 #include <cstdlib>
 #include <numbers>
 #include <numeric>
-#include <stdexcept>
 #include <vector>
+
+#include "finlib/common/Error.hpp"
 
 namespace ts {
 void models::RegressionEvaluation::computeRegressionMetrics(const std::vector<double>& actual,
@@ -16,8 +17,8 @@ void models::RegressionEvaluation::computeRegressionMetrics(const std::vector<do
     size_t nActual = actual.size(), nPrediction = prediction.size();
     const double* actualData = actual.begin().base();
     const double* predictionData = prediction.begin().base();
-    if (nActual != nPrediction) throw std::runtime_error("predicted and Actual vector have different size");
-    if (nActual == 0) throw std::runtime_error("No Data to compute Model Regression Evaluation Result");
+    ensure(nActual == nPrediction, "predicted ({}) and Actual ({}) vector have different size", nPrediction, nActual);
+    ensure(nActual != 0, "No Data to compute Model Regression Evaluation Result");
     double sumSquaredErrors = 0.0, sumAbsoluteErrors = 0.0, M2 = 0.0;
     double avg = std::reduce(actual.begin(), actual.end()) / nActual;
     for (size_t i = 0; i < nActual; ++i) {

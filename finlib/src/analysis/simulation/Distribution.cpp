@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "finlib/common/Exception.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/core/StatsCore.hpp"
 
 namespace ts::simulation {
@@ -20,8 +20,8 @@ Distribution::Distribution(std::vector<double> v) : sorted_{std::move(v)} {
 }
 
 double Distribution::quantile(double q) const {
-    if (sorted_.empty()) throw Exception("Quantile of an empty distribution");
-    if (!(q >= 0.0 && q <= 1.0)) throw Exception(std::format("Quantile value {} invalid", q));
+    ensure(!sorted_.empty(), "Quantile of an empty distribution");
+    ensure(q >= 0.0 && q <= 1.0, "Quantile value {} invalid", q);
     return stats::quantileSorted(sorted_, q);
 }
 
@@ -30,12 +30,12 @@ double Distribution::mean() const { return stats::mean(sorted_); }
 double Distribution::stddev() const { return stats::standardDeviation(sorted_, stats::VarianceType::Sample); }
 
 double Distribution::min() const {
-    if (sorted_.empty()) throw Exception("Minimum of an empty distribution");
+    ensure(!sorted_.empty(), "Minimum of an empty distribution");
     return sorted_.front();
 }
 
 double Distribution::max() const {
-    if (sorted_.empty()) throw Exception("Maximum of an empty distribution");
+    ensure(!sorted_.empty(), "Maximum of an empty distribution");
     return sorted_.back();
 }
 

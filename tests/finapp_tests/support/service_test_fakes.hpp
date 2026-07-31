@@ -7,12 +7,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "finapp/common/Error.hpp"
 #include "finapp/data/providers/interfaces/IAssetProviders.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -38,9 +38,7 @@ class FakeTimeSeriesLoader : public ITimeSeriesLoader {
     TimeSeries load(const std::string& id, int64_t startMs, int64_t endMs,
                     std::optional<int64_t> /*requestedFrequency*/ = std::nullopt) const override {
         auto it = series_.find(id);
-        if (it == series_.end()) {
-            throw std::runtime_error("FakeTimeSeriesLoader: no series configured for id " + id);
-        }
+        ensure(it != series_.end(), "FakeTimeSeriesLoader: no series configured for id {}", id);
         const auto& full = it->second;
         const auto& timestamps = full.getTimestamps();
         const auto& values = full.getValues();
@@ -52,9 +50,7 @@ class FakeTimeSeriesLoader : public ITimeSeriesLoader {
                 ovs.push_back(values[i]);
             }
         }
-        if (ots.empty()) {
-            throw std::runtime_error("FakeTimeSeriesLoader: no values in range for " + id);
-        }
+        ensure(!ots.empty(), "FakeTimeSeriesLoader: no values in range for {}", id);
         return TimeSeries(full.getId(), std::move(ots), std::move(ovs));
     }
 

@@ -16,10 +16,16 @@
 #include "csv/csvReaderAware.hpp"
 #include "csv/csvWriter.hpp"
 #include "csv/csvWriterAware.hpp"
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/finance/asset/Equity.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
 #include "finapp/finance/common/Currency.hpp"
+
+using cpputils::csv::CSVReader;
+using cpputils::csv::CSVReaderHeaderAware;
+using cpputils::csv::CSVWriter;
+using cpputils::csv::CSVWriterHeaderAware;
+using cpputils::csv::Row;
 
 using finance::Currency;
 using finance::currencyFromString;
@@ -35,9 +41,7 @@ CSVEquityRepository::CSVEquityRepository(std::filesystem::path directory) : dire
 void CSVEquityRepository::save(const std::shared_ptr<const IAsset>& asset) {
     // TODO(JBBLET) look into performance gain from switching to a static_pointer_cast
     auto equity = std::dynamic_pointer_cast<const Equity>(asset);
-    if (!equity) {
-        throw finapp::Exception("CSVEquityRepository::save called with non-Equity asset");
-    }
+    ensure(equity != nullptr, "CSVEquityRepository::save called with non-Equity asset");
     writeAttributes_(equity);
     writeCsv_(equity);
 }
@@ -86,17 +90,13 @@ std::filesystem::path CSVEquityRepository::attributePath_(const std::string& tic
 
 std::shared_ptr<Equity> CSVEquityRepository::readCsv_(const std::string& ticker) const {
     auto path = csvPath_(ticker);
-    if (!std::filesystem::exists(path)) {
-        throw finapp::Exception("CSV file not found:" + path.string());
-    }
+    ensure(std::filesystem::exists(path), "CSV file not found: {}", path.string());
     return parseCsvFile_(path, ticker);
 }
 
 std::unordered_map<std::string, std::string> CSVEquityRepository::readAttribute_(const std::string& ticker) const {
     auto path = attributePath_(ticker);
-    if (!std::filesystem::exists(path)) {
-        throw finapp::Exception("Attributes file not found" + path.string());
-    }
+    ensure(std::filesystem::exists(path), "Attributes file not found {}", path.string());
     return parseAttributeFile_(path);
 }
 void CSVEquityRepository::writeCsv_(const std::shared_ptr<const Equity>& asset) const {
@@ -104,9 +104,7 @@ void CSVEquityRepository::writeCsv_(const std::shared_ptr<const Equity>& asset) 
     std::filesystem::create_directories(path.parent_path());
 
     std::ofstream file(path, std::ios::trunc);
-    if (!file.is_open()) {
-        throw finapp::Exception("Cannot open CSV file for writing: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open CSV file for writing: {}", path.string());
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"ticker", "name", "denomination", "exchange", "sector"}};
     writer.writeMap(Row{{"ticker", asset->ticker()},
                         {"name", asset->name()},
@@ -121,9 +119,7 @@ void CSVEquityRepository::writeAttributes_(const std::shared_ptr<const Equity>& 
     std::filesystem::create_directories(path.parent_path());
 
     std::ofstream file(path, std::ios::trunc);
-    if (!file.is_open()) {
-        throw finapp::Exception("Cannot open attributes file for writing: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open attributes file for writing: {}", path.string());
     file << "# " + asset->ticker() + ".attr\n";
     for (const auto& [key, value] : asset->attributes()) {
         file << key << "=" << value << "\n";
@@ -133,9 +129,7 @@ void CSVEquityRepository::writeAttributes_(const std::shared_ptr<const Equity>& 
 std::shared_ptr<Equity> CSVEquityRepository::parseCsvFile_(const std::filesystem::path& path,
                                                            const std::string& ticker) {
     std::ifstream file(path);
-    if (!file.is_open()) {
-        throw finapp::Exception("Cannot open CSV file: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open CSV file: {}", path.string());
     std::string name, exchange, sector;
     Currency denomination{};
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
@@ -151,9 +145,7 @@ std::shared_ptr<Equity> CSVEquityRepository::parseCsvFile_(const std::filesystem
 std::unordered_map<std::string, std::string> CSVEquityRepository::parseAttributeFile_(
     const std::filesystem::path& path) {
     std::ifstream file(path);
-    if (!file.is_open()) {
-        throw finapp::Exception("Cannot open Attributes file: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open Attributes file: {}", path.string());
     std::unordered_map<std::string, std::string> output;
     std::string key, value;
     std::string line;

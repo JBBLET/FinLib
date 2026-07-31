@@ -3,7 +3,6 @@
 #pragma once
 
 #include <any>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -11,6 +10,7 @@
 
 #include "finlib/analysis/seriesAnalysis/ITimeSeriesAnalysis.hpp"
 #include "finlib/analysis/seriesAnalysis/MetricHandle.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -47,7 +47,7 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
 
     // ITimeSeriesAnalysis — single-view rebind for single-series analyses
     void rebind(TimeSeriesView newView) override {
-        if (views_.size() != 1) throw std::logic_error("rebind(view) requires exactly one registered view");
+        ensure(views_.size() == 1, "rebind(view) requires exactly one registered view, have {}", views_.size());
         if (logger_) logger_->write(logging::Level::Debug, "rebind");
         views_.begin()->second = std::move(newView);
         metricCache_.clear();
@@ -70,7 +70,7 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     //  Single-series metric — specify which view it operates on
     template <typename T>
     MetricHandle<T> addMetric(std::string seriesName, std::string metricName, MetricFn<T> fn) {
-        if (!views_.count(seriesName)) throw std::invalid_argument("No view registered for series: " + seriesName);
+        ensure<InvalidArgument>(views_.count(seriesName) != 0, "No view registered for series: {}", seriesName);
         MetricHandle<T> handle({seriesName}, metricName);
         std::string sn = seriesName;
         metricFns_[handle.cacheKey()] = MetricEntry{
@@ -86,7 +86,7 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     template <typename T>
     MetricHandle<T> addMetric(std::vector<std::string> inputs, std::string metricName, MultiMetricFn<T> fn) {
         for (const auto& name : inputs)
-            if (!views_.count(name)) throw std::invalid_argument("No view registered for series: " + name);
+            ensure<InvalidArgument>(views_.count(name) != 0, "No view registered for series: {}", name);
         MetricHandle<T> handle(inputs, metricName);
         metricFns_[handle.cacheKey()] = MetricEntry{
             inputs, [fn = std::move(fn)](const std::unordered_map<std::string, TimeSeriesView>& views) -> std::any {
@@ -99,7 +99,7 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     template <typename T, typename P>
     ParameterizedMetricHandle<T, P> addMetric(std::string seriesName, std::string metricName,
                                               ParameterizedMetricFn<T, P> fn) {
-        if (!views_.count(seriesName)) throw std::invalid_argument("No view for series: " + seriesName);
+        ensure<InvalidArgument>(views_.count(seriesName) != 0, "No view for series: {}", seriesName);
         ParameterizedMetricHandle<T, P> handle({seriesName}, metricName);
         std::string sn = seriesName;
         paramMetricFns_[metricName] = ParameterizedMetricEntry{
@@ -113,7 +113,7 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     ParameterizedMetricHandle<T, P> addMetric(std::vector<std::string> inputs, std::string metricName,
                                               ParameterizedMultiMetricFn<T, P> fn) {
         for (const auto& name : inputs)
-            if (!views_.count(name)) throw std::invalid_argument("No view registered for series: " + name);
+            ensure<InvalidArgument>(views_.count(name) != 0, "No view registered for series: {}", name);
         ParameterizedMetricHandle<T, P> handle(inputs, metricName);
         paramMetricFns_[metricName] = ParameterizedMetricEntry{
             inputs, [fn](const std::unordered_map<std::string, TimeSeriesView>& views, const std::any& p) -> std::any {

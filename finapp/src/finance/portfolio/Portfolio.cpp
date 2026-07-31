@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -41,9 +41,7 @@ std::unordered_map<std::string, size_t> getPositionsIndexFromPosition(const std:
 void Portfolio::Builder::checkPositions_() {
     std::unordered_set<AssetId> assetIdSeen;
     for (const auto& snapshotPosition : positions_) {
-        if (!assetIdSeen.insert(snapshotPosition.assetId).second) {
-            throw finapp::Exception("Two or more Positions of the same Asset");
-        }
+        ensure(assetIdSeen.insert(snapshotPosition.assetId).second, "Two or more Positions of the same Asset");
     }
 }
 
@@ -184,9 +182,9 @@ PortfolioValuation Portfolio::valuation(const std::unordered_map<finance::AssetI
 }
 
 void Portfolio::apply(const Transaction& transaction) {
-    if (transaction.timestampsMs < lastTransactionMs_) {
-        throw finapp::Exception("The Transaction is outdated relative to the Portfolio");
-    }
+    ensure(transaction.timestampsMs >= lastTransactionMs_,
+           "The Transaction is outdated relative to the Portfolio ({} < {})", transaction.timestampsMs,
+           lastTransactionMs_);
     switch (transaction.type) {
         case (TransactionType::Buy): {
             return applyBuy_(transaction);
@@ -212,9 +210,7 @@ void Portfolio::apply(const Transaction& transaction) {
 }
 
 void Portfolio::applyBuy_(const Transaction& transaction) {
-    if (transaction.type != TransactionType::Buy) {
-        throw finapp::Exception("The Transaction is not a Buy transaction");
-    }
+    ensure(transaction.type == TransactionType::Buy, "The Transaction is not a Buy transaction");
     if (transaction.usedCurrency.has_value()) {
         cashBalances_[transaction.usedCurrency.value()] -= transaction.paymentprice.value();
     } else {
@@ -233,15 +229,12 @@ void Portfolio::applyBuy_(const Transaction& transaction) {
 }
 
 void Portfolio::applySell_(const Transaction& transaction) {
-    if (transaction.type != TransactionType::Sell) {
-        throw finapp::Exception("The Transaction is not a Sell Transaction");
-    }
+    ensure(transaction.type == TransactionType::Sell, "The Transaction is not a Sell Transaction");
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);
         double quantity = positions_[positionIndex].quantity;
-        if (quantity < transaction.quantity) {
-            throw finapp::Exception("Not enough quantity to fulfill the transaction");
-        }
+        ensure(quantity >= transaction.quantity, "Not enough quantity to fulfill the transaction ({} < {})", quantity,
+               transaction.quantity);
         positions_[positionIndex].quantity -= transaction.quantity;
     } catch (const std::out_of_range& e) {
         throw finapp::Exception("Not enough quantity to fulfill the transaction");
@@ -252,34 +245,23 @@ void Portfolio::applySell_(const Transaction& transaction) {
 }
 
 void Portfolio::applyDeposit_(const Transaction& transaction) {
-    if (transaction.type != TransactionType::Deposit) {
-        throw finapp::Exception("The Transaction is not a Deposit Transaction");
-    }
-    if (transaction.quantity < 0) {
-        throw finapp::Exception("Cannot deposit negative amount");
-    }
+    ensure(transaction.type == TransactionType::Deposit, "The Transaction is not a Deposit Transaction");
+    ensure(transaction.quantity >= 0, "Cannot deposit negative amount: {}", transaction.quantity);
     cashBalances_[transaction.settlementCurrency] += transaction.quantity - transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
 }
 
 void Portfolio::applyWithdrawal_(const Transaction& transaction) {
-    if (transaction.type != TransactionType::Withdrawal) {
-        throw finapp::Exception("The Transaction is not a Withdrawal transaction");
-    }
-    if (transaction.quantity < 0) {
-        throw finapp::Exception("Cannot withdraw a negative amount");
-    }
+    ensure(transaction.type == TransactionType::Withdrawal, "The Transaction is not a Withdrawal transaction");
+    ensure(transaction.quantity >= 0, "Cannot withdraw a negative amount: {}", transaction.quantity);
     cashBalances_[transaction.settlementCurrency] -= transaction.quantity + transaction.fees;
     lastTransactionMs_ = transaction.timestampsMs;
 }
 
 void Portfolio::applyDividend_(const Transaction& transaction) {
-    if (transaction.type != TransactionType::Dividend) {
-        throw finapp::Exception("The Transaction is not a Dividend transaction");
-    }
-    if (!positionsIndex_.contains(transaction.assetTicker)) {
-        throw finapp::Exception("Cannot apply a Dividend if you do not hold the position");
-    }
+    ensure(transaction.type == TransactionType::Dividend, "The Transaction is not a Dividend transaction");
+    ensure(positionsIndex_.contains(transaction.assetTicker),
+           "Cannot apply a Dividend if you do not hold the position '{}'", transaction.assetTicker);
     double sharesNumber = positions_[positionsIndex_[transaction.assetTicker]].quantity;
     if (sharesNumber == 0.0) {
         lastTransactionMs_ = transaction.timestampsMs;
@@ -290,9 +272,7 @@ void Portfolio::applyDividend_(const Transaction& transaction) {
 }
 
 void Portfolio::applySplit_(const Transaction& transaction) {
-    if (transaction.type != TransactionType::Split) {
-        throw finapp::Exception("The Transaction is not a Split transaction");
-    }
+    ensure(transaction.type == TransactionType::Split, "The Transaction is not a Split transaction");
     double sharesNumber = 0.0;
     try {
         size_t positionIndex = positionsIndex_.at(transaction.assetTicker);

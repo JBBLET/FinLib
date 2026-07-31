@@ -2,10 +2,10 @@
 #pragma once
 
 #include <memory>
-#include <stdexcept>
 #include <string>
 
 #include "finlib/analysis/models/interfaces/IRegressionModel.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -26,9 +26,8 @@ class BaseRegressionModel : public IRegressionModel {
 
     void setData(const TimeSeriesView& totalView, double trainRatio, double validationRatio) override {
         fullView_ = std::make_shared<const TimeSeriesView>(totalView);
-        if (requiresRegularSpacing() && !fullView_->checkRegularity(regularityTolerance()).isRegular) {
-            throw std::runtime_error("The Model requires a regularly spaced timeseries. Regularize manually");
-        }
+        ensure(!requiresRegularSpacing() || fullView_->checkRegularity(regularityTolerance()).isRegular,
+               "The Model requires a regularly spaced timeseries. Regularize manually");
         size_t totalSize = fullView_->size();
         size_t trainSize = static_cast<size_t>(totalSize * trainRatio);
         size_t validationSize = static_cast<size_t>(totalSize * validationRatio);

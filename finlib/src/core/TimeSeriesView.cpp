@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
@@ -16,9 +17,8 @@ using std::vector;
 namespace ts {
 TimeSeriesView::TimeSeriesView(std::shared_ptr<const TimeSeries> src, size_t start, size_t len, int lag)
     : source_(std::move(src)), begin_(start), length_(len), valueLag_(lag) {
-    if (static_cast<int>(begin_) - valueLag_ < 0 || (begin_ + length_ - valueLag_) > source_->size()) {
-        throw std::out_of_range("View window/lag exceeds data boundaries");
-    }
+    ensure(static_cast<int>(begin_) - valueLag_ >= 0 && (begin_ + length_ - valueLag_) <= source_->size(),
+           "View window/lag exceeds data boundaries");
 }
 
 Timestamp TimeSeriesView::timestamp(size_t i) const { return source_->getTimestamps()[begin_ + i]; }
@@ -55,7 +55,7 @@ TimeSeries TimeSeriesView::operator*(const double& scalar) const {
 }
 
 TimeSeries TimeSeriesView::operator+(const TimeSeriesView& other) const {
-    if (!isAlignedWith(other)) throw std::runtime_error("TimeSeries not aligned");
+    ensure(isAlignedWith(other), "TimeSeries not aligned");
     vector<double> result;
     result.reserve(length_);
     for (size_t i = 0; i < length_; ++i) result.push_back((*this)[i] + other[i]);
@@ -63,7 +63,7 @@ TimeSeries TimeSeriesView::operator+(const TimeSeriesView& other) const {
 }
 
 TimeSeries TimeSeriesView::operator-(const TimeSeriesView& other) const {
-    if (!isAlignedWith(other)) throw std::runtime_error("TimeSeries not aligned");
+    ensure(isAlignedWith(other), "TimeSeries not aligned");
     vector<double> result;
     result.reserve(length_);
     for (size_t i = 0; i < length_; ++i) result.push_back((*this)[i] - other[i]);
@@ -71,7 +71,7 @@ TimeSeries TimeSeriesView::operator-(const TimeSeriesView& other) const {
 }
 
 TimeSeries TimeSeriesView::operator*(const TimeSeriesView& other) const {
-    if (!isAlignedWith(other)) throw std::runtime_error("TimeSeries not aligned");
+    ensure(isAlignedWith(other), "TimeSeries not aligned");
     vector<double> result;
     result.reserve(length_);
     for (size_t i = 0; i < length_; ++i) result.push_back((*this)[i] * other[i]);

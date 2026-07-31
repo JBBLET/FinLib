@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
@@ -102,10 +103,9 @@ std::vector<double> partialWalk(const TimeSeries& src, const Timestamps& target,
 
 std::vector<double> resampleValues(const TimeSeries& src, const Timestamps& target, InterpolationStrategy strategy,
                                    const StochasticParams& params) {
-    if (!std::is_sorted(target.begin(), target.end()))
-        throw std::invalid_argument("target_timestamps must be sorted for resampling.");
-    if (src.getValues().empty())
-        throw std::runtime_error("resample: cannot resample from empty series '" + src.getId() + "'");
+    ensure<InvalidArgument>(std::is_sorted(target.begin(), target.end()),
+                            "target_timestamps must be sorted for resampling.");
+    ensure(!src.getValues().empty(), "resample: cannot resample from empty series '{}'", src.getId());
 
     const std::size_t n = target.size();
     if (n == 0) return {};
@@ -157,7 +157,7 @@ double varianceRatePerTick(const TimeSeries& src) {
 
 TimeSeries resample(const TimeSeries& src, TimestampsPtr target, InterpolationStrategy strategy,
                     const StochasticParams& params) {
-    if (!target) throw std::invalid_argument("targetTimestamps pointer is null.");
+    ensure<InvalidArgument>(target != nullptr, "targetTimestamps pointer is null.");
     auto values = resampleValues(src, *target, strategy, params);  // must precede the move below
     return TimeSeries::synthetic("Resampled " + src.getId(), std::move(target), std::move(values));
 }

@@ -12,7 +12,6 @@ add_library(finapp_core
     src/finance/calendar/EventCalendar.cpp
     src/finance/common/Currency.cpp
     src/finance/asset/AssetType.cpp
-    src/common/Exception.cpp
 )
 
 target_include_directories(finapp_core

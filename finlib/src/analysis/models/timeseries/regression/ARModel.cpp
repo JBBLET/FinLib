@@ -8,13 +8,14 @@
 
 #include "Eigen/Core"
 #include "finlib/analysis/models/interfaces/EvaluationResult.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/core/StatsCore.hpp"
 
 namespace ts::models::regression {
 void ARModel::fit() {
     auto data = trainView_.asEigenVector();
     size_t n = data.size();
-    if (n <= q_) throw std::runtime_error("Insufficient data points");
+    ensure(n > q_, "Insufficient data points: need more than {}, got {}", q_, n);
     size_t rows = n - q_;
 
     using RowMajorMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
@@ -55,13 +56,13 @@ void ARModel::fit() {
 }
 
 double ARModel::predictOneStep(const Eigen::VectorXd& window) const {
-    if (!isFitted_) throw std::runtime_error("AR Model need to be fitted before predicting");
+    ensure(isFitted_, "AR Model need to be fitted before predicting");
     double prediction = phi_.dot(window.reverse()) + intercept_;
     return prediction;
 }
 
 RegressionEvaluation ARModel::evaluate(const TimeSeriesView& view) {
-    if (!isFitted_) throw std::runtime_error("AR Model need to be fitted before predicting");
+    ensure(isFitted_, "AR Model need to be fitted before predicting");
     auto data = view.asEigenVector();
     size_t n = data.size();
     if (n < q_) return RegressionEvaluation{};

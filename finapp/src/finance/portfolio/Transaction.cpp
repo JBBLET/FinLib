@@ -1,9 +1,10 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #include "finapp/finance/portfolio/Transaction.hpp"
 
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
+
+#include "finapp/common/Error.hpp"
 
 namespace finance {
 
@@ -32,13 +33,13 @@ std::string toString(const TransactionType& transactionType) {
         case TransactionType::Split:
             return "Split";
         default:
-            throw std::runtime_error("Non supported Transaction type");
+            throw InvalidArgument("Non supported Transaction type");
     }
 }
 
 TransactionType transactionTypeFromString(const std::string& type) {
     auto it = nameToTransactionTypeMap.find(type);
-    if (it == nameToTransactionTypeMap.end()) throw std::runtime_error("Unsupported transaction type: '" + type + "'");
+    ensure<InvalidArgument>(it != nameToTransactionTypeMap.end(), "Unsupported transaction type: '{}'", type);
     return it->second;
 }
 

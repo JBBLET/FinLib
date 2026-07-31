@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-#include "finlib/common/Exception.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -24,23 +24,23 @@ TimeSeries::TimeSeries() : id_{""}, timestamps_{nullptr}, values_{} {}
 
 TimeSeries::TimeSeries(std::string id, Timestamps ts, std::vector<double> vals)
     : id_(id), timestamps_(std::make_shared<const Timestamps>(std::move(ts))), values_(std::move(vals)) {
-    if (timestamps_->size() != values_.size()) {
-        throw std::invalid_argument("Size mismatch between timestamps and values");
-    }
+    ensure<InvalidArgument>(timestamps_->size() == values_.size(),
+                            "Size mismatch between timestamps ({}) and values ({})", timestamps_->size(),
+                            values_.size());
 }
 
 TimeSeries::TimeSeries(std::string id, TimestampsPtr ts, std::vector<double> vals)
     : id_(id), timestamps_(std::move(ts)), values_(std::move(vals)) {
-    if (timestamps_->size() != values_.size()) {
-        throw std::invalid_argument("Size mismatch between timestamps and values");
-    }
+    ensure<InvalidArgument>(timestamps_->size() == values_.size(),
+                            "Size mismatch between timestamps ({}) and values ({})", timestamps_->size(),
+                            values_.size());
 }
 
 TimeSeries::TimeSeries(std::string id, TimestampsPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals)
     : id_(std::move(id)), timestamps_(std::move(sharedTimestamps)), tsOffset_(tsOffset), values_(std::move(vals)) {
-    if (tsOffset_ + values_.size() > timestamps_->size()) {
-        throw std::invalid_argument("TimeSeries: tsOffset + size exceeds timestamp vector length");
-    }
+    ensure<InvalidArgument>(tsOffset_ + values_.size() <= timestamps_->size(),
+                            "TimeSeries: tsOffset ({}) + size ({}) exceeds timestamp vector length ({})", tsOffset_,
+                            values_.size(), timestamps_->size());
 }
 
 // ---------------------------------------------------------------------------
@@ -68,9 +68,9 @@ std::optional<double> TimeSeries::exactValue(Timestamp ts) const {
     return std::nullopt;
 }
 double TimeSeries::latestValue(Timestamp ts) const {
-    if (values_.empty()) throw std::runtime_error("TimeSeries::latestValue: empty series '" + id_ + "'");
+    ensure(!values_.empty(), "TimeSeries::latestValue: empty series '{}'", id_);
     size_t idx = lowerBound(ts);
-    if (idx == 0) throw std::runtime_error("TimeSeries::latestValue: ts before start of series '" + id_ + "'");
+    ensure(idx != 0, "TimeSeries::latestValue: ts before start of series '{}'", id_);
     auto span = getTimestamps();
     if (idx < values_.size() && span[idx] == ts) return values_[idx];
     return values_[idx - 1];
@@ -124,7 +124,7 @@ TimeSeries TimeSeries::operator/(const TimeSeries& other) const {
 }
 
 TimeSeries& TimeSeries::operator/=(double scalar) {
-    if (scalar == 0.0) throw Exception(std::format("Division by 0 of TimeSeries {}", id_));
+    ensure(scalar != 0.0, "Division by 0 of TimeSeries {}", id_);
     for (double& v : values_) {
         v /= scalar;
     }
@@ -132,7 +132,7 @@ TimeSeries& TimeSeries::operator/=(double scalar) {
 }
 
 TimeSeries TimeSeries::operator/(double scalar) const {
-    if (scalar == 0.0) throw Exception(std::format("Division by 0 of TimeSeries {}", id_));
+    ensure(scalar != 0.0, "Division by 0 of TimeSeries {}", id_);
     TimeSeries temp = TimeSeries{*this};
     temp /= scalar;
     return temp;
@@ -208,12 +208,10 @@ TimeSeriesView TimeSeries::sliceIndex(size_t start, size_t end) const {
 void TimeSeries::verifyAlignment_(const TimeSeries& other) const {
     // Fast path: same backing vector at the same offset — definitely aligned.
     if (timestamps_ == other.timestamps_ && tsOffset_ == other.tsOffset_) return;
-    if (this->size() != other.size()) {
-        throw std::invalid_argument("TimeSeries size mismatch.");
-    }
+    ensure<InvalidArgument>(this->size() == other.size(), "TimeSeries size mismatch: {} vs {}.", this->size(),
+                            other.size());
     // Slow path: compare only the slices each series actually represents.
-    if (!std::equal(getTimestamps().begin(), getTimestamps().end(), other.getTimestamps().begin())) {
-        throw std::invalid_argument("TimeSeries timestamps do not match.");
-    }
+    ensure<InvalidArgument>(std::equal(getTimestamps().begin(), getTimestamps().end(), other.getTimestamps().begin()),
+                            "TimeSeries timestamps do not match.");
 }
 }  // namespace ts

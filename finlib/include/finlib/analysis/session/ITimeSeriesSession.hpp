@@ -42,7 +42,7 @@ class ITimeSeriesSession {
     virtual void setFrequency(Timestamp freqMs) = 0;
 
     // Series access by name. Empty name = primary/source series.
-    // Implementations may throw std::logic_error for names they don't support.
+    // Implementations may throw ts::Exception for names they don't support.
     virtual std::shared_ptr<const TimeSeries> seriesPtr(const std::string& name) = 0;
     virtual TimeSeriesView seriesView(const std::string& name) = 0;
     virtual const TimeSeriesAnalysis& seriesAnalysis(const std::string& name) = 0;

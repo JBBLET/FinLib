@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "TestMockTimeSeries.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -71,7 +72,7 @@ TEST_F(TimeSeriesViewTest, ViewSubtractionLogReturnsStyle) {
 TEST_F(TimeSeriesViewTest, OutOfBoundsLagThrows) {
     auto full_view = series->view();
     // Cannot lag the very first element by 1 (nothing exists at index -1)
-    EXPECT_THROW(full_view.shift(1), std::out_of_range);
+    EXPECT_THROW(full_view.shift(1), ts::Exception);
 }
 
 TEST_F(TimeSeriesViewTest, AlignmentMismatchThrows) {

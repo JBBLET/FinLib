@@ -6,11 +6,11 @@
 #include <optional>
 #include <ranges>
 #include <span>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "finapp/common/Error.hpp"
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
 #include "finapp/finance/portfolio/PortfolioSnapshot.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
@@ -127,24 +127,18 @@ class InMemoryPortfolioRepository : public IPortfolioRepository {
     }
 
     void deletePortfolio(const std::string& portfolioId) override {
-        if (!exists(portfolioId)) {
-            throw std::runtime_error("InMemoryPortfolioRepository: portfolio not found: " + portfolioId);
-        }
+        ensure(exists(portfolioId), "InMemoryPortfolioRepository: portfolio not found: {}", portfolioId);
         snapshots_.erase(portfolioId);
         transactions_.erase(portfolioId);
     }
 
     void deleteTransaction(const std::string& portfolioId, const std::string& transactionId) override {
         auto it = transactions_.find(portfolioId);
-        if (it == transactions_.end()) {
-            throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
-        }
+        ensure(it != transactions_.end(), "InMemoryPortfolioRepository: transaction not found: {}", transactionId);
         auto& txns = it->second;
         auto txIt = std::find_if(
             txns.begin(), txns.end(), [&](const finance::Transaction& t) { return t.id == transactionId; });
-        if (txIt == txns.end()) {
-            throw std::runtime_error("InMemoryPortfolioRepository: transaction not found: " + transactionId);
-        }
+        ensure(txIt != txns.end(), "InMemoryPortfolioRepository: transaction not found: {}", transactionId);
         txns.erase(txIt);
     }
 

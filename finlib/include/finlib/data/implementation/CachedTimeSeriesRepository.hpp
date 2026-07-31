@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
@@ -143,9 +144,7 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
         Timestamps filteredTs(timestamps.begin() + startIdx, timestamps.begin() + endIdx);
         std::vector<double> filteredVals(values.begin() + startIdx, values.begin() + endIdx);
 
-        if (filteredTs.empty()) {
-            throw std::runtime_error("No data found in range for series: " + full.getId());
-        }
+        ensure(!filteredTs.empty(), "No data found in range for series: {}", full.getId());
 
         return TimeSeries(full.getId(), std::move(filteredTs), std::move(filteredVals));
     }

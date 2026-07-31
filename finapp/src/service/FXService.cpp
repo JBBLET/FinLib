@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finlib/analysis/session/TimeSeriesSession.hpp"
@@ -41,9 +41,7 @@ TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCu
 }
 
 TimeSeries FXService::load(const Currency& baseCurrency, const Currency& quoteCurrency, TimestampsPtr timestamps) {
-    if (!timestamps) {
-        throw finapp::InvalidArgument("FXService::load: timestamps pointer is null.");
-    }
+    ensure<InvalidArgument>(timestamps != nullptr, "FXService::load: timestamps pointer is null.");
 
     if (baseCurrency == quoteCurrency) {
         return ts::common::utils::timeSeries::generateConstantTimeSeries(

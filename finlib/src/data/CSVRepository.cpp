@@ -18,11 +18,21 @@
 #include "csv/csvReaderAware.hpp"
 #include "csv/csvWriter.hpp"
 #include "csv/csvWriterAware.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
 #include "finlib/common/logger/PrefixedLogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
+
+using cpputils::csv::CSVReader;
+using cpputils::csv::CSVReaderHeaderAware;
+using cpputils::csv::CSVWriter;
+using cpputils::csv::CSVWriterHeaderAware;
+using cpputils::csv::Row;
+
+namespace convert = cpputils::csv::convert;
+
 namespace ts {
 CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* logger)
     : directory_(std::move(directory)), logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
@@ -33,18 +43,14 @@ CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* 
 TimeSeries CSVRepository::load(const std::string& id, Timestamp startMs, Timestamp endMs,
                                std::optional<Timestamp> /*requestedFrequency*/) const {
     auto freqs = availableFrequencies(id);
-    if (freqs.empty()) {
-        throw std::runtime_error("No data found for series: " + id);
-    }
+    ensure(!freqs.empty(), "No data found for series: {}", id);
     Timestamp finestFreq = *std::min_element(freqs.begin(), freqs.end());
     return load(SeriesKey{id, finestFreq}, startMs, endMs);
 }
 
 LoaderCapabilities CSVRepository::capabilities(const std::string& id) const {
     auto freqs = availableFrequencies(id);
-    if (freqs.empty()) {
-        throw std::runtime_error("No data found for series: " + id);
-    }
+    ensure(!freqs.empty(), "No data found for series: {}", id);
     Timestamp finestFreq = *std::min_element(freqs.begin(), freqs.end());
     SeriesKey key{id, finestFreq};
     auto cov = coverage(key);
@@ -137,17 +143,13 @@ Timestamps CSVRepository::availableFrequencies(const std::string& id) const {
 
 TimeSeries CSVRepository::load(const SeriesKey& key) const {
     auto ts = readCsv_(key);
-    if (ts.size() == 0) {
-        throw std::runtime_error("No data found for series: " + key.SeriesId);
-    }
+    ensure(ts.size() != 0, "No data found for series: {}", key.SeriesId);
     return ts;
 }
 
 TimeSeries CSVRepository::load(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const {
     auto ts = readCsvFiltered_(key, startMs, endMs);
-    if (ts.size() == 0) {
-        throw std::runtime_error("No data found in range for series: " + key.SeriesId);
-    }
+    ensure(ts.size() != 0, "No data found in range for series: {}", key.SeriesId);
     return ts;
 }
 
@@ -162,9 +164,7 @@ std::filesystem::path CSVRepository::metaPath_(const SeriesKey& key) const {
 TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId,
                                         Timestamp startMs, Timestamp endMs) {
     std::ifstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV file: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open CSV file: {}", path.string());
 
     const bool applyFilter = (startMs <= endMs);
     Timestamps timestamps;
@@ -172,9 +172,9 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
 
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     for (const auto& row : reader.readAllMaps()) {
-        const Timestamp ts = csv::convert::parseInt<Timestamp>(row.at("timestamp"));
+        const Timestamp ts = convert::parseInt<Timestamp>(row.at("timestamp"));
         if (applyFilter && (ts < startMs || ts > endMs)) continue;
-        const double v = csv::convert::parseFloat<double>(row.at("value"));
+        const double v = convert::parseFloat<double>(row.at("value"));
         if (std::isnan(v)) continue;
         timestamps.push_back(ts);
         values.push_back(v);
@@ -185,17 +185,13 @@ TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const
 
 TimeSeries CSVRepository::readCsv_(const SeriesKey& key) const {
     auto path = csvPath_(key);
-    if (!std::filesystem::exists(path)) {
-        throw std::runtime_error("CSV file not found: " + path.string());
-    }
+    ensure(std::filesystem::exists(path), "CSV file not found: {}", path.string());
     return parseCsvFile_(path, key.SeriesId, 1, 0);
 }
 
 TimeSeries CSVRepository::readCsvFiltered_(const SeriesKey& key, Timestamp startMs, Timestamp endMs) const {
     auto path = csvPath_(key);
-    if (!std::filesystem::exists(path)) {
-        throw std::runtime_error("CSV file not found: " + path.string());
-    }
+    ensure(std::filesystem::exists(path), "CSV file not found: {}", path.string());
     return parseCsvFile_(path, key.SeriesId, startMs, endMs);
 }
 
@@ -204,9 +200,7 @@ void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const 
     std::filesystem::create_directories(path.parent_path());
 
     std::ofstream file(path, std::ios::trunc);
-    if (!file.is_open()) {
-        throw std::runtime_error("Cannot open CSV file for writing: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open CSV file for writing: {}", path.string());
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"timestamp", "value"}};
     const auto& timestamps = ts.getTimestamps();
     const auto& values = ts.getValues();
@@ -219,9 +213,7 @@ void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const 
 CoverageInfo CSVRepository::readMeta_(const SeriesKey& key) const {
     auto path = metaPath_(key);
     std::ifstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Cannot open meta file: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open meta file: {}", path.string());
 
     CoverageInfo info{key, 0, 0, "", 0};
     std::string line;
@@ -247,9 +239,7 @@ void CSVRepository::writeMeta_(const CoverageInfo& cov) const {
     std::filesystem::create_directories(path.parent_path());
 
     std::ofstream file(path, std::ios::trunc);
-    if (!file.is_open()) {
-        throw std::runtime_error("Cannot open meta file for writing: " + path.string());
-    }
+    ensure(file.is_open(), "Cannot open meta file for writing: {}", path.string());
     file << "coveredFromMs=" << cov.coveredFromMs << "\n";
     file << "coveredToMs=" << cov.coveredToMs << "\n";
     file << "source=" << cov.source << "\n";

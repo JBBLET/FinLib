@@ -1,8 +1,7 @@
 // "Copyright (c) 2026 JBBLET All Rights Reserved."
 #pragma once
 
-#include <stdexcept>
-
+#include "finlib/common/Error.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/SeriesKey.hpp"
 
@@ -18,20 +17,16 @@ class ITimeSeriesSaver {
     ITimeSeriesSaver& operator=(ITimeSeriesSaver&&) = default;
 
     void save(const SeriesKey& key, const TimeSeries& ts) {
-        if (ts.isSynthetic())
-            throw std::logic_error(
-                "ITimeSeriesSaver::save: attempt to persist a synthetic (resampled) "
-                "TimeSeries for series '" +
-                key.SeriesId + "'");
+        ensure(!ts.isSynthetic(),
+               "ITimeSeriesSaver::save: attempt to persist a synthetic (resampled) TimeSeries for series '{}'",
+               key.SeriesId);
         doSave(key, ts);
     }
 
     void merge(const SeriesKey& key, const TimeSeries& ts) {
-        if (ts.isSynthetic())
-            throw std::logic_error(
-                "ITimeSeriesSaver::merge: attempt to persist a synthetic (resampled) "
-                "TimeSeries for series '" +
-                key.SeriesId + "'");
+        ensure(!ts.isSynthetic(),
+               "ITimeSeriesSaver::merge: attempt to persist a synthetic (resampled) TimeSeries for series '{}'",
+               key.SeriesId);
         doMerge(key, ts);
     }
 

@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -66,9 +66,8 @@ PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfol
 
 Portfolio PortfolioService::createNew(const std::string& portfolioId, const std::string& name, Currency baseCurrency,
                                       Timestamp timestampMs) {
-    if (portfolioRepository_->exists(portfolioId)) {
-        throw finapp::Exception("PortfolioService::createNew: portfolio '" + portfolioId + "' already exists.");
-    }
+    ensure(!portfolioRepository_->exists(portfolioId), "PortfolioService::createNew: portfolio {} already exists.",
+           portfolioId);
     if (logger_)
         logger_->write(finapp::logging::Level::Info,
                        "createNew: id='" + portfolioId + "' name='" + name + "' base=" + toString(baseCurrency));
@@ -78,9 +77,7 @@ Portfolio PortfolioService::createNew(const std::string& portfolioId, const std:
 }
 
 void PortfolioService::deletePortfolio(const std::string& portfolioId) {
-    if (!portfolioRepository_->exists(portfolioId)) {
-        throw finapp::Exception("PortfolioService::deletePortfolio: portfolio '" + portfolioId + "' does not exist.");
-    }
+    ensure(portfolioRepository_->exists(portfolioId), "PortfolioService::deletePortfolio: portfolio {} does not exist.", portfolioId);
     if (logger_) logger_->write(finapp::logging::Level::Info, "deletePortfolio: id='" + portfolioId + "'");
     portfolioRepository_->deletePortfolio(portfolioId);
 }
@@ -88,9 +85,7 @@ void PortfolioService::deletePortfolio(const std::string& portfolioId) {
 Portfolio PortfolioService::load(const std::string& portfolioId) {
     if (logger_) logger_->write(finapp::logging::Level::Debug, "load: id='" + portfolioId + "'");
     auto snapshotOpt = portfolioRepository_->loadLatestSnapshot(portfolioId);
-    if (!snapshotOpt.has_value()) {
-        throw finapp::Exception("PortfolioService::load: no snapshot found for portfolio " + portfolioId);
-    }
+    ensure(snapshotOpt.has_value(), "PortfolioService::load: no snapshot found for portfolio {}", portfolioId);
     const PortfolioSnapshot& snapshot = *snapshotOpt;
 
     // Load transactions strictly after the snapshot — the snapshot already reflects any
@@ -216,9 +211,8 @@ TimestampsPtr PortfolioService::grid(const std::string& portfolioId, Timestamp s
 // via masks if the number of transactions grow need to change
 finance::PortfolioSeries PortfolioService::valueAndWeightSeries(const std::string& portfolioId,
                                                                 TimestampsPtr timestamps) {
-    if (!timestamps || timestamps->empty()) {
-        throw finapp::InvalidArgument("PortfolioService::valueSeries: timestamps must be non-empty.");
-    }
+    ensure<InvalidArgument>(timestamps && !timestamps->empty(),
+                            "PortfolioService::valueSeries: timestamps must be non-empty.");
     auto snapshots = portfolioRepository_->loadSnapshotsCovering(portfolioId, timestamps->front(), timestamps->back());
     if (snapshots.empty()) {
         return {ts::common::utils::timeSeries::generateConstantTimeSeries(portfolioId + "_totalValue", timestamps, 0.0),
@@ -294,16 +288,11 @@ finance::PortfolioSeries PortfolioService::valueAndWeightSeries(const std::strin
 
 std::unordered_map<AssetId, TimeSeries> PortfolioService::quantitySeries(const std::string& portfolioId,
                                                                          TimestampsPtr timestamps) {
-    if (!timestamps || timestamps->empty()) {
-        throw finapp::InvalidArgument("PortfolioService::valueSeries: timestamps must be non-empty.");
-    }
-    if (!std::is_sorted(timestamps->begin(), timestamps->end())) {
-        throw finapp::InvalidArgument("Timestamps must be sorted");
-    }
+    ensure<InvalidArgument>(timestamps && !timestamps->empty(),
+                            "PortfolioService::valueSeries: timestamps must be non-empty.");
+    ensure<InvalidArgument>(std::is_sorted(timestamps->begin(), timestamps->end()), "Timestamps must be sorted");
     auto snapshots = portfolioRepository_->loadSnapshotsCovering(portfolioId, timestamps->front(), timestamps->back());
-    if (snapshots.empty()) {
-        throw finapp::Exception("PortfolioService::valueSeries: no snapshot for portfolio " + portfolioId);
-    }
+    ensure(!snapshots.empty(), "PortfolioService::valueSeries: no snapshot for portfolio {}", portfolioId);
     std::sort(snapshots.begin(), snapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {
         return a.timestampMs < b.timestampMs;
     });
@@ -371,9 +360,8 @@ std::unordered_map<AssetId, TimeSeries> PortfolioService::quantitySeries(const s
 }
 
 TimeSeries PortfolioService::valueSeries(const std::string& portfolioId, TimestampsPtr timestamps) {
-    if (!timestamps || timestamps->empty()) {
-        throw finapp::InvalidArgument("PortfolioService::valueSeries: timestamps must be non-empty.");
-    }
+    ensure<InvalidArgument>(timestamps && !timestamps->empty(),
+                            "PortfolioService::valueSeries: timestamps must be non-empty.");
     auto snapshots = portfolioRepository_->loadSnapshotsCovering(portfolioId, timestamps->front(), timestamps->back());
     if (snapshots.empty()) {
         return ts::common::utils::timeSeries::generateConstantTimeSeries(portfolioId + "_totalValue", timestamps, 0.0);
@@ -463,7 +451,7 @@ finance::PortfolioOverviewAtTs PortfolioService::computeOverviewAtTs(const std::
 
 PortfolioService::PortfolioMetadata PortfolioService::loadMetadata(const std::string& portfolioId) {
     auto snap = portfolioRepository_->loadLatestSnapshot(portfolioId);
-    if (!snap.has_value()) throw finapp::Exception("No snapshot for portfolio: " + portfolioId);
+    ensure(snap.has_value(), "No snapshot for portfolio: {}", portfolioId);
     return {snap->portfolioId, snap->name, snap->baseCurrency};
 }
 
@@ -512,10 +500,8 @@ void PortfolioService::deleteTransaction(const std::string& portfolioId, const s
     const auto allTxs = portfolioRepository_->loadTransactions(portfolioId, 0);
     const auto it =
         std::find_if(allTxs.begin(), allTxs.end(), [&](const Transaction& t) { return t.id == transactionId; });
-    if (it == allTxs.end()) {
-        throw finapp::Exception("PortfolioService::deleteTransaction: transaction '" + transactionId +
-                                "' not found in portfolio '" + portfolioId + "'.");
-    }
+    ensure(it != allTxs.end(), "PortfolioService::deleteTransaction: transaction {} not found in portfolio {}.",
+           transactionId, portfolioId);
     const Timestamp deletedTs = it->timestampsMs;
     portfolioRepository_->deleteTransaction(portfolioId, transactionId);
     rebuildSnapshotsFrom_(portfolioId, deletedTs);
@@ -549,10 +535,9 @@ void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, Tim
             break;
         }
     }
-    if (!baseSnap) {
-        throw finapp::Exception("PortfolioService::rebuildSnapshotsFrom_: no base snapshot before " +
-                                std::to_string(fromTimestampMs) + " for portfolio '" + portfolioId + "'.");
-    }
+    ensure(baseSnap.has_value(),
+           "PortfolioService::rebuildSnapshotsFrom_: no base snapshot before {} for portfolio {}.", fromTimestampMs,
+           portfolioId);
 
     // Load every transaction that follows the base snapshot and sort them.
     auto allTxs = portfolioRepository_->loadTransactions(portfolioId, baseSnap->timestampMs + 1);

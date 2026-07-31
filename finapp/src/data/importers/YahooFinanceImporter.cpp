@@ -7,13 +7,12 @@
 #include <optional>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "csv/convert.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
@@ -31,18 +30,13 @@ constexpr const char* kColCommission = "Commission";
 constexpr const char* kColTxType = "Transaction Type";
 // Optional column. When present and non-empty, its value overrides the settlement currency for
 // that row (both equity buys/sells and $$CASH_TX deposits/withdrawals).
-// Example CSV header: ...,Transaction Type,Currency
-//   $$CASH_TX row:  ...,DEPOSIT,JPY
-//   Equity row:     ...,BUY,USD
 constexpr const char* kColCurrency = "Currency";
 }  // namespace
 
 std::vector<finance::Transaction> YahooFinanceImporter::parse(const std::filesystem::path& csvPath,
                                                               const Config& config) {
     std::ifstream file(csvPath);
-    if (!file.is_open()) {
-        throw finapp::Exception("YahooFinanceImporter: cannot open file: " + csvPath.string());
-    }
+    ensure(file.is_open(), "YahooFinanceImporter: cannot open file: {}", csvPath.string());
     if (config.logger) config.logger->write(finapp::logging::Level::Info, "parse: " + csvPath.string());
     return parseStream_(file, config);
 }
@@ -59,7 +53,7 @@ std::vector<finance::Transaction> YahooFinanceImporter::parseStream_(std::istrea
 
     std::vector<finance::Transaction> result;
 
-    CSVReaderHeaderAware reader{CSVReader{stream}};  // default ',' separator
+    cpputils::csv::CSVReaderHeaderAware reader{cpputils::csv::CSVReader{stream}};  // default ',' separator
     const auto& headers = reader.headers();
     const bool hasCurrencyCol = std::ranges::find(headers, kColCurrency) != headers.end();
 
@@ -151,7 +145,7 @@ int64_t YahooFinanceImporter::yyyymmddToMs_(const std::string& s) {
 double YahooFinanceImporter::parseOptionalDouble_(const std::string& s) {
     if (s.empty()) return 0.0;
     try {
-        return csv::convert::parseFloat<double>(s);
+        return cpputils::csv::convert::parseFloat<double>(s);
     } catch (...) {
         return 0.0;
     }

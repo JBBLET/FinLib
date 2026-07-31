@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "finapp/common/Exception.hpp"
+#include "finapp/common/Error.hpp"
 #include "finapp/common/logger/PrefixedLogger.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YfinanceUtils.hpp"
 #include "finapp/finance/asset/Equity.hpp"
@@ -40,7 +40,7 @@ std::shared_ptr<finance::IAsset> YFinanceEquityProvider::fetch(const std::string
         try {
             return finance::currencyFromString(currency);
         } catch (const std::invalid_argument& e) {
-            throw finapp::InvalidArgument(std::string(e.what()) + " (ticker: " + ticker + ")");
+            throw InvalidArgument("{} (ticker: {})", std::string(e.what()), ticker);
         }
     }();
 
