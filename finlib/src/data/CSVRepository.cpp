@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include "cpputils/file.hpp"
 #include "csv/convert.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
@@ -32,6 +33,7 @@ using cpputils::csv::CSVWriterHeaderAware;
 using cpputils::csv::Row;
 
 namespace convert = cpputils::csv::convert;
+using cpputils::files::File;
 
 namespace ts {
 CSVRepository::CSVRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
@@ -158,8 +160,7 @@ std::filesystem::path CSVRepository::metaPath_(const SeriesKey& key) const {
 
 TimeSeries CSVRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& seriesId,
                                         Timestamp startMs, Timestamp endMs) {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Cannot open CSV file: {}", path.string());
+    auto file = File{path}.read();
 
     const bool applyFilter = (startMs <= endMs);
     Timestamps timestamps;
@@ -191,11 +192,7 @@ TimeSeries CSVRepository::readCsvFiltered_(const SeriesKey& key, Timestamp start
 }
 
 void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const {
-    auto path = csvPath_(key);
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open CSV file for writing: {}", path.string());
+    auto file = File{csvPath_(key)}.write();
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"timestamp", "value"}};
     const auto& timestamps = ts.getTimestamps();
     const auto& values = ts.getValues();
@@ -206,9 +203,7 @@ void CSVRepository::writeCsv_(const SeriesKey& key, const TimeSeries& ts) const 
 }
 
 CoverageInfo CSVRepository::readMeta_(const SeriesKey& key) const {
-    auto path = metaPath_(key);
-    std::ifstream file(path);
-    ensure(file.is_open(), "Cannot open meta file: {}", path.string());
+    auto file = File{metaPath_(key)}.read();
 
     CoverageInfo info{key, 0, 0, "", 0};
     std::string line;
@@ -230,11 +225,7 @@ CoverageInfo CSVRepository::readMeta_(const SeriesKey& key) const {
 }
 
 void CSVRepository::writeMeta_(const CoverageInfo& cov) const {
-    auto path = metaPath_(cov.key);
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open meta file for writing: {}", path.string());
+    auto file = File{metaPath_(cov.key)}.write();
     file << "coveredFromMs=" << cov.coveredFromMs << "\n";
     file << "coveredToMs=" << cov.coveredToMs << "\n";
     file << "source=" << cov.source << "\n";

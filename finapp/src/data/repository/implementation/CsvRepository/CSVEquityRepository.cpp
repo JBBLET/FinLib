@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "cpputils/file.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
 #include "csv/csvWriter.hpp"
@@ -22,6 +23,7 @@
 #include "finapp/finance/common/Currency.hpp"
 
 using cpputils::csv::CSVReader;
+using cpputils::files::File;
 using cpputils::csv::CSVReaderHeaderAware;
 using cpputils::csv::CSVWriter;
 using cpputils::csv::CSVWriterHeaderAware;
@@ -100,11 +102,7 @@ std::unordered_map<std::string, std::string> CSVEquityRepository::readAttribute_
     return parseAttributeFile_(path);
 }
 void CSVEquityRepository::writeCsv_(const std::shared_ptr<const Equity>& asset) const {
-    auto path = csvPath_(asset->ticker());
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open CSV file for writing: {}", path.string());
+    auto file = File{csvPath_(asset->ticker())}.write();
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"ticker", "name", "denomination", "exchange", "sector"}};
     writer.writeMap(Row{{"ticker", asset->ticker()},
                         {"name", asset->name()},
@@ -115,11 +113,7 @@ void CSVEquityRepository::writeCsv_(const std::shared_ptr<const Equity>& asset) 
 }
 
 void CSVEquityRepository::writeAttributes_(const std::shared_ptr<const Equity>& asset) const {
-    auto path = attributePath_(asset->ticker());
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open attributes file for writing: {}", path.string());
+    auto file = File{attributePath_(asset->ticker())}.write();
     file << "# " + asset->ticker() + ".attr\n";
     for (const auto& [key, value] : asset->attributes()) {
         file << key << "=" << value << "\n";
@@ -128,8 +122,7 @@ void CSVEquityRepository::writeAttributes_(const std::shared_ptr<const Equity>& 
 
 std::shared_ptr<Equity> CSVEquityRepository::parseCsvFile_(const std::filesystem::path& path,
                                                            const std::string& ticker) {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Cannot open CSV file: {}", path.string());
+    auto file = File{path}.read();
     std::string name, exchange, sector;
     Currency denomination{};
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
@@ -144,8 +137,7 @@ std::shared_ptr<Equity> CSVEquityRepository::parseCsvFile_(const std::filesystem
 
 std::unordered_map<std::string, std::string> CSVEquityRepository::parseAttributeFile_(
     const std::filesystem::path& path) {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Cannot open Attributes file: {}", path.string());
+    auto file = File{path}.read();
     std::unordered_map<std::string, std::string> output;
     std::string key, value;
     std::string line;
