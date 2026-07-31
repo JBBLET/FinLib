@@ -7,7 +7,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IPortfolioRepository.hpp"
 #include "finapp/finance/calendar/GridOps.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -32,8 +31,7 @@ namespace finapp {
 class PortfolioService {
  public:
     PortfolioService(std::shared_ptr<IPortfolioRepository> portfolioRepository,
-                     std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService,
-                     finapp::logging::ILogger* logger = nullptr);
+                     std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService);
 
     // Create and persist a new empty portfolio. Seeds an empty snapshot so load()
     // works immediately. Throws if a portfolio with that id already exists.
@@ -119,7 +117,6 @@ class PortfolioService {
     std::shared_ptr<IPortfolioRepository> portfolioRepository_;
     std::shared_ptr<AssetService> assetService_;
     std::shared_ptr<FXService> fxService_;
-    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     void recomputeAndCache_(const finance::Portfolio& portfolio, Timestamp fromMs, Timestamp toMs,
                             Timestamp frequencyMs);

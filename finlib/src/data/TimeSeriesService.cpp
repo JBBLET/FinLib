@@ -13,7 +13,7 @@
 
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/PrefixedLogger.hpp"
+#include "finlib/common/Log.hpp"
 #include "finlib/core/Resampling.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
@@ -56,10 +56,8 @@ ts::Timestamp minSpacing(const ts::Timestamps& grid) {
 namespace ts {
 
 TimeSeriesService::TimeSeriesService(std::shared_ptr<CachedTimeSeriesRepository> cache,
-                                     std::shared_ptr<ITimeSeriesLoader> provider, logging::ILogger* logger)
-    : cache_(std::move(cache)),
-      provider_(std::move(provider)),
-      logger_(logging::PrefixedLogger::wrap(logger, "TimeSeriesService")) {}
+                                     std::shared_ptr<ITimeSeriesLoader> provider)
+    : cache_(std::move(cache)), provider_(std::move(provider)) {}
 
 std::optional<SeriesKey> TimeSeriesService::selectBucket_(const std::string& id, Timestamp startMs, Timestamp endMs,
                                                           Timestamp coarsestMs, bool finestFirst) const {
@@ -99,19 +97,13 @@ TimeSeries TimeSeriesService::loadBucket_(const std::string& id, Timestamp start
         if (auto cov = cache_->coverage(key)) {
             auto gaps = computeGaps(*cov, TimeRange{startMs, endMs});
             if (!gaps.empty()) {
-                if (logger_)
-                    logger_->write(logging::Level::Debug,
-                                   "loadBucket_ '" + id + "' freq=" + std::to_string(providerFreq) + "ms: filling " +
-                                       std::to_string(gaps.size()) + " boundary gap(s)");
+                logging::debug("loadBucket_ '{}' freq={}ms: filling {} boundary gap(s)", id, providerFreq,
+                               gaps.size());
                 fetchAndMergeGaps_(key, gaps);
             }
         }
     } else {
-        if (logger_)
-            logger_->write(logging::Level::Info,
-                           "loadBucket_ '" + id + "' freq=" + std::to_string(providerFreq) +
-                               "ms: provider full fetch [" + std::to_string(startMs) + ", " + std::to_string(endMs) +
-                               "]");
+        logging::info("loadBucket_ '{}' freq={}ms: provider full fetch [{}, {}]", id, providerFreq, startMs, endMs);
         TimeSeries fetched = stripNaN(provider_->load(id, startMs, endMs, providerFreq));
         ensure(fetched.size() != 0, "TimeSeriesService::loadBucket_: provider returned no data for '{}'", id);
         cache_->save(key, fetched);  // persists down to the DB (coverage computed on read)

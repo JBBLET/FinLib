@@ -12,7 +12,7 @@
 
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/PrefixedLogger.hpp"
+#include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -22,9 +22,7 @@
 namespace ts {
 class CachedTimeSeriesRepository : public ITimeSeriesRepository {
  public:
-    explicit CachedTimeSeriesRepository(std::shared_ptr<ITimeSeriesRepository> inner,
-                                        logging::ILogger* logger = nullptr)
-        : inner_(std::move(inner)), logger_(logging::PrefixedLogger::wrap(logger, "CachedTimeSeriesRepository")) {}
+    explicit CachedTimeSeriesRepository(std::shared_ptr<ITimeSeriesRepository> inner) : inner_(std::move(inner)) {}
 
     // --- ITimeSeriesLoader ---
 
@@ -39,10 +37,7 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
 
  protected:
     void doSave(const SeriesKey& key, const TimeSeries& ts) override {
-        if (logger_)
-            logger_->write(logging::Level::Debug,
-                           "save: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms " +
-                               std::to_string(ts.size()) + " points");
+        logging::debug("save: '{}' freq={}ms {} points", key.SeriesId, key.frequencyInMs, ts.size());
         inner_->save(key, ts);
         cache_.insert_or_assign(key, ts);
         auto cov = inner_->coverage(key);  // coverage is computed by the inner repo from the data
@@ -50,10 +45,7 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
     }
 
     void doMerge(const SeriesKey& key, const TimeSeries& newData) override {
-        if (logger_)
-            logger_->write(logging::Level::Debug,
-                           "merge: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms +" +
-                               std::to_string(newData.size()) + " points");
+        logging::debug("merge: '{}' freq={}ms +{} points", key.SeriesId, key.frequencyInMs, newData.size());
         inner_->merge(key, newData);
         try {
             cache_.insert_or_assign(key, inner_->load(key));
@@ -86,16 +78,10 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
 
     TimeSeries load(const SeriesKey& key) const override {
         if (cache_.contains(key)) {
-            if (logger_)
-                logger_->write(
-                    logging::Level::Debug,
-                    "memory cache hit: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms");
+            logging::debug("memory cache hit: '{}' freq={}ms", key.SeriesId, key.frequencyInMs);
             return cache_.at(key);
         }
-        if (logger_)
-            logger_->write(
-                logging::Level::Debug,
-                "No Cache hit full load:'" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms");
+        logging::debug("No Cache hit full load:'{}' freq={}ms", key.SeriesId, key.frequencyInMs);
         TimeSeries ts = inner_->load(key);
         auto cov = inner_->coverage(key);
         cache_.insert_or_assign(key, ts);
@@ -107,17 +93,11 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
         if (coverageCache_.contains(key) && cache_.contains(key)) {
             auto gaps = computeGaps(coverageCache_.at(key), TimeRange{startMs, endMs});
             if (gaps.empty()) {
-                if (logger_)
-                    logger_->write(logging::Level::Debug,
-                                   "memory cache hit: '" + key.SeriesId +
-                                       "' freq=" + std::to_string(key.frequencyInMs) + "ms [range]");
+                logging::debug("memory cache hit: '{}' freq={}ms [range]", key.SeriesId, key.frequencyInMs);
                 return filterByRange_(cache_.at(key), startMs, endMs);
             }
         }
-        if (logger_)
-            logger_->write(logging::Level::Debug,
-                           "No Cache hit full load:'" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) +
-                               "ms [range]");
+        logging::debug("No Cache hit full load:'{}' freq={}ms [range]", key.SeriesId, key.frequencyInMs);
         TimeSeries full = inner_->load(key);
         auto cov = inner_->coverage(key);
         cache_.insert_or_assign(key, full);
@@ -129,7 +109,6 @@ class CachedTimeSeriesRepository : public ITimeSeriesRepository {
     std::shared_ptr<ITimeSeriesRepository> inner_;
     mutable std::unordered_map<SeriesKey, TimeSeries> cache_;
     mutable std::unordered_map<SeriesKey, CoverageInfo> coverageCache_;
-    mutable std::unique_ptr<logging::ILogger> logger_;
 
     static TimeSeries filterByRange_(const TimeSeries& full, Timestamp startMs, Timestamp endMs) {
         const auto& timestamps = full.getTimestamps();

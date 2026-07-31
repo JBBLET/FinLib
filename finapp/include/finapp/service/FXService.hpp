@@ -6,7 +6,6 @@
 #include <memory>
 #include <string>
 
-#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/repository/interface/IFXRepository.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finlib/analysis/session/TimeSeriesSession.hpp"
@@ -25,8 +24,7 @@ namespace finapp {
 
 class FXService {
  public:
-    FXService(std::shared_ptr<TimeSeriesService> timeSeriesService, std::shared_ptr<IFXRepository> fxInfoRepository,
-              finapp::logging::ILogger* logger = nullptr);
+    FXService(std::shared_ptr<TimeSeriesService> timeSeriesService, std::shared_ptr<IFXRepository> fxInfoRepository);
 
     TimeSeries load(const finance::Currency& baseCurrency, const finance::Currency& quoteCurrency, Timestamp fromMs,
                     Timestamp endMs, Timestamp frequencyMs,
@@ -65,7 +63,6 @@ class FXService {
  private:
     std::shared_ptr<TimeSeriesService> timeSeriesService_;
     std::shared_ptr<IFXRepository> fxInfoRepository_;
-    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     // Canonical "<BASE><QUOTE>" id used as the TimeSeriesService seriesId and persisted
     // in FXInfos on first resolution of a new pair.

@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/Resampling.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -20,8 +19,7 @@ namespace ts {
 
 class TimeSeriesService {
  public:
-    TimeSeriesService(std::shared_ptr<CachedTimeSeriesRepository> cache, std::shared_ptr<ITimeSeriesLoader> provider,
-                      logging::ILogger* logger = nullptr);
+    TimeSeriesService(std::shared_ptr<CachedTimeSeriesRepository> cache, std::shared_ptr<ITimeSeriesLoader> provider);
 
     TimeSeries getRaw(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp coarsestMs = INT64_MAX);
 
@@ -45,7 +43,6 @@ class TimeSeriesService {
  private:
     std::shared_ptr<CachedTimeSeriesRepository> cache_;
     std::shared_ptr<ITimeSeriesLoader> provider_;
-    std::unique_ptr<logging::ILogger> logger_;
 
     TimeSeries loadBucket_(const std::string& id, Timestamp startMs, Timestamp endMs, Timestamp coarsestMs,
                            bool finestFirst);

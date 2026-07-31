@@ -20,7 +20,7 @@
 #include "csv/csvWriterAware.hpp"
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/PrefixedLogger.hpp"
+#include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -34,8 +34,7 @@ using cpputils::csv::Row;
 namespace convert = cpputils::csv::convert;
 
 namespace ts {
-CSVRepository::CSVRepository(std::filesystem::path directory, logging::ILogger* logger)
-    : directory_(std::move(directory)), logger_(logging::PrefixedLogger::wrap(logger, "CSVRepository")) {
+CSVRepository::CSVRepository(std::filesystem::path directory) : directory_(std::move(directory)) {
     std::filesystem::create_directories(directory_);
 }
 
@@ -61,10 +60,8 @@ LoaderCapabilities CSVRepository::capabilities(const std::string& id) const {
 // ITimeSeriesSaver Interface
 
 void CSVRepository::doSave(const SeriesKey& key, const TimeSeries& ts) {
-    if (logger_)
-        logger_->write(logging::Level::Debug,
-                       "CSV write: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms " +
-                           std::to_string(ts.size()) + " points -> " + csvPath_(key).string());
+    logging::debug("CSV write: '{}' freq={}ms {} points -> {}", key.SeriesId, key.frequencyInMs, ts.size(),
+                   csvPath_(key).string());
     writeCsv_(key, ts);
 }
 
@@ -100,10 +97,8 @@ void CSVRepository::doMerge(const SeriesKey& key, const TimeSeries& newData) {
 
     TimeSeries merged(key.SeriesId, std::move(mergedTs), std::move(mergedVals));
 
-    if (logger_)
-        logger_->write(logging::Level::Debug,
-                       "CSV merge: '" + key.SeriesId + "' freq=" + std::to_string(key.frequencyInMs) + "ms +" +
-                           std::to_string(newData.size()) + " points -> " + std::to_string(merged.size()) + " total");
+    logging::debug("CSV merge: '{}' freq={}ms +{} points -> {} total", key.SeriesId, key.frequencyInMs,
+                   newData.size(), merged.size());
 
     writeCsv_(key, merged);
 }

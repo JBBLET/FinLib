@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/analysis/PortfolioAnalysis.hpp"
 #include "finapp/service/analysisService/AssetAnalysisService.hpp"
@@ -24,8 +23,7 @@ namespace finapp {
 
 class PortfolioAnalysisService {
  public:
-    explicit PortfolioAnalysisService(std::shared_ptr<AssetAnalysisService> assetAnalysisService,
-                                      finapp::logging::ILogger* logger = nullptr);
+    explicit PortfolioAnalysisService(std::shared_ptr<AssetAnalysisService> assetAnalysisService);
 
     std::shared_ptr<finance::analysis::PortfolioAnalysis> createPortfolioAnalysis(const finance::Portfolio& portfolio,
                                                                                   Timestamp startMs, Timestamp endMs,
@@ -36,7 +34,6 @@ class PortfolioAnalysisService {
 
  private:
     std::shared_ptr<AssetAnalysisService> assetAnalysisService_;
-    std::unique_ptr<finapp::logging::ILogger> logger_;
 
     std::vector<std::shared_ptr<finance::analysis::IAssetAnalysis>> buildAssetAnalyses_(
         const finance::Portfolio& portfolio, Timestamp startMs, Timestamp endMs, Timestamp frequencyMs);

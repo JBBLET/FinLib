@@ -4,7 +4,6 @@
 #include <memory>
 #include <unordered_map>
 
-#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/data/providers/interfaces/IAssetProviders.hpp"
 #include "finapp/data/repository/interface/IAssetRepository.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
@@ -27,8 +26,7 @@ class AssetService {
  public:
     AssetService(std::shared_ptr<ts::TimeSeriesService> timeSeriesService,
                  std::unordered_map<finance::AssetType, std::shared_ptr<IAssetRepository>> IAssetRepositoryMap,
-                 std::unordered_map<finance::AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap,
-                 finapp::logging::ILogger* logger = nullptr);
+                 std::unordered_map<finance::AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap);
     void save(const std::shared_ptr<finance::IAsset>& asset);
 
     std::shared_ptr<const finance::IAsset> load(const finance::AssetId& assetId);
@@ -58,7 +56,6 @@ class AssetService {
     std::unordered_map<finance::AssetType, std::shared_ptr<IAssetRepository>> IAssetRepositoryMap_;
     std::unordered_map<finance::AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap_;
     std::unordered_map<finance::AssetId, std::shared_ptr<const finance::IAsset>> cachedAssets_;
-    std::unique_ptr<finapp::logging::ILogger> logger_;
 };
 
 }  // namespace finapp

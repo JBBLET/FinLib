@@ -4,7 +4,6 @@
 #include <memory>
 #include <unordered_map>
 
-#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
@@ -22,8 +21,7 @@ class PortfolioAnalysisService;
 class AssetAnalysisService {
  public:
     AssetAnalysisService(std::shared_ptr<AssetService> assetService,
-                         std::unordered_map<finance::AssetType, std::shared_ptr<IAssetAnalysisService>> services,
-                         finapp::logging::ILogger* logger = nullptr);
+                         std::unordered_map<finance::AssetType, std::shared_ptr<IAssetAnalysisService>> services);
 
     // Full factory — creates a session then wraps it into a typed IAssetAnalysis.
     std::shared_ptr<finance::analysis::IAssetAnalysis> createAnalysis(const finance::AssetId& id, Timestamp startMs,
@@ -39,7 +37,6 @@ class AssetAnalysisService {
  private:
     std::shared_ptr<AssetService> assetService_;
     std::unordered_map<finance::AssetType, std::shared_ptr<IAssetAnalysisService>> services_;
-    std::unique_ptr<finapp::logging::ILogger> logger_;
 };
 
 }  // namespace finapp

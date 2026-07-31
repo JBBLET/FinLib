@@ -10,7 +10,7 @@
 #include "Eigen/Core"
 #include "finlib/analysis/models/interfaces/IRegressionModel.hpp"
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/LogMacros.hpp"
+#include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -45,7 +45,7 @@ void ModelSession::observe(double value, Timestamp timestamp) {
     PredictionEntry& entry = predictionContainer_[nextToFill_];
 
     if (std::abs(entry.timestamp - timestamp) > deltaTTolerance_) {
-        LOG_WARN(context_, "Timestamp generated does not match any timestamp at which the actual value was received");
+        logging::warn("Timestamp generated does not match any timestamp at which the actual value was received");
     }
     entry.actualValue = value;
     writeBuffer_.push_back(std::pair<Timestamp, double>(timestamp, value));
@@ -128,7 +128,7 @@ void ModelSession::flush_() {
     try {
         context_.saver_->merge(key, ts);
     } catch (...) {
-        LOG_ERROR(context_, "Could not Save to the repository");
+        logging::error("Could not Save to the repository");
         return;
     }
     writeBuffer_.clear();
