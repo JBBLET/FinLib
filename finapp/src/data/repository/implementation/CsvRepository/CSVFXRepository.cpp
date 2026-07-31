@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "cpputils/file.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
 #include "csv/csvWriter.hpp"
@@ -16,6 +17,7 @@
 #include "finapp/finance/common/Currency.hpp"
 
 using cpputils::csv::CSVReader;
+using cpputils::files::File;
 using cpputils::csv::CSVReaderHeaderAware;
 using cpputils::csv::CSVWriter;
 using cpputils::csv::CSVWriterHeaderAware;
@@ -37,8 +39,7 @@ std::vector<FXInfos> CSVFXRepository::readAll_() const {
     if (!std::filesystem::exists(path)) {
         return {};
     }
-    std::ifstream file(path);
-    ensure(file.is_open(), "Cannot open FX CSV file: {}.", path.string());
+    auto file = File{path}.read();
     std::vector<FXInfos> entries;
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     for (const auto& row : reader.readAllMaps()) {
@@ -50,11 +51,7 @@ std::vector<FXInfos> CSVFXRepository::readAll_() const {
 }
 
 void CSVFXRepository::writeAll_(const std::vector<FXInfos>& entries) const {
-    auto path = csvPath_();
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open FX CSV file for writing: {}", path.string());
+    auto file = File{csvPath_()}.write();
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"baseCurrency", "quoteCurrency", "timeseriesID"}};
     for (const auto& entry : entries) {
         writer.writeMap(Row{{"baseCurrency", toString(entry.baseCurrency)},

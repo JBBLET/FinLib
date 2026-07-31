@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "cpputils/file.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
 #include "csv/csvWriter.hpp"
@@ -20,6 +21,7 @@
 #include "finapp/finance/common/Currency.hpp"
 
 using cpputils::csv::CSVReader;
+using cpputils::files::File;
 using cpputils::csv::CSVReaderHeaderAware;
 using cpputils::csv::CSVWriter;
 using cpputils::csv::CSVWriterHeaderAware;
@@ -47,18 +49,13 @@ std::shared_ptr<Cash> CSVCashRepository::readCsv_(const std::string& ticker) con
 }
 
 void CSVCashRepository::writeCsv_(const std::shared_ptr<const Cash>& asset) const {
-    auto path = csvPath_(asset->ticker());
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open CSV file for writing: {}", path.string());
+    auto file = File{csvPath_(asset->ticker())}.write();
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, {"ticker", "denomination"}};
     writer.writeMap(Row{{"ticker", asset->ticker()}, {"denomination", toString(asset->denomination())}}, false);
 }
 
 std::shared_ptr<Cash> CSVCashRepository::parseCsvFile_(const std::filesystem::path& path, const std::string& ticker) {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Cannot open CSV file: {}", path.string());
+    auto file = File{path}.read();
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     for (const auto& row : reader.readAllMaps()) {
         Currency denomination = currencyFromString(row.at("denomination"));

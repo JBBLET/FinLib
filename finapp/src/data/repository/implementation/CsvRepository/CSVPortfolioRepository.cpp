@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "cpputils/file.hpp"
 #include "csv/convert.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
@@ -38,6 +39,7 @@ using cpputils::csv::CSVWriterHeaderAware;
 using cpputils::csv::Row;
 
 namespace convert = cpputils::csv::convert;
+using cpputils::files::File;
 
 using finance::AssetId;
 using finance::assetTypeFromString;
@@ -165,7 +167,6 @@ void CSVPortfolioRepository::appendTransactions(const std::string& portfolioID,
                                                 const std::vector<Transaction>& transactions) {
     logging::debug("appendTransactions '{}' count={}", portfolioID, transactions.size());
     auto path = csvTransactionsPath_(portfolioID);
-    std::filesystem::create_directories(path.parent_path());
     bool needsheader = !std::filesystem::exists(path) || std::filesystem::file_size(path) == 0;
     if (needsheader) {
         writeFullTransactionsCsv_(path, transactions);
@@ -288,13 +289,11 @@ void CSVPortfolioRepository::replaceSnapshotsFrom(const std::string& portfolioId
     logging::debug("replaceSnapshotsFrom '{}' from={} newCount={}", portfolioId, fromTimestampMs,
                    newSnapshots.size());
     const auto snapshotPath = csvSnapshotPath_(portfolioId);
-    std::filesystem::create_directories(snapshotPath.parent_path());
 
     // Single read pass: keep rows before the cut-off, delete .pos/.cash of trimmed rows.
     std::vector<Row> keptRows;
     if (std::filesystem::exists(snapshotPath) && std::filesystem::file_size(snapshotPath) > 0) {
-        std::ifstream inFile(snapshotPath);
-        ensure(inFile.is_open(), "Cannot open snapshot CSV for reading: {}.", snapshotPath.string());
+        auto inFile = File{snapshotPath}.read();
         CSVReaderHeaderAware reader{CSVReader{inFile, ';'}};
         for (auto& row : reader.readAllMaps()) {
             if (convert::parseInt<int64_t>(row.at("timestampMs")) >= fromTimestampMs) {
@@ -331,8 +330,7 @@ void CSVPortfolioRepository::replaceSnapshotsFrom(const std::string& portfolioId
     }
 
     // Single write pass: header + surviving rows + new rows.
-    std::ofstream outFile(snapshotPath, std::ios::trunc);
-    ensure(outFile.is_open(), "Cannot open snapshot CSV for writing: {}.", snapshotPath.string());
+    auto outFile = File{snapshotPath}.write();
     CSVWriterHeaderAware writer{CSVWriter{outFile, ';'}, kSnapshotHeader};
     writer.writeAllMaps(keptRows, false);
     writer.writeAllMaps(newRows, false);
@@ -347,34 +345,29 @@ void CSVPortfolioRepository::writeSnapshotCsv_(const std::string& portfolioID, c
 }
 
 std::string CSVPortfolioRepository::writeSnapshotPositionsFile_(const PortfolioSnapshot& snapshot) {
-    auto path = csvSnapshotPositionsPath_(snapshot.portfolioId, snapshot.timestampMs);
-    std::filesystem::create_directories(path.parent_path());
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open attributes file for writing: {}", path.string());
+    const File target{csvSnapshotPositionsPath_(snapshot.portfolioId, snapshot.timestampMs)};
+    auto file = target.write();
     file << "# " + snapshot.portfolioId + "_" + std::to_string(snapshot.timestampMs) + ".pos\n";
     for (const SnapshotPosition& pos : snapshot.positions) {
         file << assetTypeToString(pos.assetId.type) << ":" << pos.assetId.ticker << ";" << std::to_string(pos.quantity)
              << "\n";
     }
-    return path.stem();
+    return target.path.stem();
 }
 
 std::string CSVPortfolioRepository::writeCashBalancesFile_(const PortfolioSnapshot& snapshot) {
-    auto path = csvSnapshotCashBalancesPath_(snapshot.portfolioId, snapshot.timestampMs);
-    std::filesystem::create_directories(path.parent_path());
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open attributes file for writing: {}", path.string());
+    const File target{csvSnapshotCashBalancesPath_(snapshot.portfolioId, snapshot.timestampMs)};
+    auto file = target.write();
     file << "# " + snapshot.portfolioId + "_" + std::to_string(snapshot.timestampMs) + ".cash\n";
     for (const auto& [currency, quantity] : snapshot.cashBalances) {
         file << toString(currency) << "=" << std::to_string(quantity) << "\n";
     }
-    return path.stem();
+    return target.path.stem();
 }
 
 void CSVPortfolioRepository::writeFullTransactionsCsv_(const std::filesystem::path& path,
                                                        const std::vector<Transaction>& transactions) {
-    std::ofstream file(path, std::ios::trunc);
-    ensure(file.is_open(), "Cannot open CSV File of Transactions for writing: {}", path.string());
+    auto file = File{path}.write();
     CSVWriterHeaderAware writer{CSVWriter{file, ';'}, kTransactionHeader};
     for (const Transaction& transaction : transactions) {
         writer.writeMap(transactionToRow(transaction), false);
@@ -383,8 +376,7 @@ void CSVPortfolioRepository::writeFullTransactionsCsv_(const std::filesystem::pa
 
 void CSVPortfolioRepository::appendTransactionsCsv_(const std::filesystem::path& path,
                                                     const std::vector<Transaction>& transactions) {
-    std::ofstream file(path, std::ios::app);
-    ensure(file.is_open(), "Cannot open CSV File of Transactions for writing: {}", path.string());
+    auto file = File{path}.write(true);
     // Append only — the header already exists, so use the low-level writer without re-emitting it.
     CSVWriter writer{file, ';'};
     for (const Transaction& transaction : transactions) {
@@ -414,8 +406,7 @@ PortfolioSnapshot CSVPortfolioRepository::snapshotFromFields_(const std::string&
 
 std::optional<PortfolioSnapshot> CSVPortfolioRepository::parseSnapshotCsvFile_(
     const std::filesystem::path& path) const {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Could not open the file to parse the snapshot: {}", path.string());
+    auto file = File{path}.read();
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     auto rows = reader.readAllMaps();
     if (rows.empty()) return std::nullopt;
@@ -429,8 +420,7 @@ std::optional<PortfolioSnapshot> CSVPortfolioRepository::parseSnapshotCsvFile_(
 }
 
 std::vector<PortfolioSnapshot> CSVPortfolioRepository::parseAllSnapshotRows_(const std::filesystem::path& path) const {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Could not open snapshot file: {}", path.string());
+    auto file = File{path}.read();
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     std::vector<PortfolioSnapshot> output;
     for (const auto& r : reader.readAllMaps()) {
@@ -446,8 +436,7 @@ std::vector<PortfolioSnapshot> CSVPortfolioRepository::parseAllSnapshotRows_(con
 
 std::vector<SnapshotPosition> CSVPortfolioRepository::parsePositionsSnapshotFile_(
     const std::filesystem::path& path) const {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Could not open the file to parse the snapshot: {}", path.string());
+    auto file = File{path}.read();
     std::string line;
     std::string assetTypeString, assetTicker, assetQuantityString;
     std::vector<SnapshotPosition> output;
@@ -475,8 +464,7 @@ std::vector<SnapshotPosition> CSVPortfolioRepository::parsePositionsSnapshotFile
 
 std::unordered_map<Currency, double> CSVPortfolioRepository::parseCashBalanceFile_(
     const std::filesystem::path& path) const {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Could not open the file to parse the cash Balance: {}", path.string());
+    auto file = File{path}.read();
     std::string line;
     std::string currencyString, currencyQuantityString;
     std::unordered_map<Currency, double> output;
@@ -499,8 +487,7 @@ std::unordered_map<Currency, double> CSVPortfolioRepository::parseCashBalanceFil
 }
 std::vector<Transaction> CSVPortfolioRepository::parseTransactionsCsvFile_(const std::filesystem::path& path,
                                                                            int64_t afterTimestamps) const {
-    std::ifstream file(path);
-    ensure(file.is_open(), "Could not open the file to parse the Transactions: {}", path.string());
+    auto file = File{path}.read();
     CSVReaderHeaderAware reader{CSVReader{file, ';'}};
     std::vector<Transaction> output;
     for (const auto& row : reader.readAllMaps()) {

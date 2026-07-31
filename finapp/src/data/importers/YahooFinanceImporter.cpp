@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "cpputils/file.hpp"
 #include "csv/convert.hpp"
 #include "csv/csvReader.hpp"
 #include "csv/csvReaderAware.hpp"
@@ -36,8 +37,7 @@ constexpr const char* kColCurrency = "Currency";
 
 std::vector<finance::Transaction> YahooFinanceImporter::parse(const std::filesystem::path& csvPath,
                                                               const Config& config) {
-    std::ifstream file(csvPath);
-    ensure(file.is_open(), "YahooFinanceImporter: cannot open file: {}", csvPath.string());
+    auto file = cpputils::files::File{csvPath}.read();
     logging::info("parse: {}", csvPath.string());
     return parseStream_(file, config);
 }
