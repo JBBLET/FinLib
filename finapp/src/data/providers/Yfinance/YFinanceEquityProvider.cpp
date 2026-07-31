@@ -9,7 +9,7 @@
 #include <string>
 
 #include "finapp/common/Error.hpp"
-#include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/common/Log.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YfinanceUtils.hpp"
 #include "finapp/finance/asset/Equity.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -18,11 +18,10 @@ namespace py = pybind11;
 
 namespace finapp {
 
-YFinanceEquityProvider::YFinanceEquityProvider(finapp::logging::ILogger* logger)
-    : logger_{finapp::logging::PrefixedLogger::wrap(logger, "YFinanceEquityProvider")} {}
+YFinanceEquityProvider::YFinanceEquityProvider() = default;
 
 std::shared_ptr<finance::IAsset> YFinanceEquityProvider::fetch(const std::string& ticker) const {
-    if (logger_) logger_->write(finapp::logging::Level::Info, "fetch '" + ticker + "'");
+    logging::info("fetch '{}'", ticker);
     PythonRuntime::pythonRuntime();
     py::gil_scoped_acquire gil;
     py::module_ yfinanceTool = py::module_::import("YFinanceFetcher");
@@ -44,20 +43,17 @@ std::shared_ptr<finance::IAsset> YFinanceEquityProvider::fetch(const std::string
         }
     }();
 
-    if (logger_)
-        logger_->write(finapp::logging::Level::Debug,
-                       "fetch '" + ticker + "' → name='" + name + "' currency=" + currency + " exchange=" + exchange);
+    logging::debug("fetch '{}' → name='{}' currency={} exchange={}", ticker, name, currency, exchange);
     return std::make_shared<finance::Equity>(ticker, name, denom, exchange, sector);
 }
 
 bool YFinanceEquityProvider::exists(const std::string& ticker) const {
-    if (logger_) logger_->write(finapp::logging::Level::Debug, "exists '" + ticker + "'");
+    logging::debug("exists '{}'", ticker);
     PythonRuntime::pythonRuntime();
     py::gil_scoped_acquire gil;
     py::module_ yfinanceTool = py::module_::import("YFinanceFetcher");
     bool result = yfinanceTool.attr("equity_exists")(ticker).cast<bool>();
-    if (logger_)
-        logger_->write(finapp::logging::Level::Debug, "exists '" + ticker + "' → " + (result ? "true" : "false"));
+    logging::debug("exists '{}' → {}", ticker, result);
     return result;
 }
 

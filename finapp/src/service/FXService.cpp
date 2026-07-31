@@ -7,7 +7,7 @@
 #include <utility>
 
 #include "finapp/common/Error.hpp"
-#include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/common/Log.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/common/FinlibTypes.hpp"
@@ -20,10 +20,9 @@ namespace finapp {
 using finance::Currency;
 
 FXService::FXService(std::shared_ptr<TimeSeriesService> timeSeriesService,
-                     std::shared_ptr<IFXRepository> fxInfoRepository, finapp::logging::ILogger* logger)
+                     std::shared_ptr<IFXRepository> fxInfoRepository)
     : timeSeriesService_(std::move(timeSeriesService)),
-      fxInfoRepository_(std::move(fxInfoRepository)),
-      logger_(finapp::logging::PrefixedLogger::wrap(logger, "FXService")) {}
+      fxInfoRepository_(std::move(fxInfoRepository)) {}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -105,10 +104,7 @@ std::string FXService::resolveSeriesId_(const Currency& base, const Currency& qu
     // future calls take the fast path. The actual price history will be fetched from
     // the provider lazily on the next TimeSeriesService::get call.
     FXInfos info{base, quote, makePairId_(base, quote)};
-    if (logger_)
-        logger_->write(
-            finapp::logging::Level::Debug,
-            "resolveSeriesId_: new pair " + toString(base) + "/" + toString(quote) + " -> " + info.timeseriesID);
+    logging::debug("resolveSeriesId_: new pair {}/{} -> {}", toString(base), toString(quote), info.timeseriesID);
     fxInfoRepository_->save(info);
     return info.timeseriesID;
 }

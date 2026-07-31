@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "finapp/common/Error.hpp"
-#include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/common/Log.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/asset/Cash.hpp"
 #include "finapp/finance/asset/IAsset.hpp"
@@ -41,12 +41,10 @@ TimeSeries constantCashSeries(const AssetId& assetId, TimestampsPtr timestamps) 
 
 AssetService::AssetService(std::shared_ptr<TimeSeriesService> timeSeriesService,
                            std::unordered_map<AssetType, std::shared_ptr<IAssetRepository>> IAssetRepositoryMap,
-                           std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap,
-                           finapp::logging::ILogger* logger)
+                           std::unordered_map<AssetType, std::shared_ptr<IAssetProvider>> IAssetProvidersMap)
     : timeSeriesService_(std::move(timeSeriesService)),
       IAssetRepositoryMap_(std::move(IAssetRepositoryMap)),
-      IAssetProvidersMap_(std::move(IAssetProvidersMap)),
-      logger_(finapp::logging::PrefixedLogger::wrap(logger, "AssetService")) {}
+      IAssetProvidersMap_(std::move(IAssetProvidersMap)) {}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -81,8 +79,7 @@ std::shared_ptr<const finance::IAsset> AssetService::load(const AssetId& assetId
     if (repoIt != IAssetRepositoryMap_.end() && repoIt->second->exists(assetId.ticker)) {
         auto asset = repoIt->second->load(assetId.ticker);
         if (asset) {
-            if (logger_)
-                logger_->write(finapp::logging::Level::Debug, "load: '" + assetId.ticker + "' from repository");
+            logging::debug("load: '{}' from repository", assetId.ticker);
             cachedAssets_[assetId] = asset;
             return asset;
         }
@@ -91,8 +88,7 @@ std::shared_ptr<const finance::IAsset> AssetService::load(const AssetId& assetId
     // 3. Provider fallback — persist back into the repository so next call hits step 2.
     auto providerIt = IAssetProvidersMap_.find(assetId.type);
     if (providerIt != IAssetProvidersMap_.end() && providerIt->second->exists(assetId.ticker)) {
-        if (logger_)
-            logger_->write(finapp::logging::Level::Info, "load: '" + assetId.ticker + "' fetching from provider");
+        logging::info("load: '{}' fetching from provider", assetId.ticker);
         std::shared_ptr<finance::IAsset> fetched = providerIt->second->fetch(assetId.ticker);
         if (fetched) {
             if (repoIt != IAssetRepositoryMap_.end()) {

@@ -13,7 +13,7 @@
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/PrefixedLogger.hpp"
+#include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 namespace ts::analysis {
@@ -22,33 +22,23 @@ namespace ts::analysis {
 // Constructors
 // ---------------------------------------------------------------------------
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
-                                     Timestamp startMs, Timestamp endMs, Timestamp frequencyMs,
-                                     logging::ILogger* logger)
+                                     Timestamp startMs, Timestamp endMs, Timestamp frequencyMs)
     : service_{std::move(service)},
       seriesId_{std::move(seriesId)},
       startMs_{startMs},
       endMs_{endMs},
-      frequencyMs_{frequencyMs},
-      logger_{logging::PrefixedLogger::wrap(logger, "TimeSeriesSession")} {
+      frequencyMs_{frequencyMs} {
     source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, startMs_, endMs_, frequencyMs));
-    if (logger_)
-        logger_->write(logging::Level::Info,
-                       "loaded '" + seriesId_ + "' [" + std::to_string(startMs_) + ".." + std::to_string(endMs_) +
-                           "] size=" + std::to_string(source_->size()));
+    logging::info("loaded '{}' [{}..{}] size={}", seriesId_, startMs_, endMs_, source_->size());
 }
 
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
-                                     TimestampsPtr timestampsMs, logging::ILogger* logger)
-    : service_{std::move(service)},
-      seriesId_{std::move(seriesId)},
-      logger_{logging::PrefixedLogger::wrap(logger, "TimeSeriesSession")} {
+                                     TimestampsPtr timestampsMs)
+    : service_{std::move(service)}, seriesId_{std::move(seriesId)} {
     startMs_ = timestampsMs->front();
     endMs_ = timestampsMs->back();
     source_ = std::make_shared<const TimeSeries>(service_->getAligned(seriesId_, timestampsMs));
-    if (logger_)
-        logger_->write(logging::Level::Info,
-                       "loaded '" + seriesId_ + "' [" + std::to_string(startMs_) + ".." + std::to_string(endMs_) +
-                           "] size=" + std::to_string(source_->size()) + " (custom grid)");
+    logging::info("loaded '{}' [{}..{}] size={} (custom grid)", seriesId_, startMs_, endMs_, source_->size());
 }
 
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed)
@@ -64,9 +54,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<const TimeSeries> precomput
 // ---------------------------------------------------------------------------
 void TimeSeriesSession::setRange(Timestamp newStartMs, Timestamp newEndMs) {
     if (newStartMs == startMs_ && newEndMs == endMs_) return;
-    if (logger_)
-        logger_->write(logging::Level::Debug,
-                       "setRange [" + std::to_string(newStartMs) + ".." + std::to_string(newEndMs) + "]");
+    logging::debug("setRange [{}..{}]", newStartMs, newEndMs);
     if (newStartMs < startMs_ || newEndMs > endMs_)
         extendRange_(std::min(newStartMs, startMs_), std::max(newEndMs, endMs_));
     startMs_ = newStartMs;
@@ -76,14 +64,14 @@ void TimeSeriesSession::setRange(Timestamp newStartMs, Timestamp newEndMs) {
 
 void TimeSeriesSession::setFrequency(Timestamp newFrequencyMs) {
     ensure(service_ != nullptr, "Cannot change frequency on a computed TimeSeriesSession");
-    if (logger_) logger_->write(logging::Level::Debug, "setFrequency " + std::to_string(newFrequencyMs) + "ms");
+    logging::debug("setFrequency {}ms", newFrequencyMs);
     frequencyMs_ = newFrequencyMs;
     source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, startMs_, endMs_, newFrequencyMs));
     invalidateAllCache_();
 }
 
 void TimeSeriesSession::addTransform(std::string name, DerivedTransform transform) {
-    if (logger_) logger_->write(logging::Level::Debug, "addTransform '" + name + "' (source → derived)");
+    logging::debug("addTransform '{}' (source → derived)", name);
     transforms_[name] =
         std::move(SeriesNode{name,        //
                              {"source"},  //
@@ -95,9 +83,7 @@ void TimeSeriesSession::addTransform(std::string name, DerivedTransform transfor
 }
 
 void TimeSeriesSession::addTransform(std::string name, std::vector<std::string> inputs, ComputeTransform transform) {
-    if (logger_)
-        logger_->write(logging::Level::Debug,
-                       "addTransform '" + name + "' (" + std::to_string(inputs.size()) + " inputs)");
+    logging::debug("addTransform '{}' ({} inputs)", name, inputs.size());
     transforms_[name] = std::move(SeriesNode{name,               //
                                              std::move(inputs),  //
                                              std::move(transform)});
@@ -177,9 +163,7 @@ Timestamp TimeSeriesSession::frequencyMs() const {
 // ---------------------------------------------------------------------------
 void TimeSeriesSession::extendRange_(Timestamp newStartMs, Timestamp newEndMs) {
     if (!service_) return;  // computed series — source is fixed, window only
-    if (logger_)
-        logger_->write(logging::Level::Debug,
-                       "extendRange_ [" + std::to_string(newStartMs) + ".." + std::to_string(newEndMs) + "]");
+    logging::debug("extendRange_ [{}..{}]", newStartMs, newEndMs);
     if (frequencyMs_.has_value()) {
         source_ =
             std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, newStartMs, newEndMs, frequencyMs_.value()));
@@ -196,15 +180,15 @@ void TimeSeriesSession::extendRange_(Timestamp newStartMs, Timestamp newEndMs) {
 CustomTimeSeriesAnalysis& TimeSeriesSession::customAnalysis(const std::string& name) {
     if (name.empty()) {
         if (!sourceCustomAnalysis_.has_value()) {
-            if (logger_) logger_->write(logging::Level::Debug, "customAnalysis: creating source custom analysis");
-            sourceCustomAnalysis_ = CustomTimeSeriesAnalysis("", sourceView(), logger_.get());
+            logging::debug("customAnalysis: creating source custom analysis");
+            sourceCustomAnalysis_ = CustomTimeSeriesAnalysis("", sourceView());
         }
         return sourceCustomAnalysis_.value();
     }
     auto& ca = derivedCustomAnalysisCache_[name];
     if (!ca.has_value()) {
-        if (logger_) logger_->write(logging::Level::Debug, "customAnalysis: creating '" + name + "'");
-        ca = CustomTimeSeriesAnalysis(name, derivedView(name), logger_.get());
+        logging::debug("customAnalysis: creating '{}'", name);
+        ca = CustomTimeSeriesAnalysis(name, derivedView(name));
     }
     return ca.value();
 }
@@ -219,7 +203,7 @@ void TimeSeriesSession::invalidateAllCache_() {
 }
 
 void TimeSeriesSession::buildDerived_(const std::string& name) const {
-    if (logger_) logger_->write(logging::Level::Debug, "buildDerived_ '" + name + "'");
+    logging::debug("buildDerived_ '{}'", name);
     const SeriesNode& leaf = transforms_.at(name);
     std::unordered_map<std::string, std::shared_ptr<const TimeSeries>> inputMap;
     inputMap.reserve(leaf.inputs.size());

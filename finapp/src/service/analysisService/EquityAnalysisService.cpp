@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "finapp/common/Error.hpp"
-#include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/common/Log.hpp"
 #include "finapp/finance/analysis/EquityAnalysis.hpp"
 #include "finapp/finance/analysis/IAssetAnalysis.hpp"
 #include "finapp/finance/asset/Equity.hpp"
@@ -14,16 +14,13 @@
 
 namespace finapp {
 
-EquityAnalysisService::EquityAnalysisService(std::shared_ptr<AssetService> assetService,
-                                             finapp::logging::ILogger* logger)
-    : assetService_{std::move(assetService)},
-      logger_{finapp::logging::PrefixedLogger::wrap(logger, "EquityAnalysisService")} {}
+EquityAnalysisService::EquityAnalysisService(std::shared_ptr<AssetService> assetService)
+    : assetService_{std::move(assetService)} {}
 
 std::shared_ptr<finance::analysis::IAssetAnalysis> EquityAnalysisService::createAnalysisFromSession(
     std::shared_ptr<const finance::IAsset> asset, std::shared_ptr<TimeSeriesSession> session) {
     if (auto equityPtr = std::dynamic_pointer_cast<const finance::Equity>(asset)) {
-        if (logger_)
-            logger_->write(finapp::logging::Level::Debug, "createAnalysisFromSession '" + asset->ticker() + "'");
+        logging::debug("createAnalysisFromSession '{}'", asset->ticker());
         return std::make_shared<finance::analysis::EquityAnalysis>(
             finance::analysis::EquityAnalysis(equityPtr, session, assetService_));
     } else {

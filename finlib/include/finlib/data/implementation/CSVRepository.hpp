@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/data/CoverageInfo.hpp"
 #include "finlib/data/SeriesKey.hpp"
@@ -22,7 +21,7 @@ namespace ts {
 ///   <directory>/<seriesId>/<frequencyMs>.meta     — key=value coverage metadata
 class CSVRepository : public ITimeSeriesRepository {
  public:
-    explicit CSVRepository(std::filesystem::path directory, logging::ILogger* logger = nullptr);
+    explicit CSVRepository(std::filesystem::path directory);
 
     // --- ITimeSeriesLoader ---
     /// Finds the finest available frequency for `id` and loads data in [startMs, endMs].
@@ -45,7 +44,6 @@ class CSVRepository : public ITimeSeriesRepository {
 
  private:
     std::filesystem::path directory_;
-    std::unique_ptr<logging::ILogger> logger_;
 
     std::filesystem::path csvPath_(const SeriesKey& key) const;
     std::filesystem::path metaPath_(const SeriesKey& key) const;

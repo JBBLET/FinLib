@@ -13,7 +13,6 @@
 #include "finlib/analysis/models/timeseries/regression/ARModel.hpp"
 #include "finlib/analysis/session/AppContext.hpp"
 #include "finlib/analysis/session/ModelSession.hpp"
-#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/CoverageInfo.hpp"
@@ -27,12 +26,6 @@ using ts::ModelSession;
 using ts::SeriesKey;
 using ts::TimeSeries;
 using ts::models::regression::ARModel;
-
-class TestLogger : public ts::logging::ILogger {
- public:
-    void write(ts::logging::Level /*lvl*/, const std::string& msg) override { messages.push_back(msg); }
-    std::vector<std::string> messages;
-};
 
 static std::shared_ptr<TimeSeries> generateAR1(double phi, double intercept, size_t n, double y0 = 10.0) {
     std::vector<int64_t> ts(n);
@@ -52,7 +45,6 @@ static std::shared_ptr<TimeSeries> generateAR1(double phi, double intercept, siz
 
 class ModelSessionTest : public ::testing::Test {
  protected:
-    TestLogger logger;
     std::filesystem::path testDir;
     std::unique_ptr<CSVRepository> repo;
     AppContext context;
@@ -68,7 +60,7 @@ class ModelSessionTest : public ::testing::Test {
         testDir = std::filesystem::temp_directory_path() / "finlib_test_session";
         std::filesystem::create_directories(testDir);
         repo = std::make_unique<CSVRepository>(testDir);
-        context = AppContext{&logger, repo.get()};
+        context = AppContext{repo.get()};
 
         series = generateAR1(truePhi, trueIntercept, 500);
 

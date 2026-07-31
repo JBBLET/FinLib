@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "finapp/common/Error.hpp"
-#include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/common/Log.hpp"
 #include "finapp/finance/asset/AssetType.hpp"
 #include "finapp/finance/common/AssetId.hpp"
 #include "finapp/finance/common/Currency.hpp"
@@ -53,12 +53,10 @@ std::string generateTransactionId() {
 }  // namespace
 
 PortfolioService::PortfolioService(std::shared_ptr<IPortfolioRepository> portfolioRepository,
-                                   std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService,
-                                   finapp::logging::ILogger* logger)
+                                   std::shared_ptr<AssetService> assetService, std::shared_ptr<FXService> fxService)
     : portfolioRepository_(std::move(portfolioRepository)),
       assetService_(std::move(assetService)),
-      fxService_(std::move(fxService)),
-      logger_(finapp::logging::PrefixedLogger::wrap(logger, "PortfolioService")) {}
+      fxService_(std::move(fxService)) {}
 
 // ---------------------------------------------------------------------------
 // Persistence
@@ -68,9 +66,7 @@ Portfolio PortfolioService::createNew(const std::string& portfolioId, const std:
                                       Timestamp timestampMs) {
     ensure(!portfolioRepository_->exists(portfolioId), "PortfolioService::createNew: portfolio {} already exists.",
            portfolioId);
-    if (logger_)
-        logger_->write(finapp::logging::Level::Info,
-                       "createNew: id='" + portfolioId + "' name='" + name + "' base=" + toString(baseCurrency));
+    logging::info("createNew: id='{}' name='{}' base={}", portfolioId, name, toString(baseCurrency));
     Portfolio portfolio = Portfolio::Builder(portfolioId, name, baseCurrency).build();
     portfolioRepository_->saveSnapshot(portfolio.snapshot(timestampMs - 1));
     return portfolio;
@@ -78,12 +74,12 @@ Portfolio PortfolioService::createNew(const std::string& portfolioId, const std:
 
 void PortfolioService::deletePortfolio(const std::string& portfolioId) {
     ensure(portfolioRepository_->exists(portfolioId), "PortfolioService::deletePortfolio: portfolio {} does not exist.", portfolioId);
-    if (logger_) logger_->write(finapp::logging::Level::Info, "deletePortfolio: id='" + portfolioId + "'");
+    logging::info("deletePortfolio: id='{}'", portfolioId);
     portfolioRepository_->deletePortfolio(portfolioId);
 }
 
 Portfolio PortfolioService::load(const std::string& portfolioId) {
-    if (logger_) logger_->write(finapp::logging::Level::Debug, "load: id='" + portfolioId + "'");
+    logging::debug("load: id='{}'", portfolioId);
     auto snapshotOpt = portfolioRepository_->loadLatestSnapshot(portfolioId);
     ensure(snapshotOpt.has_value(), "PortfolioService::load: no snapshot found for portfolio {}", portfolioId);
     const PortfolioSnapshot& snapshot = *snapshotOpt;
@@ -464,10 +460,8 @@ std::vector<Transaction> PortfolioService::listTransactions(const std::string& p
 
 std::string PortfolioService::addTransaction(const std::string& portfolioId, Transaction transaction) {
     transaction.id = generateTransactionId();
-    if (logger_)
-        logger_->write(finapp::logging::Level::Info,
-                       "addTransaction: portfolio='" + portfolioId + "' type=" + toString(transaction.type) +
-                           " ticker=" + transaction.assetTicker + " qty=" + std::to_string(transaction.quantity));
+    logging::info("addTransaction: portfolio='{}' type={} ticker={} qty={}", portfolioId,
+                  toString(transaction.type), transaction.assetTicker, transaction.quantity);
     portfolioRepository_->appendTransactions(portfolioId, {transaction});
     rebuildSnapshotsFrom_(portfolioId, transaction.timestampsMs);
     return transaction.id;
@@ -475,10 +469,7 @@ std::string PortfolioService::addTransaction(const std::string& portfolioId, Tra
 
 std::vector<std::string> PortfolioService::importTransactions(const std::string& portfolioId,
                                                               std::vector<finance::Transaction> transactions) {
-    if (logger_)
-        logger_->write(
-            finapp::logging::Level::Info,
-            "importTransactions: portfolio='" + portfolioId + "' count=" + std::to_string(transactions.size()));
+    logging::info("importTransactions: portfolio='{}' count={}", portfolioId, transactions.size());
     for (auto& t : transactions) t.id = generateTransactionId();
     std::sort(transactions.begin(), transactions.end(), [](const Transaction& a, const Transaction& b) {
         if (a.timestampsMs != b.timestampsMs) return a.timestampsMs < b.timestampsMs;
@@ -493,9 +484,7 @@ std::vector<std::string> PortfolioService::importTransactions(const std::string&
 }
 
 void PortfolioService::deleteTransaction(const std::string& portfolioId, const std::string& transactionId) {
-    if (logger_)
-        logger_->write(finapp::logging::Level::Info,
-                       "deleteTransaction: portfolio='" + portfolioId + "' txId='" + transactionId + "'");
+    logging::info("deleteTransaction: portfolio='{}' txId='{}'", portfolioId, transactionId);
     // Find the timestamp before deleting so we know where to start the rebuild.
     const auto allTxs = portfolioRepository_->loadTransactions(portfolioId, 0);
     const auto it =
@@ -518,10 +507,7 @@ std::string PortfolioService::updateTransaction(const std::string& portfolioId, 
 // ---------------------------------------------------------------------------
 
 void PortfolioService::rebuildSnapshotsFrom_(const std::string& portfolioId, Timestamp fromTimestampMs) {
-    if (logger_)
-        logger_->write(
-            finapp::logging::Level::Debug,
-            "rebuildSnapshotsFrom_: portfolio='" + portfolioId + "' from=" + std::to_string(fromTimestampMs) + "ms");
+    logging::debug("rebuildSnapshotsFrom_: portfolio='{}' from={}ms", portfolioId, fromTimestampMs);
     // Find the latest snapshot strictly before fromTimestampMs — this is our replay base.
     auto allSnapshots = portfolioRepository_->loadAllSnapshots(portfolioId);
     std::sort(allSnapshots.begin(), allSnapshots.end(), [](const PortfolioSnapshot& a, const PortfolioSnapshot& b) {

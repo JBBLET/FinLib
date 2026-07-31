@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "finapp/common/logger/ILogger.hpp"
 #include "finapp/finance/common/Currency.hpp"
 #include "finapp/finance/portfolio/Transaction.hpp"
 
@@ -57,9 +56,6 @@ class YahooFinanceImporter {
         //       return equityProvider.fetch(ticker)->denomination();
         //   };
         std::function<finance::Currency(const std::string& ticker)> currencyResolver;
-
-        // Optional — receives INFO (summary) and DEBUG (skipped rows) messages.
-        finapp::logging::ILogger* logger = nullptr;
     };
 
     // Parses the CSV and returns transactions sorted chronologically.

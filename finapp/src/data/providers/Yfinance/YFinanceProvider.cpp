@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "finapp/common/logger/PrefixedLogger.hpp"
+#include "finapp/common/Log.hpp"
 #include "finapp/data/providers/implementations/Yfinance/YfinanceUtils.hpp"
 #include "finlib/common/utils/TimeUtils.hpp"
 
@@ -20,8 +20,7 @@ namespace py = pybind11;
 
 namespace finapp {
 
-YFinanceProvider::YFinanceProvider(finapp::logging::ILogger* logger)
-    : logger_{finapp::logging::PrefixedLogger::wrap(logger, "YFinanceProvider")} {}
+YFinanceProvider::YFinanceProvider() = default;
 
 LoaderCapabilities YFinanceProvider::capabilities(const std::string& /*id*/) const {
     constexpr int64_t kDayMs = 86'400'000LL;
@@ -49,10 +48,8 @@ TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, i
     else
         interval = "5m";
 
-    if (logger_)
-        logger_->write(finapp::logging::Level::Info,
-                       "load '" + symbol + "' [" + msToStringDate(start_ts) + ".." + msToStringDate(end_ts) +
-                           "] interval=" + interval);
+    logging::info("load '{}' [{}..{}] interval={}", symbol, msToStringDate(start_ts), msToStringDate(end_ts),
+                  interval);
 
     PythonRuntime::pythonRuntime();
     py::gil_scoped_acquire gil;
@@ -64,9 +61,7 @@ TimeSeries YFinanceProvider::load(const std::string& symbol, int64_t start_ts, i
     py::dict result = yfinanceTool.attr("fetch_ohlcv")(symbol, start, end, interval);
     auto timestamps = result["timestamps_ms"].cast<std::vector<int64_t>>();
     auto closes = result["close"].cast<std::vector<double>>();
-    if (logger_)
-        logger_->write(finapp::logging::Level::Info,
-                       "load '" + symbol + "' complete — " + std::to_string(closes.size()) + " bars");
+    logging::info("load '{}' complete — {} bars", symbol, closes.size());
     return TimeSeries("Test", timestamps, closes);
 }
 

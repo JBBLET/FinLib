@@ -13,7 +13,6 @@
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/analysis/session/ITimeSeriesSession.hpp"
 #include "finlib/common/FinlibTypes.hpp"
-#include "finlib/common/logger/ILogger.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
@@ -33,11 +32,10 @@ class TimeSeriesSession : public ITimeSeriesSession {
  public:
     // Regular grid constructor
     TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, Timestamp startMs,
-                      Timestamp endMs, Timestamp frequencyMs, logging::ILogger* logger = nullptr);
+                      Timestamp endMs, Timestamp frequencyMs);
 
     // Irregular / custom timestamp grid constructor
-    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, TimestampsPtr timestampsMs,
-                      logging::ILogger* logger = nullptr);
+    TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId, TimestampsPtr timestampsMs);
 
     // Computed series — source is pre-built, no backing service (range cannot be extended)
     explicit TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed);
@@ -93,7 +91,6 @@ class TimeSeriesSession : public ITimeSeriesSession {
     std::optional<CustomTimeSeriesAnalysis> sourceCustomAnalysis_;
     std::unordered_map<std::string, std::optional<CustomTimeSeriesAnalysis>> derivedCustomAnalysisCache_;
 
-    std::unique_ptr<logging::ILogger> logger_;
 
     void buildDerived_(const std::string& name) const;
     void invalidateAllCache_();
