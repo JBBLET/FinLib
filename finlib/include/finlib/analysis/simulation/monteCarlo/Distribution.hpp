@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -12,16 +13,17 @@ namespace ts::simulation {
 
 class Distribution {
     std::vector<double> sorted_;
+    std::string id_;
 
  public:
-    explicit Distribution(std::vector<double> v);
+    explicit Distribution(std::string id, std::vector<double> v);
 
     template <class R, class Proj>
-    static Distribution from(const std::vector<R>& rs, Proj proj) {
+    static Distribution from(std::string id, const std::vector<R>& rs, Proj proj) {
         std::vector<double> v;
         v.reserve(rs.size());
         for (const auto& r : rs) v.push_back(static_cast<double>(std::invoke(proj, r)));
-        return Distribution(std::move(v));
+        return Distribution(std::move(id), std::move(v));
     }
 
     std::size_t size() const noexcept { return sorted_.size(); }
@@ -35,5 +37,8 @@ class Distribution {
     double max() const;
 
     double cdf(double x) const;
+
+    void plot() const;
+    void print() const;
 };
 }  // namespace ts::simulation

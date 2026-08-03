@@ -450,10 +450,15 @@ int main() {
                 grid, contribDates, kAapl, kBase, spot, meanDaily, stdDaily, initialInvest, monthlyContribution);
         });
 
-    const auto engineTerminal = ts::simulation::Distribution::from(engineResults, &ContributionPath::Result::terminal);
-    const auto engineDrawdown =
-        ts::simulation::Distribution::from(engineResults, &ContributionPath::Result::priceMaxDrawdown);
+    const auto engineTerminal =
+        ts::simulation::Distribution::from("Terminal Value", engineResults, &ContributionPath::Result::terminal);
+    const auto engineDrawdown = ts::simulation::Distribution::from(
+        "Maximum Drawdown", engineResults, &ContributionPath::Result::priceMaxDrawdown);
 
+    engineTerminal.plot();
+    engineTerminal.print();
+    engineDrawdown.plot();
+    engineDrawdown.print();
     // terminal is a plain std::vector<double> and feeds the same estimator the views use.
     const double manualSem =
         ts::analysis::stats::standardDeviation(terminal) / std::sqrt(static_cast<double>(numPaths));

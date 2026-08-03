@@ -21,6 +21,7 @@ target_link_libraries(finlib_core
     PUBLIC
         Eigen3::Eigen
         cpp::utils
+        Matplot++::matplot
 )
 
 # --------------------

@@ -64,6 +64,13 @@ if(NOT TARGET pybind11::embed)
     FetchContent_MakeAvailable(pybind11)
 endif()
 
+if(NOT TARGET Matplot++::matplot)
+    FetchContent_Declare(
+        matplotplusplus
+        GIT_REPOSITORY https://github.com/alandefreitas/matplotplusplus
+        GIT_TAG origin/master)
+    FetchContent_MakeAvailable(matplotplusplus)
+endif()
 # --------------------------------------------------------------------------------------
 # Library targets — the consumable surface.
 # --------------------------------------------------------------------------------------
