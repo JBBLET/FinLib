@@ -2,6 +2,9 @@
 
 #pragma once
 #include <cstddef>
+#include <format>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "finlib/common/Random.hpp"
@@ -40,3 +43,15 @@ auto run(const MonteCarloSpecification& spec, MakePath makePath)
     return out;
 }
 }  // namespace ts::simulation
+
+// The seed is printed in hex because that is how seeds are written down, and a run is only
+// reproducible if the log records all three of these together.
+template <>
+struct std::formatter<ts::simulation::MonteCarloSpecification> : std::formatter<std::string_view> {
+    auto format(const ts::simulation::MonteCarloSpecification& spec, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        const std::string rendered =
+            std::format("MonteCarlo[paths={}, steps={}, seed=0x{:X}]", spec.paths, spec.steps, spec.seed);
+        return std::formatter<std::string_view>::format(rendered, ctx);
+    }
+};

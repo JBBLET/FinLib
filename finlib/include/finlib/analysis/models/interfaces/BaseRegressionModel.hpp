@@ -1,6 +1,7 @@
 // Copyright 2026 JBBLET
 #pragma once
 
+#include <format>
 #include <memory>
 #include <string>
 
@@ -26,8 +27,12 @@ class BaseRegressionModel : public IRegressionModel {
 
     void setData(const TimeSeriesView& totalView, double trainRatio, double validationRatio) override {
         fullView_ = std::make_shared<const TimeSeriesView>(totalView);
-        ensure(!requiresRegularSpacing() || fullView_->checkRegularity(regularityTolerance()).isRegular,
-               "The Model requires a regularly spaced timeseries. Regularize manually");
+        const auto regularity = fullView_->checkRegularity(regularityTolerance());
+        ensure(!requiresRegularSpacing() || regularity.isRegular,
+               "{} requires a regularly spaced timeseries; resample it or raise the tolerance. {} on {}",
+               name(),
+               regularity,
+               totalView);
         size_t totalSize = fullView_->size();
         size_t trainSize = static_cast<size_t>(totalSize * trainRatio);
         size_t validationSize = static_cast<size_t>(totalSize * validationRatio);
@@ -40,7 +45,22 @@ class BaseRegressionModel : public IRegressionModel {
         isFitted_ = false;
     };
 
-    std::string print() const override { return name() + "[Fitted: " + (isFitted_ ? "Yes" : "No") + "]"; };
+    // Default rendering for any regression model: identity plus how the data was split.
+    // Concrete models override the describe modes to add their own parameter table.
+    std::string toString(const fmt::FormatSpec& spec) const override {
+        std::string identity = std::format("{} [{}", name(), isFitted_ ? "fitted" : "not fitted");
+        if (fullView_ != nullptr) {
+            identity += std::format(", train={}, validation={}, test={}",
+                                    trainView_.size(),
+                                    validationView_.size(),
+                                    testView_.size());
+        } else {
+            identity += ", no data";
+        }
+        identity += ']';
+        if (spec.mode == fmt::FormatMode::Identity || fullView_ == nullptr) return identity;
+        return std::format("{}\non {:s}", identity, *fullView_);
+    }
 
     double regularityTolerance() const override { return 0.0; }
     std::string getViewTimeSeriesId() const override { return fullView_->getTimeSeriesId(); }

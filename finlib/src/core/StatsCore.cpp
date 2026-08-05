@@ -53,7 +53,7 @@ double varianceFast(Samples x, VarianceType type) {
     if (type == VarianceType::Population) {
         return M2 / static_cast<double>(count);
     }
-    throw InvalidArgument("Variance Type undefined");
+    throw InvalidArgument("Variance Type undefined: {}", type);
 }
 
 double varianceSlow(Samples x, VarianceType type) {
@@ -77,7 +77,7 @@ double varianceSlow(Samples x, VarianceType type) {
     if (type == VarianceType::Population) {
         return M2 / static_cast<double>(count);
     }
-    throw InvalidArgument("Variance Type undefined");
+    throw InvalidArgument("Variance Type undefined: {}", type);
 }
 
 double standardDeviation(Samples x, VarianceType type) { return std::sqrt(varianceFast(x, type)); }

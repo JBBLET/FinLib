@@ -3,9 +3,11 @@
 
 #include <cstddef>
 #include <deque>
+#include <format>
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -14,6 +16,7 @@
 #include "finlib/analysis/session/AppContext.hpp"
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -75,9 +78,25 @@ class ModelSession {
 
     void refit(const TimeSeriesView& newView);
 
+    // Display — running error, how much of the prediction buffer has been matched against
+    // actuals, and how many observations are still waiting to be flushed to the repository.
+    std::string toString(const fmt::FormatSpec& spec = {}) const;
+    void println(const fmt::FormatSpec& spec = {.mode = fmt::FormatMode::Describe}) const;
+
  private:
     // Helper
     size_t nextToFill_ = 0;
     void flush_();
 };
 }  // namespace ts
+
+template <>
+struct std::formatter<ts::ModelSession> {
+    ts::fmt::FormatSpec spec;
+
+    constexpr auto parse(std::format_parse_context& ctx) { return ts::fmt::parseFormatSpec(ctx, spec); }
+
+    auto format(const ts::ModelSession& session, std::format_context& ctx) const -> std::format_context::iterator {
+        return std::format_to(ctx.out(), "{}", session.toString(spec));
+    }
+};

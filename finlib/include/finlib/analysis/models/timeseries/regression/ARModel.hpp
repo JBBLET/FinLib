@@ -5,6 +5,7 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "Eigen/Core"
 #include "Eigen/Dense"
@@ -17,6 +18,16 @@ namespace ts::models::regression {
 class ARModel : public BaseRegressionModel, public IProbabilisticModel {
  public:
     enum class Solver { OLS, YuleWalker, LevinsonDurbin };
+
+    static constexpr std::string_view toString(Solver solver) {
+        switch (solver) {
+            case Solver::OLS: return "OLS";
+            case Solver::YuleWalker: return "YuleWalker";
+            case Solver::LevinsonDurbin: return "LevinsonDurbin";
+        }
+        return "<unknown Solver>";
+    }
+
     explicit ARModel(size_t q, ARModel::Solver solver = ARModel::Solver::YuleWalker, double regularityTolerance = 0.2)
         : q_(q), solver_(solver), regularityTolerance_(regularityTolerance) {
         phi_.resize(q_);
@@ -35,7 +46,9 @@ class ARModel : public BaseRegressionModel, public IProbabilisticModel {
 
     // IModel Interface
     std::string name() const override { return std::format("AR ({})", q_); };
-    // std::string print() const override;
+    // Describe mode is the coefficient table: estimate, standard error, t and p per term.
+    // All of it is already stored by fit(); it simply had no way out until now.
+    std::string toString(const fmt::FormatSpec& spec) const override;
     bool requiresRegularSpacing() const override { return true; }
     double regularityTolerance() const override { return regularityTolerance_; }
     size_t contextSize() const override { return q_; };
@@ -90,3 +103,11 @@ class ARModel : public BaseRegressionModel, public IProbabilisticModel {
     void levinsonDurbinSolver_();
 };
 }  // namespace ts::models::regression
+
+template <>
+struct std::formatter<ts::models::regression::ARModel::Solver> : std::formatter<std::string_view> {
+    auto format(ts::models::regression::ARModel::Solver solver, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        return std::formatter<std::string_view>::format(ts::models::regression::ARModel::toString(solver), ctx);
+    }
+};

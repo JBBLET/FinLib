@@ -3,12 +3,16 @@
 
 #include <cmath>
 #include <cstddef>
+#include <format>
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "Eigen/Core"
 #include "finlib/analysis/models/interfaces/EvaluationResult.hpp"
 #include "finlib/common/Error.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/core/StatsCore.hpp"
 
 namespace ts::models::regression {
@@ -51,7 +55,10 @@ void ARModel::fit() {
         tStatistics_.unaryExpr([](double t) { return ts::analysis::hypothesisTesting::PvalueFromTStatistic(t); });
     isFitted_ = true;
     if (testView_.size() > q_) {
-        evaluate(testView_);
+        // The result was previously computed and dropped on the floor, leaving
+        // testModelEvaluationResult permanently empty — nothing could ever read the
+        // out-of-sample metrics this line exists to produce.
+        testModelEvaluationResult = evaluate(testView_);
     }
 }
 
@@ -142,6 +149,53 @@ bool ARModel::isStationary() const {
         }
     }
     return true;
+}
+
+std::string ARModel::toString(const fmt::FormatSpec& spec) const {
+    std::string identity = std::format("{} [{}, solver={}", name(), isFitted_ ? "fitted" : "not fitted", solver_);
+    if (isFitted_) identity += isStationary() ? ", stationary" : ", NON-STATIONARY";
+    if (fullView_ != nullptr) {
+        identity += std::format(
+            ", train={}, validation={}, test={}", trainView_.size(), validationView_.size(), testView_.size());
+    }
+    identity += ']';
+
+    if (spec.mode == fmt::FormatMode::Identity) return identity;
+
+    // Before fit(), phi_ and the diagnostic vectors are sized but never written — Eigen's
+    // resize does not value-initialise. Printing them would be printing whatever was on the
+    // heap, so the table only exists once there is something real in it.
+    if (!isFitted_) return identity + "\n(no coefficients: model has not been fitted)";
+
+    std::string out = identity;
+    out += '\n';
+
+    // The intercept leads the diagnostic vectors, then the q lag coefficients — the same
+    // ordering fit() assembles `coeffs` in.
+    const auto terms = static_cast<Eigen::Index>(q_) + 1;
+    std::vector<double> estimates;
+    estimates.reserve(static_cast<size_t>(terms));
+    estimates.push_back(intercept_);
+    for (Eigen::Index i = 0; i < static_cast<Eigen::Index>(q_); ++i) estimates.push_back(phi_(i));
+
+    const auto coefficient = fmt::columnFormat(estimates, spec.precision);
+
+    fmt::Table table({"term", "coef", "std err", "t", "P>|t|"},
+                     {fmt::Table::Align::Left,
+                      fmt::Table::Align::Right,
+                      fmt::Table::Align::Right,
+                      fmt::Table::Align::Right,
+                      fmt::Table::Align::Right});
+    for (Eigen::Index i = 0; i < terms; ++i) {
+        table.addRow({i == 0 ? std::string{"const"} : std::format("phi[{}]", i),
+                      coefficient(estimates[static_cast<size_t>(i)]),
+                      fmt::formatDouble(standardErrors_(i), 6),
+                      fmt::formatDouble(tStatistics_(i), 4),
+                      fmt::formatDouble(pValues_(i), 4)});
+    }
+    out += table.render();
+    out += std::format("sigma(eps) = {}\n", fmt::formatDouble(sigmaEpsilon_, spec.precision));
+    return out;
 }
 
 void ARModel::clear() {

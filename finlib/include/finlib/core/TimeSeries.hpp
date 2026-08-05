@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <execution>
+#include <format>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -13,6 +14,7 @@
 #include <vector>
 
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 
 namespace ts {
 class TimeSeriesView;
@@ -96,6 +98,16 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
     TimeSeries operator-(double scalar) const;
     TimeSeries& operator-=(double scalar);
 
+    // Display
+    // toString({}) is a single line — it is what lands in ensure() messages and log
+    // lines, and it never touches the values. The multi-line modes are for the console.
+    // None of these throw, including on a default-constructed (timestamp-less) series.
+    std::string toString(const fmt::FormatSpec& spec = {}) const;
+    void println(const fmt::FormatSpec& spec = {.mode = fmt::FormatMode::Repr}) const;
+    void head(std::size_t rows = 10) const;
+    void tail(std::size_t rows = 10) const;
+    void describe() const;
+
     friend std::ostream& operator<<(std::ostream& os, const TimeSeries& obj);
 
     // Transformation Method
@@ -146,14 +158,17 @@ class TimeSeries : public std::enable_shared_from_this<TimeSeries> {
 };
 
 inline std::ostream& operator<<(std::ostream& os, const TimeSeries& obj) {
-    const auto& ts = obj.getTimestamps();
-    const auto& vs = obj.getValues();
-
-    os << "[\n";
-    for (size_t i = 0; i < obj.size(); ++i) {
-        os << "  [" << ts[i] << ", " << vs[i] << "]\n";
-    }
-    os << "]";
-    return os;
+    return os << obj.toString({.mode = fmt::FormatMode::Repr});
 }
 }  // namespace ts
+
+template <>
+struct std::formatter<ts::TimeSeries, char> {
+    ts::fmt::FormatSpec spec;
+
+    constexpr auto parse(std::format_parse_context& ctx) { return ts::fmt::parseFormatSpec(ctx, spec); }
+
+    auto format(const ts::TimeSeries& series, std::format_context& ctx) const -> std::format_context::iterator {
+        return std::format_to(ctx.out(), "{}", series.toString(spec));
+    }
+};

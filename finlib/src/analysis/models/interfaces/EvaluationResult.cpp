@@ -4,11 +4,17 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
+#include <format>
 #include <numbers>
 #include <numeric>
+#include <optional>
+#include <print>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "finlib/common/Error.hpp"
+#include "finlib/common/Format.hpp"
 
 namespace ts {
 void models::RegressionEvaluation::computeRegressionMetrics(const std::vector<double>& actual,
@@ -42,11 +48,84 @@ void models::RegressionEvaluation::computeRegressionMetrics(const std::vector<do
     aic = 2 * (numberParameters + 2) - 2 * logLikelihood.value();
 }
 
-void models::RegressionEvaluation::print() const {
-    // TODO(JBBLET): implement formatted output
+std::string models::RegressionEvaluation::toString(const fmt::FormatSpec& spec) const {
+    if (spec.mode == fmt::FormatMode::Identity) {
+        return std::format("RegressionEvaluation[R2={}, RMSE={}]",
+                           fmt::naOr(rSquared, spec.precision),
+                           fmt::naOr(rmse, spec.precision));
+    }
+
+    // Errors and goodness-of-fit live on unrelated scales, so each is quoted on its own
+    // terms instead of forcing one precision across the whole table.
+    auto cell = [&](const std::optional<double>& v) { return fmt::naOr(v, spec.precision); };
+
+    fmt::Table table({"metric", "value"}, {fmt::Table::Align::Left, fmt::Table::Align::Right});
+    table.addRow({"MSE", cell(mse)});
+    table.addRow({"RMSE", cell(rmse)});
+    table.addRow({"MAE", cell(mae)});
+    table.addRule();
+    table.addRow({"R^2", cell(rSquared)});
+    table.addRow({"adjusted R^2", cell(adjustedRSquared)});
+    table.addRule();
+    table.addRow({"log-likelihood", cell(logLikelihood)});
+    table.addRow({"AIC", cell(aic)});
+
+    return "RegressionEvaluation\n" + table.render();
 }
 
-void models::ClassificationEvaluation::print() const {
-    // TODO(JBBLET): implement formatted output
+void models::RegressionEvaluation::println(const fmt::FormatSpec& spec) const { std::println("{}", toString(spec)); }
+
+void models::RegressionEvaluation::print() const { println(); }
+
+std::string models::ClassificationEvaluation::toString(const fmt::FormatSpec& spec) const {
+    const std::string identity = std::format("ClassificationEvaluation[accuracy={}, F1={}]",
+                                             fmt::formatDouble(accuracy, spec.precision),
+                                             fmt::formatDouble(f1Score, spec.precision));
+    if (spec.mode == fmt::FormatMode::Identity) return identity;
+
+    // Rates all sit in [0, 1]; four decimals is the readable resolution regardless of data.
+    // Named `decimals` rather than `precision` — that one is a metric on this struct.
+    const int decimals = spec.precision >= 0 ? spec.precision : 4;
+
+    fmt::Table metrics({"metric", "value"}, {fmt::Table::Align::Left, fmt::Table::Align::Right});
+    metrics.addRow({"accuracy", fmt::formatDouble(accuracy, decimals)});
+    metrics.addRow({"precision", fmt::formatDouble(precision, decimals)});
+    metrics.addRow({"recall", fmt::formatDouble(recall, decimals)});
+    metrics.addRow({"F1", fmt::formatDouble(f1Score, decimals)});
+
+    std::string out = "ClassificationEvaluation\n";
+    out += metrics.render();
+
+    const auto classes = static_cast<std::size_t>(confusionMatrix.rows());
+    if (classes == 0 || confusionMatrix.cols() != confusionMatrix.rows()) return out;
+
+    // Rows are the actual class, columns the predicted one — stated in the header because
+    // the transpose is just as plausible a reading and silently inverts precision/recall.
+    std::vector<std::string> headers{"actual \\ pred"};
+    std::vector<fmt::Table::Align> alignment{fmt::Table::Align::Left};
+    for (std::size_t c = 0; c < classes; ++c) {
+        headers.push_back(std::format("{}", c));
+        alignment.push_back(fmt::Table::Align::Right);
+    }
+
+    fmt::Table matrix(std::move(headers), std::move(alignment));
+    for (std::size_t r = 0; r < classes; ++r) {
+        std::vector<std::string> row{std::format("{}", r)};
+        for (std::size_t c = 0; c < classes; ++c) {
+            row.push_back(
+                std::format("{}", confusionMatrix(static_cast<Eigen::Index>(r), static_cast<Eigen::Index>(c))));
+        }
+        matrix.addRow(std::move(row));
+    }
+
+    out += '\n';
+    out += matrix.render();
+    return out;
 }
+
+void models::ClassificationEvaluation::println(const fmt::FormatSpec& spec) const {
+    std::println("{}", toString(spec));
+}
+
+void models::ClassificationEvaluation::print() const { println(); }
 }  // namespace ts

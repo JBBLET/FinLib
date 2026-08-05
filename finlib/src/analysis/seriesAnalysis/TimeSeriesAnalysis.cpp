@@ -2,10 +2,18 @@
 
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <format>
+#include <optional>
+#include <print>
+#include <span>
+#include <string>
 #include <vector>
 
 #include "finlib/common/Error.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/core/StatsCore.hpp"
 
 namespace ts::analysis {
@@ -118,6 +126,81 @@ double TimeSeriesAnalysis::zScore(double value) const {
 }
 
 bool TimeSeriesAnalysis::isOutlier(double value, double threshold) const { return std::abs(zScore(value)) > threshold; }
+
+// ---------------------------------------------------------------------------
+// Display
+// ---------------------------------------------------------------------------
+
+std::string TimeSeriesAnalysis::toString(const fmt::FormatSpec& spec) const {
+    const std::string identity = std::format("TimeSeriesAnalysis of {:s}", view_);
+    if (spec.mode != fmt::FormatMode::Describe && spec.mode != fmt::FormatMode::Repr) return identity;
+
+    const size_t n = view_.size();
+    std::string out = identity;
+    out += '\n';
+
+    fmt::Table table({"statistic", "value"}, {fmt::Table::Align::Left, fmt::Table::Align::Right});
+    table.addRow({"count", std::format("{}", n)});
+    if (n == 0) {
+        out += table.render();
+        return out;
+    }
+
+    // Three scales share this table and must not share a precision. Location and spread
+    // carry the units of the data; the variances are those units squared, so quoting them
+    // at the data's precision collapses sample and population onto the same digits; and
+    // the shape statistics are dimensionless and O(1).
+    const std::span<const double> samples{view_.begin(), n};
+    const auto value = fmt::columnFormat(samples, spec.precision);
+    auto cell = [&](const std::optional<double>& v) { return v ? value(*v) : std::string{"N/A"}; };
+    auto squared = [&](const std::optional<double>& v) { return fmt::naOr(v, spec.precision); };
+    auto shape = [&](const std::optional<double>& v) { return fmt::naOr(v, spec.precision >= 0 ? spec.precision : 4); };
+
+    // Non-finite entries are excluded from the extrema for the same reason the stats
+    // functions skip them: one NaN would otherwise decide the whole comparison.
+    std::optional<double> minimum;
+    std::optional<double> maximum;
+    size_t nonFinite = 0;
+    for (double v : samples) {
+        if (!std::isfinite(v)) {
+            ++nonFinite;
+            continue;
+        }
+        minimum = minimum ? std::min(*minimum, v) : v;
+        maximum = maximum ? std::max(*maximum, v) : v;
+    }
+    if (nonFinite != 0) table.addRow({"non-finite", std::format("{}", nonFinite)});
+
+    table.addRow({"mean", value(mean())});
+    // standardDeviation() is derived from the population variance — labelled as it is computed.
+    table.addRow({"std (population)", cell(standardDeviation())});
+    table.addRow({"var (sample)", squared(variance(stats::VarianceType::Sample))});
+    table.addRow({"var (population)", squared(variance(stats::VarianceType::Population))});
+    table.addRow({"skewness", shape(skewness())});
+    table.addRow({"kurtosis", shape(kurtosis())});
+    table.addRow({"min", cell(minimum)});
+    table.addRow({"max", cell(maximum)});
+
+    // Lag 0 is 1 by construction and carries no information, so the table starts at lag 1.
+    // acf() returns fewer coefficients than asked for on a short window rather than throwing.
+    const size_t requestedLags = spec.count == 0 ? 5 : spec.count;
+    const auto& coefficients = acf(requestedLags);
+    if (coefficients.size() > 1) {
+        table.addRule();
+        for (size_t lag = 1; lag < coefficients.size(); ++lag) {
+            table.addRow({std::format("acf[{}]", lag), fmt::formatDouble(coefficients[lag], 4)});
+        }
+    }
+
+    out += table.render();
+    return out;
+}
+
+void TimeSeriesAnalysis::println(const fmt::FormatSpec& spec) const { std::println("{}", toString(spec)); }
+
+void TimeSeriesAnalysis::describe(size_t autocorrelationLags) const {
+    println({.mode = fmt::FormatMode::Describe, .count = autocorrelationLags});
+}
 
 void TimeSeriesAnalysis::invalidateCache() {
     cachedMean_.reset();

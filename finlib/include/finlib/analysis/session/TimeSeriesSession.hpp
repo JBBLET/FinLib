@@ -73,6 +73,10 @@ class TimeSeriesSession : public ITimeSeriesSession {
     size_t size() const;
     Timestamp frequencyMs() const;
 
+    // Display — answers "what is in this session": window, grid, and every registered
+    // transform with its inputs and whether it is currently materialised.
+    std::string toString(const fmt::FormatSpec& spec) const override;
+
  private:
     std::shared_ptr<TimeSeriesService> service_;
     std::shared_ptr<const TimeSeries> source_;

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "finlib/common/Error.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/common/Log.hpp"
 #include "finlib/core/StatsCore.hpp"
 #include "matplot/axes_objects/histogram.h"
@@ -67,40 +68,67 @@ void Distribution::plot() const {
     matplot::show();
 }
 
-void Distribution::print() const {
-    logging::info("Distribution of {}", id_);
-    struct StatRow {
-        std::string name;
-        double value;
-    };
-    std::vector<StatRow> stats = {
-        {.name = "Count", .value = static_cast<double>(sorted_.size())},
-        {.name = "Minimum", .value = min()},
-        {.name = "Maximum", .value = max()},
-        {.name = "Mean", .value = mean()},
-        {.name = "Variance", .value = stddev() * stddev()},
-        {.name = "Std Dev", .value = stddev()},
-    };
-    std::vector<StatRow> quantiles = {
-        {.name = "1st Quartile (Q1)", .value = quantile(0.25)},
-        {.name = "Median (Q2)", .value = quantile(0.5)},
-        {.name = "3rd Quartile (Q3)", .value = quantile(0.75)},
-        {.name = "Interquartile range (Q3-Q1)", .value = quantile(0.75) - quantile(0.25)},
-    };
+std::string Distribution::toString(const fmt::FormatSpec& spec) const {
+    std::string identity = std::format("Distribution '{}' [n={}", id_, sorted_.size());
+    if (!sorted_.empty()) {
+        identity += std::format(", {} .. {}",
+                                fmt::formatDouble(sorted_.front(), spec.precision),
+                                fmt::formatDouble(sorted_.back(), spec.precision));
+    }
+    identity += ']';
 
-    std::println("{:<20} | {:>10}", "Statistic", "Value");
-    std::println("{:-<20}-+-{:-<10}", "", "");
-    for (const auto& [name, value] : stats) {
-        std::println("{:<20} | {:>10.2f}", name, value);
+    switch (spec.mode) {
+        case fmt::FormatMode::Identity:
+            return identity;
+        case fmt::FormatMode::Head:
+        case fmt::FormatMode::Tail:
+        case fmt::FormatMode::Repr:
+            // Sorted samples have no index of their own worth showing, so the row listing
+            // reuses the series renderer with no timestamps.
+            return fmt::renderSeries(identity, {}, sorted_, spec);
+        default:
+            break;
     }
-    std::println("{:-<20}-+-{:-<10}", "", "");
-    std::println("");
-    std::println("{:<20} | {:>10}", "Statistic", "Value");
-    std::println("{:-<20}-+-{:-<10}", "", "");
-    for (const auto& [name, value] : quantiles) {
-        std::println("{:<20} | {:>10.2f}", name, value);
+
+    std::string out = identity;
+    out += '\n';
+
+    fmt::Table table({"statistic", "value"}, {fmt::Table::Align::Left, fmt::Table::Align::Right});
+    table.addRow({"count", std::format("{}", sorted_.size())});
+    if (sorted_.empty()) {
+        out += table.render();
+        return out;
     }
-    std::println("{:-<20}-+-{:-<10}", "", "");
-}  // namespace ts::simulation
+
+    // The old fixed .2f rendered a whole drawdown distribution as zeros — the scale here
+    // has to come from the samples.
+    const auto value = fmt::columnFormat(sorted_, spec.precision);
+
+    table.addRow({"mean", value(mean())});
+    // stddev() is the sample estimate, which throws on a single observation.
+    if (sorted_.size() < 2) {
+        table.addRow({"std", "N/A"});
+        table.addRow({"variance", "N/A"});
+    } else {
+        const double sd = stddev();
+        table.addRow({"std", value(sd)});
+        // Squared units — the sample scale would round it away on a distribution of rates.
+        table.addRow({"variance", fmt::formatDouble(sd * sd, spec.precision)});
+    }
+    table.addRule();
+    table.addRow({"min", value(min())});
+    table.addRow({"25% (Q1)", value(quantile(0.25))});
+    table.addRow({"50% (median)", value(quantile(0.50))});
+    table.addRow({"75% (Q3)", value(quantile(0.75))});
+    table.addRow({"max", value(max())});
+    table.addRow({"IQR (Q3-Q1)", value(quantile(0.75) - quantile(0.25))});
+
+    out += table.render();
+    return out;
+}
+
+void Distribution::println(const fmt::FormatSpec& spec) const { std::println("{}", toString(spec)); }
+
+void Distribution::describe() const { println({.mode = fmt::FormatMode::Describe}); }
 
 }  // namespace ts::simulation

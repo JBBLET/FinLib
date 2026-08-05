@@ -2,15 +2,20 @@
 #include "finlib/core/TimeSeriesView.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <format>
 #include <memory>
 #include <optional>
+#include <print>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/core/TimeSeries.hpp"
 
 using std::vector;
@@ -55,7 +60,7 @@ TimeSeries TimeSeriesView::operator*(const double& scalar) const {
 }
 
 TimeSeries TimeSeriesView::operator+(const TimeSeriesView& other) const {
-    ensure(isAlignedWith(other), "TimeSeries not aligned");
+    ensure(isAlignedWith(other), "views are not aligned: {:s} vs {:s}", *this, other);
     vector<double> result;
     result.reserve(length_);
     for (size_t i = 0; i < length_; ++i) result.push_back((*this)[i] + other[i]);
@@ -63,7 +68,7 @@ TimeSeries TimeSeriesView::operator+(const TimeSeriesView& other) const {
 }
 
 TimeSeries TimeSeriesView::operator-(const TimeSeriesView& other) const {
-    ensure(isAlignedWith(other), "TimeSeries not aligned");
+    ensure(isAlignedWith(other), "views are not aligned: {:s} vs {:s}", *this, other);
     vector<double> result;
     result.reserve(length_);
     for (size_t i = 0; i < length_; ++i) result.push_back((*this)[i] - other[i]);
@@ -71,7 +76,7 @@ TimeSeries TimeSeriesView::operator-(const TimeSeriesView& other) const {
 }
 
 TimeSeries TimeSeriesView::operator*(const TimeSeriesView& other) const {
-    ensure(isAlignedWith(other), "TimeSeries not aligned");
+    ensure(isAlignedWith(other), "views are not aligned: {:s} vs {:s}", *this, other);
     vector<double> result;
     result.reserve(length_);
     for (size_t i = 0; i < length_; ++i) result.push_back((*this)[i] * other[i]);
@@ -99,6 +104,57 @@ TimeSeries TimeSeriesView::toSeries() const {
     for (size_t i = 0; i < length_; i++) result.push_back((*this)[i]);
     return materialise_("View_Copy " + getTimeSeriesId(), std::move(result));
 }
+
+// ---------------------------------------------------------------------------
+// Display
+// ---------------------------------------------------------------------------
+
+std::string TimeSeriesView::toString(const fmt::FormatSpec& spec) const {
+    if (source_ == nullptr) return "TimeSeriesView [detached]";
+
+    const bool empty = (length_ == 0 || source_->size() == 0);
+    const auto values = empty ? std::span<const double>{} : std::span<const double>{begin(), length_};
+
+    // A positive lag lets the value window run past the end of the timestamp vector, so
+    // the dates are taken only as far as they actually exist. renderSeries drops the date
+    // column when it gets a short span rather than reading off the end.
+    std::span<const Timestamp> timestamps;
+    if (!empty) {
+        const auto sourceTimestamps = source_->getTimestamps();
+        const size_t available =
+            begin_ < sourceTimestamps.size() ? std::min(length_, sourceTimestamps.size() - begin_) : 0;
+        timestamps = sourceTimestamps.subspan(begin_, available);
+    }
+
+    std::string identity = std::format("TimeSeriesView '{}'", source_->getId());
+    if (empty) {
+        identity += " [empty";
+    } else {
+        identity += std::format(" [n={}, rows {}..{}", length_, begin_, begin_ + length_ - 1);
+        if (timestamps.size() == length_) {
+            identity += std::format(", {} .. {}", fmt::AsDate{timestamps.front()}, fmt::AsDate{timestamps.back()});
+        }
+    }
+    if (valueLag_ != 0) identity += std::format(", lag={}", valueLag_);
+    identity += ']';
+
+    switch (spec.mode) {
+        case fmt::FormatMode::Identity:
+            return identity;
+        case fmt::FormatMode::Describe:
+            return fmt::renderDescribe(identity, values, spec.precision);
+        default:
+            return fmt::renderSeries(identity, timestamps, values, spec);
+    }
+}
+
+void TimeSeriesView::println(const fmt::FormatSpec& spec) const { std::println("{}", toString(spec)); }
+
+void TimeSeriesView::head(size_t rows) const { println({.mode = fmt::FormatMode::Head, .count = rows}); }
+
+void TimeSeriesView::tail(size_t rows) const { println({.mode = fmt::FormatMode::Tail, .count = rows}); }
+
+void TimeSeriesView::describe() const { println({.mode = fmt::FormatMode::Describe}); }
 
 RegularityCheck TimeSeriesView::checkRegularity(double tolerance) const {
     if (!cachedRegularityCheck_) {

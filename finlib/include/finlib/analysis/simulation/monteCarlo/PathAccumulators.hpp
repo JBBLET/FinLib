@@ -1,9 +1,15 @@
 // Copyright 2026 JBBLET
 #pragma once
 
+#include <cmath>
 #include <cstddef>
+#include <format>
 #include <limits>
+#include <string>
+#include <string_view>
 #include <vector>
+
+#include "finlib/common/Format.hpp"
 
 namespace ts::simulation {
 
@@ -85,3 +91,100 @@ struct PathRecorder {
     void push(double level) { levels.push_back(level); }
 };
 }  // namespace ts::simulation
+
+// The formatters below live outside the structs, so the accumulators stay plain aggregates:
+// no virtuals, no members added, still trivially copyable and still free to keep one per path.
+//
+// Every one of them has a "never pushed" state that is not zero — the extrema seed to
+// infinities and the drawdown peak to -inf — so each reports that state rather than printing
+// `inf` and leaving the reader to work out whether a path really ran.
+
+template <>
+struct std::formatter<ts::simulation::Welford> : std::formatter<std::string_view> {
+    auto format(const ts::simulation::Welford& welford, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        std::string rendered;
+        if (welford.count == 0) {
+            rendered = "Welford[empty]";
+        } else {
+            // The sample variance needs two observations; the running mean does not.
+            rendered = std::format("Welford[n={}, mean={}, sd={}]",
+                                   welford.count,
+                                   ts::fmt::formatDouble(welford.mean),
+                                   welford.count < 2 ? std::string{"N/A"}
+                                                     : ts::fmt::formatDouble(std::sqrt(welford.sampleVariance())));
+        }
+        return std::formatter<std::string_view>::format(rendered, ctx);
+    }
+};
+
+template <>
+struct std::formatter<ts::simulation::DrawdownTracker> : std::formatter<std::string_view> {
+    auto format(const ts::simulation::DrawdownTracker& drawdown, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        std::string rendered;
+        if (!std::isfinite(drawdown.peak)) {
+            rendered = "Drawdown[empty]";
+        } else {
+            // maxDrawdown is a fraction of the running peak, which is only ever read as a
+            // percentage — printing 0.5106 invites it to be misread as an absolute loss.
+            rendered = std::format("Drawdown[max={}%, absolute={}, peak={}]",
+                                   ts::fmt::formatDouble(drawdown.maxDrawdown * 100.0, 2),
+                                   ts::fmt::formatDouble(drawdown.maxDrawdownAbsolute),
+                                   ts::fmt::formatDouble(drawdown.peak));
+        }
+        return std::formatter<std::string_view>::format(rendered, ctx);
+    }
+};
+
+template <>
+struct std::formatter<ts::simulation::RunningExtrema> : std::formatter<std::string_view> {
+    auto format(const ts::simulation::RunningExtrema& extrema, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        // Seeded inverted, so min > max is exactly the never-pushed state.
+        const std::string rendered =
+            extrema.min > extrema.max ? std::string{"Extrema[empty]"}
+                                      : std::format("Extrema[min={}, max={}]",
+                                                    ts::fmt::formatDouble(extrema.min),
+                                                    ts::fmt::formatDouble(extrema.max));
+        return std::formatter<std::string_view>::format(rendered, ctx);
+    }
+};
+
+template <>
+struct std::formatter<ts::simulation::ThresholdCrossing> : std::formatter<std::string_view> {
+    auto format(const ts::simulation::ThresholdCrossing& crossing, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        const std::string_view direction = crossing.fromAbove ? "from above" : "from below";
+        const std::string rendered =
+            crossing.crossed
+                ? std::format("ThresholdCrossing[crossed at step {}, threshold={} {}]",
+                              crossing.firstCrossingStep,
+                              ts::fmt::formatDouble(crossing.threshold),
+                              direction)
+                : std::format("ThresholdCrossing[not crossed, threshold={} {}]",
+                              ts::fmt::formatDouble(crossing.threshold),
+                              direction);
+        return std::formatter<std::string_view>::format(rendered, ctx);
+    }
+};
+
+// The one accumulator that holds a series rather than a summary, so it takes the full
+// grammar: {} for the identity, {:h}/{:t}/{:r} to look at the trajectory itself.
+template <>
+struct std::formatter<ts::simulation::PathRecorder> {
+    ts::fmt::FormatSpec spec;
+
+    constexpr auto parse(std::format_parse_context& ctx) { return ts::fmt::parseFormatSpec(ctx, spec); }
+
+    auto format(const ts::simulation::PathRecorder& recorder, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        const std::string identity = std::format("PathRecorder[n={}]", recorder.levels.size());
+        if (spec.mode == ts::fmt::FormatMode::Identity) return std::format_to(ctx.out(), "{}", identity);
+        if (spec.mode == ts::fmt::FormatMode::Describe) {
+            return std::format_to(ctx.out(), "{}", ts::fmt::renderDescribe(identity, recorder.levels, spec.precision));
+        }
+        // A recorded path has no timestamps of its own — steps are its index.
+        return std::format_to(ctx.out(), "{}", ts::fmt::renderSeries(identity, {}, recorder.levels, spec));
+    }
+};

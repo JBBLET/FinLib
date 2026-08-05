@@ -5,6 +5,7 @@
 # --------------------
 
 add_library(finlib_core
+    src/common/Format.cpp
     src/core/TimeSeries.cpp
     src/core/TimeSeriesView.cpp
     src/core/Resampling.cpp

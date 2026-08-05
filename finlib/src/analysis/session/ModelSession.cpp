@@ -2,14 +2,20 @@
 
 #include "finlib/analysis/session/ModelSession.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdlib>
+#include <format>
 #include <memory>
+#include <print>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "Eigen/Core"
 #include "finlib/analysis/models/interfaces/IRegressionModel.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
@@ -109,6 +115,53 @@ void ModelSession::refit(const TimeSeriesView& newData) {
     window_ = newData.asEigenVector().tail(windowSize_);
     lastActualTimeStamp_ = newData.timestamp(newData.size() - 1);
 }
+
+std::string ModelSession::toString(const fmt::FormatSpec& spec) const {
+    // Entries ahead of nextToFill_ are forecasts still waiting for their actual; behind it,
+    // matched pairs. The gap is what rollingMSE/MAE can actually score.
+    const size_t matched = std::min(nextToFill_, predictionContainer_.size());
+    const size_t outstanding = predictionContainer_.size() - matched;
+
+    const std::string identity = std::format("ModelSession [{:s}, observed={}, outstanding={}]",
+                                             *model_,
+                                             observationCount_,
+                                             outstanding);
+    if (spec.mode == fmt::FormatMode::Identity) return identity;
+
+    std::string out = identity;
+    out += '\n';
+
+    fmt::Table table({"property", "value"}, {fmt::Table::Align::Left, fmt::Table::Align::Right});
+    table.addRow({"model", model_->name()});
+    table.addRow({"context window", std::format("{}", windowSize_)});
+    table.addRow({"tick", fmt::formatDuration(deltaT_)});
+    table.addRow({"last actual", std::format("{}", fmt::AsDateTime{lastActualTimeStamp_})});
+    table.addRule();
+    table.addRow({"observations", std::format("{}", observationCount_)});
+    table.addRow({"predictions tracked", std::format("{}", predictionContainer_.size())});
+    table.addRow({"matched to actuals", std::format("{}", matched)});
+    table.addRow({"awaiting actuals", std::format("{}", outstanding)});
+    table.addRow({"unflushed writes", std::format("{}/{}", writeBuffer_.size(), writeBufferCapacity_)});
+    table.addRule();
+
+    // Lifetime figures divide the running sums; the rolling pair only looks at the tracking
+    // window, so the two disagree once the deque has rotated — which is the point of showing
+    // both, since a drift shows up in the rolling numbers first.
+    const auto count = static_cast<double>(observationCount_);
+    table.addRow({"MSE (lifetime)",
+                  observationCount_ == 0 ? "N/A" : fmt::formatDouble(runningSumSquaredError_ / count, spec.precision)});
+    table.addRow({"MAE (lifetime)",
+                  observationCount_ == 0 ? "N/A" : fmt::formatDouble(runningSumAbsoluteError_ / count, spec.precision)});
+    table.addRow({std::format("MSE (last {})", errorTrackingWindowSize_),
+                  matched == 0 ? "N/A" : fmt::formatDouble(rollingMSE(errorTrackingWindowSize_), spec.precision)});
+    table.addRow({std::format("MAE (last {})", errorTrackingWindowSize_),
+                  matched == 0 ? "N/A" : fmt::formatDouble(rollingMAE(errorTrackingWindowSize_), spec.precision)});
+
+    out += table.render();
+    return out;
+}
+
+void ModelSession::println(const fmt::FormatSpec& spec) const { std::println("{}", toString(spec)); }
 
 void ModelSession::flush_() {
     if (writeBuffer_.empty()) return;

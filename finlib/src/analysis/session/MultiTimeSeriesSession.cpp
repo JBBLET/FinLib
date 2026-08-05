@@ -2,6 +2,7 @@
 #include "finlib/analysis/session/MultiTimeSeriesSession.hpp"
 
 #include <algorithm>
+#include <format>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -9,9 +10,11 @@
 #include <utility>
 #include <vector>
 
+#include "finlib/analysis/seriesAnalysis/CustomTimeSeriesAnalysis.hpp"
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
@@ -130,6 +133,57 @@ std::vector<std::string> MultiTimeSeriesSession::sessionNames() const {
     names.reserve(sessions_.size());
     for (const auto& [name, _] : sessions_) names.push_back(name);
     return names;
+}
+
+// ---------------------------------------------------------------------------
+// Display
+// ---------------------------------------------------------------------------
+std::string MultiTimeSeriesSession::toString(const fmt::FormatSpec& spec) const {
+    const std::string identity = std::format(
+        "MultiTimeSeriesSession [{} session(s), {} cross-transform(s)]", sessions_.size(), crossTransforms_.size());
+    if (spec.mode == fmt::FormatMode::Identity) return identity;
+
+    std::string out = identity;
+    out += '\n';
+
+    // sessionNames_ preserves registration order; sessions_ is unordered.
+    if (!sessionNames_.empty()) {
+        fmt::Table subSessions({"session", "detail"}, {fmt::Table::Align::Left, fmt::Table::Align::Left});
+        for (const auto& name : sessionNames_) {
+            const auto it = sessions_.find(name);
+            // Identity form: one line per sub-node however deeply the tree nests.
+            subSessions.addRow({name, it == sessions_.end() ? "<missing>" : it->second->toString({})});
+        }
+        out += subSessions.render();
+    }
+
+    if (!crossTransforms_.empty()) {
+        std::vector<std::string> names;
+        names.reserve(crossTransforms_.size());
+        for (const auto& [name, node] : crossTransforms_) names.push_back(name);
+        std::sort(names.begin(), names.end());
+
+        fmt::Table transforms({"cross-transform", "inputs", "cached", "size"},
+                              {fmt::Table::Align::Left,
+                               fmt::Table::Align::Left,
+                               fmt::Table::Align::Left,
+                               fmt::Table::Align::Right});
+        for (const auto& name : names) {
+            const auto& node = crossTransforms_.at(name);
+            const auto cached = crossCaches_.find(name);
+            const bool isCached = cached != crossCaches_.end();
+            // No inputs means the node implicitly depends on every session registered when
+            // it was declared — say so rather than showing an empty cell.
+            transforms.addRow({name,
+                               node.inputs.empty() ? "(all sessions)" : joinStrings(node.inputs),
+                               isCached ? "yes" : "no",
+                               isCached ? std::format("{}", cached->second->size()) : "-"});
+        }
+        out += '\n';
+        out += transforms.render();
+    }
+
+    return out;
 }
 
 // ---------------------------------------------------------------------------

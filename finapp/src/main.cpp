@@ -10,6 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <numeric>
+#include <print>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -35,15 +36,28 @@
 #include "finapp/service/analysisService/AssetAnalysisService.hpp"
 #include "finapp/service/analysisService/AssetsAnalysis/EquityAnalysisService.hpp"
 #include "finapp/service/analysisService/PortfolioAnalysisService.hpp"
+#include "finlib/analysis/core/RollingWindow.hpp"
+#include "finlib/analysis/models/interfaces/IProbabilisticModel.hpp"
+#include "finlib/analysis/models/timeseries/regression/ARModel.hpp"
+#include "finlib/analysis/seriesAnalysis/CustomTimeSeriesAnalysis.hpp"
+#include "finlib/analysis/seriesAnalysis/Metrics.hpp"
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
+#include "finlib/analysis/session/MultiTimeSeriesSession.hpp"
+#include "finlib/analysis/session/TimeSeriesSession.hpp"
 #include "finlib/analysis/simulation/monteCarlo/Distribution.hpp"
 #include "finlib/analysis/simulation/monteCarlo/IInnovation.hpp"
 #include "finlib/analysis/simulation/monteCarlo/MonteCarloEngine.hpp"
 #include "finlib/analysis/simulation/monteCarlo/PathAccumulators.hpp"
+#include "finlib/common/Error.hpp"
 #include "finlib/common/Random.hpp"
 #include "finlib/common/utils/TimeUtils.hpp"
+#include "finlib/core/Resampling.hpp"
 #include "finlib/core/StatsCore.hpp"
 #include "finlib/core/TimeSeries.hpp"
+#include "finlib/core/TimeSeriesView.hpp"
+#include "finlib/data/CoverageInfo.hpp"
+#include "finlib/data/SeriesKey.hpp"
+#include "finlib/data/TimeRange.hpp"
 #include "finlib/data/implementation/CachedTimeSeriesRepository.hpp"
 #include "finlib/data/implementation/InMemoryTimeSeriesRepository.hpp"
 #include "finlib/data/services/TimeSeriesService.hpp"
@@ -113,7 +127,6 @@ void reportReturnStats(const std::string& lbl, const ts::analysis::TimeSeriesAna
 
 int main() {
     using namespace ts::common::utils::time;
-
     // ---------------------------------------------------------------------
     // 1. Wire the service loop — live yfinance prices, in-memory caches,
     //    a CSV portfolio repository in a temp directory.
@@ -293,9 +306,115 @@ int main() {
     // ---------------------------------------------------------------------
     std::cout << "\n--- Portfolio NAV log returns (NAV from valueAndWeightSeries) ---\n";
     auto analysis = portfolioAnalysisService.createPortfolioAnalysis(portfolio, startMs, endMs, kDayMs);
-    analysis->setNavTimeSeries(std::make_shared<const TimeSeries>(series.total));
+    auto nav = std::make_shared<const TimeSeries>(series.total);
+    analysis->setNavTimeSeries(nav);
     for (const auto& feature : finance::analysis::defaultReturnFeatures()) analysis->installFeature(feature);
     reportReturnStats("nav logReturn", analysis->seriesAnalysis("logReturn"));
+
+    // ---------------------------------------------------------------------
+    // 8. Display surface: the same objects rendered through std::format.
+    //    NAV runs in the tens of thousands and log-returns in the thousandths,
+    //    so the two tables below are the check that precision follows the data
+    //    rather than a hardcoded .2f.
+    // ---------------------------------------------------------------------
+    std::println("\n--- display: TimeSeries ---");
+    std::println("identity in a log line: {}", *nav);
+    nav->println();  // head, ellipsis, tail
+    nav->head(4);
+    nav->describe();
+
+    std::println("\n--- display: TimeSeriesView (lagged, sliced) ---");
+    const ts::TimeSeriesView navWindow = nav->slice(nav->size() - 30, 20);
+    std::println("identity in a log line: {}", navWindow);
+    std::println("shifted by one tick   : {}", navWindow.shift(1));
+    navWindow.head(3);
+
+    std::println("\n--- display: TimeSeriesAnalysis on log-returns ---");
+    analysis->seriesAnalysis("logReturn").describe();
+
+    // The formatter runs inside failed preconditions, so it has to survive the states
+    // that only exist there: a series with no timestamps, a view with no source.
+    std::println("\n--- display: degenerate states ---");
+    std::println("default-constructed series: {}", TimeSeries{});
+    std::println("detached view             : {}", ts::TimeSeriesView{});
+    // Alignment failures now name both operands rather than saying "TimeSeries not aligned".
+    try {
+        [[maybe_unused]] auto bad = navWindow + nav->slice(0, 5);
+    } catch (const ts::Exception& e) {
+        const std::string message{e.what()};
+        std::println("ensure() message          : {}", message.substr(0, message.find('\n')));
+    }
+
+    // ---------------------------------------------------------------------
+    // 9. Tier 2: the small value types that error messages are made of.
+    // ---------------------------------------------------------------------
+    std::println("\n--- display: keys, ranges, coverage ---");
+    const ts::SeriesKey key{.SeriesId = "AAPL", .frequencyInMs = kDayMs};
+    std::println("SeriesKey        : {}", key);
+    std::println("SeriesKey (15m)  : {}", ts::SeriesKey{.SeriesId = "AAPL", .frequencyInMs = 900'000});
+    std::println("TimeRange        : {}", ts::TimeRange{startMs, endMs});
+    std::println("CoverageInfo     : {}",
+                 ts::CoverageInfo{.key = key,
+                                  .coveredFromMs = startMs,
+                                  .coveredToMs = endMs,
+                                  .source = "yfinance",
+                                  .lastUpdatedMs = endMs});
+
+    std::println("\n--- display: enums and small structs ---");
+    std::println("InterpolationStrategy : {}", ts::InterpolationStrategy::Nearest);
+    std::println("VarianceType          : {}", ts::analysis::stats::VarianceType::Sample);
+    std::println("RngDomain             : {}", ts::RngDomain::Simulation);
+    std::println("ARModel::Solver       : {}", ts::models::regression::ARModel::Solver::YuleWalker);
+    std::println("PredictionDistribution: {}", ts::models::PredictionDistribution{.mean = 0.00042, .variance = 1.2e-5});
+    std::println("MonteCarloSpec        : {}",
+                 ts::simulation::MonteCarloSpecification{.paths = 10'000, .steps = 3'935, .seed = 0xC0FFEE});
+    // Built literally: jarqueBera/adf/breuschPagan/breuschGodfrey are declared in StatsCore.hpp
+    // but have no definition, so calling one is a link error.
+    using ts::analysis::hypothesisTesting::HypothesisTestResult;
+    std::println("HypothesisTest (sig)  : {}", HypothesisTestResult{.statistic = 812.34, .p_value = 0.0000});
+    std::println("HypothesisTest (n.s.) : {}", HypothesisTestResult{.statistic = 1.21, .p_value = 0.2713});
+
+    // The regularity verdict on its own never said *how* irregular, which is the number that
+    // decides between resampling the data and raising the tolerance.
+    std::println("\n--- display: RegularityCheck ---");
+    std::println("daily NAV grid   : {}", nav->view().checkRegularity(0.2));
+
+    // ---------------------------------------------------------------------
+    // 10. Tier 3: aggregates. A session reports what it holds without
+    //     materialising anything, and a fitted model reports its coefficients.
+    // ---------------------------------------------------------------------
+    std::println("\n--- display: TimeSeriesSession ---");
+    ts::analysis::TimeSeriesSession navSession(nav);
+    navSession.addTransform("centred", [](const TimeSeries& s) { return s - s.getValues().front(); });
+    navSession.addTransform("doubled", [](const TimeSeries& s) { return s * 2.0; });
+    // Only "centred" is touched, so "doubled" must still report as uncached below.
+    (void)navSession.seriesView("centred");
+    navSession.println();
+
+    std::println("\n--- display: MultiTimeSeriesSession ---");
+    ts::analysis::MultiTimeSeriesSession multi;
+    multi.addSession("nav", std::make_shared<ts::analysis::TimeSeriesSession>(nav));
+    multi.addSession("returns", std::make_shared<ts::analysis::TimeSeriesSession>(
+                                    std::make_shared<const TimeSeries>(analysis->seriesView("logReturn").toSeries())));
+    multi.addTransform("spread", {"nav", "returns"}, [](const auto& inputs) { return *inputs.at("nav"); });
+    multi.println();
+
+    std::println("\n--- display: CustomTimeSeriesAnalysis ---");
+    auto& custom = navSession.customAnalysis("centred");
+    auto movingAvg = custom.addMetric<std::vector<double>>(
+        "centred", "movingAverage20", ts::analysis::metrics::movingAverage(20));
+    auto unused = custom.addMetric<std::vector<double>>(
+        "centred", "movingAverage60", ts::analysis::metrics::movingAverage(60));
+    (void)custom.compute(movingAvg);  // only this one gets cached
+    custom.println();
+
+    std::println("\n--- display: ARModel (fitted) ---");
+    ts::models::regression::ARModel ar(3, ts::models::regression::ARModel::Solver::OLS);
+    std::println("before fit: {}", ar);
+    ar.setData(analysis->seriesView("logReturn"), 0.7, 0.15);
+    ar.fit();
+    ar.println();
+    std::println("out-of-sample: {}", ar.evaluate(analysis->seriesView("logReturn")));
 
     std::filesystem::remove_all(repoDir);
 
@@ -456,9 +575,11 @@ int main() {
         "Maximum Drawdown", engineResults, &ContributionPath::Result::priceMaxDrawdown);
 
     engineTerminal.plot();
-    engineTerminal.print();
     engineDrawdown.plot();
-    engineDrawdown.print();
+    // Drawdowns are fractions in [0, 1] — the case the old fixed .2f rendered as a column
+    // of zeros. Identity and a sample listing come off the same formatter.
+    std::println("identity in a log line: {}", engineDrawdown);
+    engineDrawdown.println({.mode = ts::fmt::FormatMode::Head, .count = 3});
     // terminal is a plain std::vector<double> and feeds the same estimator the views use.
     const double manualSem =
         ts::analysis::stats::standardDeviation(terminal) / std::sqrt(static_cast<double>(numPaths));
@@ -480,4 +601,54 @@ int main() {
                                                                   : "OUTSIDE 3 SEM - investigate")
               << "\n";
     std::cout << "  p50 difference : " << std::abs(engineTerminal.quantile(0.50) - pct(0.50)) << "\n";
+
+    // ---------------------------------------------------------------------
+    // 11. Tier 4: the path accumulators, over one year of one simulated path.
+    // ---------------------------------------------------------------------
+    std::println("\n--- display: path accumulators ---");
+    {
+        ts::simulation::Welford welford;
+        ts::simulation::DrawdownTracker drawdown;
+        ts::simulation::RunningExtrema extrema;
+        ts::simulation::ThresholdCrossing ruin{.threshold = spot * 0.8, .fromAbove = true};
+        ts::simulation::PathRecorder recorder(252);
+
+        ts::Rng pathRng = ts::rngForStream(0xC0FFEE, ts::RngDomain::Simulation, 0);
+        ts::simulation::GaussianInnovation innovation;
+        double simPrice = spot;
+        welford.push(simPrice);
+        drawdown.push(simPrice);
+        extrema.push(simPrice);
+        recorder.push(simPrice);
+        for (std::size_t t = 1; t <= 252; ++t) {
+            simPrice *= std::exp(meanDaily + stdDaily * innovation.draw(pathRng));
+            welford.push(simPrice);
+            drawdown.push(simPrice);
+            extrema.push(simPrice);
+            ruin.push(t, simPrice);
+            recorder.push(simPrice);
+        }
+
+        std::println("Welford          : {}", welford);
+        std::println("DrawdownTracker  : {}", drawdown);
+        std::println("RunningExtrema   : {}", extrema);
+        std::println("ThresholdCrossing: {}", ruin);
+        std::println("PathRecorder     : {}", recorder);
+        std::println("{:h4}", recorder);
+
+        ts::simulation::RollingWindow window(std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0});
+        window.push(6.0);
+        std::println("RollingWindow    : {}", window);
+        std::println("RollingWindow    : {:h3}", window);
+
+        // A never-pushed accumulator holds infinities, not zeros — the state that would
+        // otherwise print as `inf` and read as a real result.
+        std::println("\nnever pushed:");
+        std::println("  Welford          : {}", ts::simulation::Welford{});
+        std::println("  DrawdownTracker  : {}", ts::simulation::DrawdownTracker{});
+        std::println("  RunningExtrema   : {}", ts::simulation::RunningExtrema{});
+        std::println("  ThresholdCrossing: {}", ts::simulation::ThresholdCrossing{});
+        std::println("  PathRecorder     : {}", ts::simulation::PathRecorder{});
+        std::println("  RollingWindow    : {}", ts::simulation::RollingWindow{});
+    }
 }

@@ -13,8 +13,10 @@
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeries.hpp"
+#include "finlib/data/TimeRange.hpp"
 
 namespace ts::analysis {
 
@@ -29,7 +31,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
       endMs_{endMs},
       frequencyMs_{frequencyMs} {
     source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, startMs_, endMs_, frequencyMs));
-    logging::info("loaded '{}' [{}..{}] size={}", seriesId_, startMs_, endMs_, source_->size());
+    logging::info("loaded {} {}", (TimeRange{startMs_, endMs_}), *source_);
 }
 
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service, std::string seriesId,
@@ -38,7 +40,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<TimeSeriesService> service,
     startMs_ = timestampsMs->front();
     endMs_ = timestampsMs->back();
     source_ = std::make_shared<const TimeSeries>(service_->getAligned(seriesId_, timestampsMs));
-    logging::info("loaded '{}' [{}..{}] size={} (custom grid)", seriesId_, startMs_, endMs_, source_->size());
+    logging::info("loaded {} {} (custom grid)", (TimeRange{startMs_, endMs_}), *source_);
 }
 
 TimeSeriesSession::TimeSeriesSession(std::shared_ptr<const TimeSeries> precomputed)
@@ -54,7 +56,7 @@ TimeSeriesSession::TimeSeriesSession(std::shared_ptr<const TimeSeries> precomput
 // ---------------------------------------------------------------------------
 void TimeSeriesSession::setRange(Timestamp newStartMs, Timestamp newEndMs) {
     if (newStartMs == startMs_ && newEndMs == endMs_) return;
-    logging::debug("setRange [{}..{}]", newStartMs, newEndMs);
+    logging::debug("setRange {}", (TimeRange{newStartMs, newEndMs}));
     if (newStartMs < startMs_ || newEndMs > endMs_)
         extendRange_(std::min(newStartMs, startMs_), std::max(newEndMs, endMs_));
     startMs_ = newStartMs;
@@ -64,7 +66,7 @@ void TimeSeriesSession::setRange(Timestamp newStartMs, Timestamp newEndMs) {
 
 void TimeSeriesSession::setFrequency(Timestamp newFrequencyMs) {
     ensure(service_ != nullptr, "Cannot change frequency on a computed TimeSeriesSession");
-    logging::debug("setFrequency {}ms", newFrequencyMs);
+    logging::debug("setFrequency {}", fmt::formatDuration(newFrequencyMs));
     frequencyMs_ = newFrequencyMs;
     source_ = std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, startMs_, endMs_, newFrequencyMs));
     invalidateAllCache_();
@@ -159,11 +161,62 @@ Timestamp TimeSeriesSession::frequencyMs() const {
 }
 
 // ---------------------------------------------------------------------------
+// Display
+// ---------------------------------------------------------------------------
+std::string TimeSeriesSession::toString(const fmt::FormatSpec& spec) const {
+    const std::string grid = frequencyMs_.has_value() ? fmt::formatDuration(*frequencyMs_) : std::string{"native"};
+    // Dates spelled out rather than delegated to TimeRange: that formatter brings its own
+    // brackets, which would nest inside these.
+    const std::string identity = std::format("TimeSeriesSession '{}' [{} .. {}, grid={}, {} transform(s){}]",
+                                             seriesId_,
+                                             fmt::AsDate{startMs_},
+                                             fmt::AsDate{endMs_},
+                                             grid,
+                                             transforms_.size(),
+                                             service_ == nullptr ? ", computed" : "");
+    if (spec.mode == fmt::FormatMode::Identity) return identity;
+
+    std::string out = identity;
+    out += '\n';
+
+    fmt::Table table({"series", "kind", "inputs", "cached", "size"},
+                     {fmt::Table::Align::Left,
+                      fmt::Table::Align::Left,
+                      fmt::Table::Align::Left,
+                      fmt::Table::Align::Left,
+                      fmt::Table::Align::Right});
+
+    // The source is always materialised; size() reports the windowed count, not the whole
+    // fetched series, which is what every accessor on this session hands out.
+    table.addRow({"(source)", "source", "", "yes", std::format("{}", size())});
+
+    // Sorted so repeated calls are comparable — transforms_ is an unordered_map.
+    std::vector<std::string> names;
+    names.reserve(transforms_.size());
+    for (const auto& [name, node] : transforms_) names.push_back(name);
+    std::sort(names.begin(), names.end());
+
+    for (const auto& name : names) {
+        const auto& node = transforms_.at(name);
+        const auto cached = derivedCaches_.find(name);
+        const bool isCached = cached != derivedCaches_.end();
+        table.addRow({name,
+                      "derived",
+                      joinStrings(node.inputs),
+                      isCached ? "yes" : "no",
+                      isCached ? std::format("{}", cached->second->size()) : "-"});
+    }
+
+    out += table.render();
+    return out;
+}
+
+// ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
 void TimeSeriesSession::extendRange_(Timestamp newStartMs, Timestamp newEndMs) {
     if (!service_) return;  // computed series — source is fixed, window only
-    logging::debug("extendRange_ [{}..{}]", newStartMs, newEndMs);
+    logging::debug("extendRange_ {}", (TimeRange{newStartMs, newEndMs}));
     if (frequencyMs_.has_value()) {
         source_ =
             std::make_shared<const TimeSeries>(service_->getRaw(seriesId_, newStartMs, newEndMs, frequencyMs_.value()));

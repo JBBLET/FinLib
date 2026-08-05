@@ -1,14 +1,18 @@
 // Copyright (c) 2026 JBBLET. All Rights Reserved.
 #pragma once
 
+#include <concepts>
+#include <format>
 #include <functional>
 #include <memory>
+#include <print>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "finlib/analysis/seriesAnalysis/TimeSeriesAnalysis.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/core/TimeSeries.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -53,6 +57,29 @@ class ITimeSeriesSession {
     // Register a named derived series computed from the given inputs. Lets callers
     // install transforms without knowing the concrete session type (single vs multi).
     virtual void addTransform(std::string name, std::vector<std::string> inputs, SeriesTransform transform) = 0;
+
+    // Display. Virtual so a MultiTimeSeriesSession can summarise its sub-nodes without
+    // knowing whether each is a single or another multi.
+    //
+    // Const, and deliberately non-building: describe reports which derived series are
+    // *currently* cached rather than materialising them, so inspecting a session never
+    // changes what it holds or triggers a fetch.
+    virtual std::string toString(const fmt::FormatSpec& spec) const = 0;
+    void println(const fmt::FormatSpec& spec = {.mode = fmt::FormatMode::Describe}) const {
+        std::println("{}", toString(spec));
+    }
 };
 
 }  // namespace ts::analysis
+
+template <class T>
+    requires std::derived_from<T, ts::analysis::ITimeSeriesSession>
+struct std::formatter<T> {
+    ts::fmt::FormatSpec spec;
+
+    constexpr auto parse(std::format_parse_context& ctx) { return ts::fmt::parseFormatSpec(ctx, spec); }
+
+    auto format(const T& session, std::format_context& ctx) const -> std::format_context::iterator {
+        return std::format_to(ctx.out(), "{}", session.toString(spec));
+    }
+};

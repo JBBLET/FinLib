@@ -69,6 +69,11 @@ class MultiTimeSeriesSession : public ITimeSeriesSession {
 
     std::vector<std::string> sessionNames() const;
 
+    // Display — the sub-sessions in registration order, then the cross-transform dependency
+    // graph. Sub-sessions render through the interface, so nesting a multi inside a multi
+    // prints correctly at any depth.
+    std::string toString(const fmt::FormatSpec& spec) const override;
+
  private:
     std::unordered_map<std::string, std::shared_ptr<ITimeSeriesSession>> sessions_;
     std::list<std::string> sessionNames_;

@@ -3,10 +3,13 @@
 
 #include <Eigen/Dense>
 #include <cstddef>
+#include <format>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "Eigen/Core"
+#include "finlib/common/Format.hpp"
 #include "finlib/core/StatsCore.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -40,6 +43,17 @@ class TimeSeriesAnalysis {
 
     void invalidateCache();
 
+    // Display
+    // describe() is the whole point of this class from the console: every statistic it
+    // already caches, plus the leading autocorrelations, in one table. Statistics that are
+    // undefined on this window are reported as N/A rather than omitted, so the reason a
+    // number is missing stays visible.
+    //
+    // Const, but it warms the caches like every other accessor here.
+    std::string toString(const fmt::FormatSpec& spec = {}) const;
+    void println(const fmt::FormatSpec& spec = {.mode = fmt::FormatMode::Describe}) const;
+    void describe(std::size_t autocorrelationLags = 5) const;
+
  private:
     TimeSeriesView view_;
 
@@ -54,3 +68,17 @@ class TimeSeriesAnalysis {
 };
 
 }  // namespace ts::analysis
+
+// {:d} renders the statistics table; the count selects how many autocorrelation lags it
+// carries ({:d10}). {} stays a one-liner for logs.
+template <>
+struct std::formatter<ts::analysis::TimeSeriesAnalysis> {
+    ts::fmt::FormatSpec spec;
+
+    constexpr auto parse(std::format_parse_context& ctx) { return ts::fmt::parseFormatSpec(ctx, spec); }
+
+    auto format(const ts::analysis::TimeSeriesAnalysis& analysis, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        return std::format_to(ctx.out(), "{}", analysis.toString(spec));
+    }
+};

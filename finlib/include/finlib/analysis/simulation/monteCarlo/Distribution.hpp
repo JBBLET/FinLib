@@ -2,11 +2,13 @@
 #pragma once
 
 #include <cstddef>
+#include <format>
 #include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "finlib/common/Format.hpp"
 #include "finlib/core/StatsCore.hpp"
 
 namespace ts::simulation {
@@ -39,6 +41,24 @@ class Distribution {
     double cdf(double x) const;
 
     void plot() const;
-    void print() const;
+
+    // Display
+    std::string toString(const fmt::FormatSpec& spec = {}) const;
+    void println(const fmt::FormatSpec& spec = {.mode = fmt::FormatMode::Describe}) const;
+    void describe() const;
+
+    const std::string& id() const noexcept { return id_; }
 };
 }  // namespace ts::simulation
+
+template <>
+struct std::formatter<ts::simulation::Distribution, char> {
+    ts::fmt::FormatSpec spec;
+
+    constexpr auto parse(std::format_parse_context& ctx) { return ts::fmt::parseFormatSpec(ctx, spec); }
+
+    auto format(const ts::simulation::Distribution& distribution, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        return std::format_to(ctx.out(), "{}", distribution.toString(spec));
+    }
+};

@@ -2,7 +2,10 @@
 
 #pragma once
 
+#include <algorithm>
 #include <any>
+#include <format>
+#include <print>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -11,6 +14,7 @@
 #include "finlib/analysis/seriesAnalysis/ITimeSeriesAnalysis.hpp"
 #include "finlib/analysis/seriesAnalysis/MetricHandle.hpp"
 #include "finlib/common/Error.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/common/Log.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
@@ -155,6 +159,66 @@ class CustomTimeSeriesAnalysis : public ITimeSeriesAnalysis {
     }
 
     void invalidateCache() override { metricCache_.clear(); }
+
+    // Display — which views are bound, which metrics are registered, and which of those
+    // currently hold a cached result. metricCache_ is keyed by an assembled cache key and
+    // holds std::any, so there is otherwise no way to see what a rebind just discarded.
+    std::string toString(const fmt::FormatSpec& spec) const {
+        const std::string identity = std::format("CustomTimeSeriesAnalysis [{} view(s), {} metric(s), {} cached]",
+                                                 views_.size(),
+                                                 metricFns_.size() + paramMetricFns_.size(),
+                                                 metricCache_.size());
+        if (spec.mode == fmt::FormatMode::Identity) return identity;
+
+        std::string out = identity;
+        out += '\n';
+
+        if (!views_.empty()) {
+            std::vector<std::string> names;
+            names.reserve(views_.size());
+            for (const auto& [name, view] : views_) names.push_back(name);
+            std::sort(names.begin(), names.end());
+
+            fmt::Table table({"view", "bound to"}, {fmt::Table::Align::Left, fmt::Table::Align::Left});
+            for (const auto& name : names) {
+                // The empty key is the single-series convention from TimeSeriesSession.
+                table.addRow({name.empty() ? "(source)" : name, views_.at(name).toString({})});
+            }
+            out += table.render();
+        }
+
+        std::vector<std::pair<std::string, bool>> metrics;
+        metrics.reserve(metricFns_.size() + paramMetricFns_.size());
+        for (const auto& [key, entry] : metricFns_) metrics.emplace_back(key, metricCache_.contains(key));
+        // Parameterized metrics are never cached — the result depends on an argument that is
+        // not part of the key — so they are reported as such rather than as a cold cache.
+        for (const auto& [name, entry] : paramMetricFns_) metrics.emplace_back(name + " (parameterized)", false);
+        std::sort(metrics.begin(), metrics.end());
+
+        if (!metrics.empty()) {
+            fmt::Table table({"metric", "cached"}, {fmt::Table::Align::Left, fmt::Table::Align::Left});
+            for (const auto& [key, cached] : metrics) table.addRow({key, cached ? "yes" : "no"});
+            out += '\n';
+            out += table.render();
+        }
+        return out;
+    }
+
+    void println(const fmt::FormatSpec& spec = {.mode = fmt::FormatMode::Describe}) const {
+        std::println("{}", toString(spec));
+    }
 };
 
 }  // namespace ts::analysis
+
+template <>
+struct std::formatter<ts::analysis::CustomTimeSeriesAnalysis> {
+    ts::fmt::FormatSpec spec;
+
+    constexpr auto parse(std::format_parse_context& ctx) { return ts::fmt::parseFormatSpec(ctx, spec); }
+
+    auto format(const ts::analysis::CustomTimeSeriesAnalysis& analysis, std::format_context& ctx) const
+        -> std::format_context::iterator {
+        return std::format_to(ctx.out(), "{}", analysis.toString(spec));
+    }
+};

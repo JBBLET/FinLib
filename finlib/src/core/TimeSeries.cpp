@@ -7,12 +7,15 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <print>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "finlib/common/Error.hpp"
 #include "finlib/common/FinlibTypes.hpp"
+#include "finlib/common/Format.hpp"
 #include "finlib/core/TimeSeriesView.hpp"
 
 namespace ts {
@@ -25,22 +28,26 @@ TimeSeries::TimeSeries() : id_{""}, timestamps_{nullptr}, values_{} {}
 TimeSeries::TimeSeries(std::string id, Timestamps ts, std::vector<double> vals)
     : id_(id), timestamps_(std::make_shared<const Timestamps>(std::move(ts))), values_(std::move(vals)) {
     ensure<InvalidArgument>(timestamps_->size() == values_.size(),
-                            "Size mismatch between timestamps ({}) and values ({})", timestamps_->size(),
+                            "Size mismatch between timestamps ({}) and values ({})",
+                            timestamps_->size(),
                             values_.size());
 }
 
 TimeSeries::TimeSeries(std::string id, TimestampsPtr ts, std::vector<double> vals)
     : id_(id), timestamps_(std::move(ts)), values_(std::move(vals)) {
     ensure<InvalidArgument>(timestamps_->size() == values_.size(),
-                            "Size mismatch between timestamps ({}) and values ({})", timestamps_->size(),
+                            "Size mismatch between timestamps ({}) and values ({})",
+                            timestamps_->size(),
                             values_.size());
 }
 
 TimeSeries::TimeSeries(std::string id, TimestampsPtr sharedTimestamps, size_t tsOffset, std::vector<double> vals)
     : id_(std::move(id)), timestamps_(std::move(sharedTimestamps)), tsOffset_(tsOffset), values_(std::move(vals)) {
     ensure<InvalidArgument>(tsOffset_ + values_.size() <= timestamps_->size(),
-                            "TimeSeries: tsOffset ({}) + size ({}) exceeds timestamp vector length ({})", tsOffset_,
-                            values_.size(), timestamps_->size());
+                            "TimeSeries: tsOffset ({}) + size ({}) exceeds timestamp vector length ({})",
+                            tsOffset_,
+                            values_.size(),
+                            timestamps_->size());
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +196,47 @@ TimeSeries TimeSeries::operator-(double scalar) const {
 }
 
 // ---------------------------------------------------------------------------
+// Display
+// ---------------------------------------------------------------------------
+
+std::string TimeSeries::toString(const fmt::FormatSpec& spec) const {
+    // A default-constructed series carries a null timestamp pointer, so getTimestamps()
+    // is off limits until that is ruled out. This path runs inside failed ensure()
+    // messages, where a second fault would bury the original one.
+    const bool dated = timestamps_ != nullptr && !values_.empty();
+
+    std::string identity = std::format("TimeSeries '{}'", id_);
+    if (values_.empty()) {
+        identity += " [empty";
+    } else if (dated) {
+        const auto span = getTimestamps();
+        identity +=
+            std::format(" [n={}, {} .. {}", values_.size(), fmt::AsDate{span.front()}, fmt::AsDate{span.back()});
+    } else {
+        identity += std::format(" [n={}, undated", values_.size());
+    }
+    if (isSynthetic_) identity += ", synthetic";
+    identity += ']';
+
+    switch (spec.mode) {
+        case fmt::FormatMode::Identity:
+            return identity;
+        case fmt::FormatMode::Describe:
+            return fmt::renderDescribe(identity, values_, spec.precision);
+        default:
+            return fmt::renderSeries(identity, dated ? getTimestamps() : std::span<const Timestamp>{}, values_, spec);
+    }
+}
+
+void TimeSeries::println(const fmt::FormatSpec& spec) const { std::println("{}", toString(spec)); }
+
+void TimeSeries::head(size_t rows) const { println({.mode = fmt::FormatMode::Head, .count = rows}); }
+
+void TimeSeries::tail(size_t rows) const { println({.mode = fmt::FormatMode::Tail, .count = rows}); }
+
+void TimeSeries::describe() const { println({.mode = fmt::FormatMode::Describe}); }
+
+// ---------------------------------------------------------------------------
 // Transformation Method
 // ---------------------------------------------------------------------------
 TimeSeriesView TimeSeries::view() const { return TimeSeriesView(shared_from_this(), 0, values_.size()); }
@@ -208,10 +256,13 @@ TimeSeriesView TimeSeries::sliceIndex(size_t start, size_t end) const {
 void TimeSeries::verifyAlignment_(const TimeSeries& other) const {
     // Fast path: same backing vector at the same offset — definitely aligned.
     if (timestamps_ == other.timestamps_ && tsOffset_ == other.tsOffset_) return;
-    ensure<InvalidArgument>(this->size() == other.size(), "TimeSeries size mismatch: {} vs {}.", this->size(),
-                            other.size());
+    // Both messages name the operands: which two series met is the first thing anyone asks,
+    // and the identity form carries the id and the date span without dumping the values.
+    ensure<InvalidArgument>(this->size() == other.size(), "TimeSeries size mismatch: {:s} vs {:s}", *this, other);
     // Slow path: compare only the slices each series actually represents.
     ensure<InvalidArgument>(std::equal(getTimestamps().begin(), getTimestamps().end(), other.getTimestamps().begin()),
-                            "TimeSeries timestamps do not match.");
+                            "TimeSeries timestamps do not match: {:s} vs {:s}",
+                            *this,
+                            other);
 }
 }  // namespace ts
